@@ -1,0 +1,32 @@
+@page
+@model BkmArgus.Pages.Denetimler.DeleteModel
+@{
+    ViewData["Title"] = "Denetim Sil";
+}
+
+<h2>Denetim Sil</h2>
+
+@if (Model.Audit == null)
+{
+    <div class="alert alert-warning">Denetim bulunamadı.</div>
+    <a asp-page="Index" class="btn btn-secondary">Listeye Dön</a>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <p class="mb-0"><strong>@Model.Audit.ReportNo</strong> - @Model.Audit.LocationName</p>
+            <small class="text-muted">@Model.Audit.AuditDate.ToString("dd.MM.yyyy")</small>
+        </div>
+    </div>
+
+    <div class="alert alert-danger">
+        Bu denetimi silmek istediğinize emin misiniz? Tüm madde sonuçları ve fotoğraflar kalıcı olarak silinecektir.
+    </div>
+
+    <form method="post" class="d-flex flex-wrap gap-2">
+        <input type="hidden" asp-for="Id" />
+        <button type="submit" class="btn btn-danger">Evet, Sil</button>
+        <a asp-page="Index" class="btn btn-secondary">İptal</a>
+    </form>
+}

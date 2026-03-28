@@ -1,0 +1,138 @@
+@page
+@model BkmArgus.Web.Features.Yonetim.IndexModel
+@{
+    ViewData["Title"] = "Yonetim";
+    ViewData["Subtitle"] = "Personel entegrasyon ve esleme";
+
+    string LogBadge(string durum) => durum switch
+    {
+        "SUCCESS" => "rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700",
+        "WARN" => "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700",
+        _ => "rounded-full bg-red-50 px-2 py-1 text-[10px] font-semibold text-bkm-red"
+    };
+
+    string EslemeBadge(bool aktif) => aktif
+        ? "rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700"
+        : "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700";
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-2 text-sm text-bkm-red">@Model.StatusMessage</div>
+}
+
+<div class="grid gap-4 xl:grid-cols-2">
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-semibold">Personel entegrasyon</div>
+                <div class="text-xs text-slate-500">Kaynak sistemden senkron</div>
+            </div>
+            <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="button">Elle senkron</button>
+        </div>
+        <div class="mt-4 grid gap-3 md:grid-cols-3">
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs text-slate-500">Kaynak</div>
+                <div class="text-sm font-semibold">@Model.Durum.KaynakSistem</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs text-slate-500">Son calisma</div>
+                <div class="text-sm font-semibold">@Model.Durum.SonCalisma</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs text-slate-500">Sonraki</div>
+                <div class="text-sm font-semibold">@Model.Durum.SonrakiCalisma</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs text-slate-500">Toplam</div>
+                <div class="text-sm font-semibold">@Model.Durum.Toplam</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs text-slate-500">Eklenen</div>
+                <div class="text-sm font-semibold">@Model.Durum.Eklenen</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs text-slate-500">Guncellenen</div>
+                <div class="text-sm font-semibold">@Model.Durum.Guncellenen</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs text-slate-500">Pasif</div>
+                <div class="text-sm font-semibold">@Model.Durum.PasifEdilen</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm font-semibold">Entegrasyon loglari</div>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-left text-sm">
+                <thead class="text-xs uppercase text-slate-400">
+                    <tr>
+                        <th class="pb-2">Tarih</th>
+                        <th class="pb-2">Durum</th>
+                        <th class="pb-2">Toplam</th>
+                        <th class="pb-2">Not</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @foreach (var row in Model.Loglar)
+                    {
+                        <tr>
+                            <td class="py-2">@row.Tarih</td>
+                            <td class="py-2">
+                                <span class="@LogBadge(row.Durum)">@row.Durum</span>
+                            </td>
+                            <td class="py-2">@row.Toplam</td>
+                            <td class="py-2 text-xs text-slate-500">@(!string.IsNullOrWhiteSpace(row.Not) ? row.Not : "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5 xl:col-span-2">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <div class="text-sm font-semibold">Kullanici - personel esleme</div>
+                <div class="text-xs text-slate-500">Aktif eslemeler ve gun sonu kapatma</div>
+            </div>
+            <form method="post" asp-page-handler="GunSonuKapat">
+                <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="submit">Gun sonu kapat</button>
+            </form>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-left text-sm">
+                <thead class="text-xs uppercase text-slate-400">
+                    <tr>
+                        <th class="pb-2">Kullanici</th>
+                        <th class="pb-2">Personel</th>
+                        <th class="pb-2">Rol</th>
+                        <th class="pb-2">Baslangic</th>
+                        <th class="pb-2">Durum</th>
+                        <th class="pb-2">Aksiyon</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @foreach (var row in Model.Eslemeler)
+                    {
+                        <tr>
+                            <td class="py-2">@row.Kullanici</td>
+                            <td class="py-2">@row.Personel</td>
+                            <td class="py-2">@row.Rol</td>
+                            <td class="py-2">@row.Baslangic</td>
+                            <td class="py-2">
+                                <span class="@EslemeBadge(row.AktifMi)">@((row.AktifMi) ? "Aktif" : "Pasif")</span>
+                            </td>
+                            <td class="py-2">
+                                <form method="post" asp-page-handler="Kapat" asp-route-baglantiId="@row.BaglantiId">
+                                    <button class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 @(row.AktifMi ? "" : "opacity-50 cursor-not-allowed")" type="submit" @(row.AktifMi ? "" : "disabled")>Kapat</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

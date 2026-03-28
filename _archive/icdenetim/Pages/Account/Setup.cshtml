@@ -1,0 +1,43 @@
+@page
+@model BkmArgus.Pages.Account.SetupModel
+@{
+    ViewData["Title"] = "Veritabanı Kurulumu";
+    Layout = "_LayoutMinimal";
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-sm-10 col-md-6">
+        <div class="card shadow border-0 border-start border-4 border-primary">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Veritabanı Kurulumu</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.Success)
+                {
+                    <div class="alert alert-success">
+                        Veritabanı başarıyla kuruldu. Admin kullanıcısı oluşturuldu.
+                        @if (Model.ExcelSeedCount > 0)
+                        {
+                            <br /><text>Excel'den </text>@Model.ExcelSeedCount<text> denetim maddesi yüklendi.</text>
+                        }
+                    </div>
+                    <a asp-page="Login" class="btn btn-primary">Giriş Sayfasına Git</a>
+                }
+                else if (!string.IsNullOrEmpty(Model.Error))
+                {
+                    <div class="alert alert-danger">@Model.Error</div>
+                    <a asp-page="Setup" class="btn btn-secondary">Tekrar Dene</a>
+                }
+                else
+                {
+                    <p class="text-muted">
+                        Veritabanı tabloları henüz oluşturulmamış. Aşağıdaki butona tıklayarak kurulumu başlatın.
+                    </p>
+                    <form method="post">
+                        <button type="submit" class="btn btn-primary w-100">Veritabanını Kur</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</div>

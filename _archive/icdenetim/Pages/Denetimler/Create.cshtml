@@ -1,0 +1,66 @@
+@page
+@model BkmArgus.Pages.Denetimler.CreateModel
+@{
+    ViewData["Title"] = "Yeni Denetim";
+}
+
+<h2>Yeni Denetim Başlat</h2>
+<p class="text-muted">Denetim bilgilerini girin. Rapor numarası otomatik oluşturulacaktır.</p>
+
+<form method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+
+    <div class="card mb-3">
+        <div class="card-header">Rapor Bilgileri</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-12 col-md-6 mb-3">
+                    <label asp-for="Input.ReportDate" class="form-label">Rapor Tarihi <span class="text-danger">*</span></label>
+                    <input asp-for="Input.ReportDate" class="form-control" type="date" />
+                    <span asp-validation-for="Input.ReportDate" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-6 mb-3">
+                    <label class="form-label">Rapor No</label>
+                    <input type="text" class="form-control-plaintext text-muted" value="Otomatik (RYD-00001 formatında)" readonly />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header">Denetim Bilgileri</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-12 col-md-6 mb-3">
+                    <label asp-for="Input.LocationName" class="form-label">Lokasyon Adı <span class="text-danger">*</span></label>
+                    <input asp-for="Input.LocationName" class="form-control" placeholder="Örn: Özlüce Mağaza" />
+                    <span asp-validation-for="Input.LocationName" class="text-danger"></span>
+                </div>
+                <input type="hidden" asp-for="Input.LocationType" value="Mağaza" />
+            </div>
+            <div class="row">
+                <div class="col-12 col-md-6 mb-3">
+                    <label asp-for="Input.AuditDate" class="form-label">Denetim Tarihi <span class="text-danger">*</span></label>
+                    <input asp-for="Input.AuditDate" class="form-control" type="date" />
+                    <span asp-validation-for="Input.AuditDate" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-6 mb-3">
+                    <label asp-for="Input.Manager" class="form-label">Yönetici</label>
+                    <input asp-for="Input.Manager" class="form-control" placeholder="Lokasyon yöneticisi" />
+                </div>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.Directorate" class="form-label">Direktörlük</label>
+                <input asp-for="Input.Directorate" class="form-control" placeholder="Örn: Satış Operasyon" />
+            </div>
+        </div>
+    </div>
+    <div class="mt-3 d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">Oluştur ve Madde Değerlendirmesine Geç</button>
+        <a asp-page="Index" class="btn btn-secondary">İptal</a>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,165 @@
+@page
+@model DashboardModel
+@{
+    ViewData["Title"] = "Dashboard";
+    ViewData["Subtitle"] = "Sabah kahvesi ekrani";
+
+    string DofBadge(string status) => status switch
+    {
+        "Aksiyon" => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
+        "Bekliyor" => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
+        _ => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+    };
+
+    string HealthBadge(string status) => status switch
+    {
+        "PASS" => "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700",
+        "WARN" => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
+        _ => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red"
+    };
+}
+
+<div class="grid gap-4 lg:grid-cols-4">
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Kritik risk</div>
+        <div class="mt-2 text-2xl font-semibold text-bkm-red">@Model.KritikRiskDeger</div>
+        <div class="mt-1 text-xs text-slate-500">@Model.KritikRiskNot</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Bekleyen DOF</div>
+        <div class="mt-2 text-2xl font-semibold text-slate-900">@Model.BekleyenDofDeger</div>
+        <div class="mt-1 text-xs text-slate-500">@Model.BekleyenDofNot</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Taranan stok</div>
+        <div class="mt-2 text-2xl font-semibold text-slate-900">@Model.TarananStokDeger</div>
+        <div class="mt-1 text-xs text-slate-500">@Model.TarananStokNot</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Sistem sagligi</div>
+        <div class="mt-2 text-2xl font-semibold @Model.SistemDurumClass">@Model.SistemDurum</div>
+        <div class="mt-1 text-xs text-slate-500">@Model.SistemNot</div>
+    </div>
+</div>
+
+<div class="grid gap-4 xl:grid-cols-[2fr_1fr]">
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-start justify-between">
+            <div>
+                <div class="text-sm font-semibold">Risk trendi</div>
+                <div class="text-xs text-slate-500">Son 30 gun ortalama skor</div>
+            </div>
+            <button class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" type="button">Rapor</button>
+        </div>
+        <div class="mt-4 h-44">
+            <svg class="h-full w-full" viewBox="0 0 400 120" preserveAspectRatio="none">
+                <polyline fill="none" stroke="#E30613" stroke-width="3" points="@Model.TrendPoints"></polyline>
+                <line x1="0" y1="100" x2="400" y2="100" stroke="#E2E8F0" stroke-width="1"></line>
+            </svg>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm font-semibold">Saglik kontrolleri</div>
+        <div class="mt-4 space-y-3">
+            @foreach (var row in Model.HealthChecks)
+            {
+                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                    <div>
+                        <div class="text-sm font-medium">@row.Kod</div>
+                        <div class="text-xs text-slate-500">@row.Not</div>
+                    </div>
+                    <span class="@HealthBadge(row.Durum)">@row.Durum</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="rounded-xl border border-slate-200 bg-white p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-sm font-semibold">En yuksek riskli 10 urun</div>
+            <div class="text-xs text-slate-500">Magaza bazli inceleme listesi</div>
+        </div>
+        <button class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" type="button">Excel indir</button>
+    </div>
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-400">
+                <tr>
+                    <th class="pb-2">Mekan</th>
+                    <th class="pb-2">Urun</th>
+                    <th class="pb-2">Donem</th>
+                    <th class="pb-2">Skor</th>
+                    <th class="pb-2">Flag</th>
+                    <th class="pb-2">Aksiyon</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                @foreach (var row in Model.RiskPano)
+                {
+                    <tr class="text-slate-700">
+                        <td class="py-3">@row.Mekan</td>
+                        <td class="py-3">@row.Urun</td>
+                        <td class="py-3">@row.Donem</td>
+                        <td class="py-3">
+                            <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red">@row.Skor</span>
+                        </td>
+                        <td class="py-3">@row.Flag</td>
+                        <td class="py-3">
+                            <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" asp-page="/Urun/Index" asp-route-id="@row.UrunId" asp-route-mekanId="@row.MekanId">Incele</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="grid gap-4 xl:grid-cols-2">
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-semibold">DOF akisi</div>
+                <div class="text-xs text-slate-500">Acik aksiyonlar ve SLA</div>
+            </div>
+            <button class="rounded-full bg-bkm-red px-4 py-2 text-sm font-semibold text-white" type="button">Yeni DOF</button>
+        </div>
+        <div class="mt-4 space-y-3">
+            @foreach (var item in Model.DofList)
+            {
+                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                    <div>
+                        <div class="text-sm font-medium">@item.Baslik</div>
+                        <div class="text-xs text-slate-500">Sorumlu: @item.Sorumlu</div>
+                    </div>
+                    <div class="text-xs text-slate-500">SLA: @item.SLA</div>
+                    <span class="@DofBadge(item.Durum)">@item.Durum</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-semibold">Tanimlar ozeti</div>
+                <div class="text-xs text-slate-500">Islem kalitesini besleyen parametreler</div>
+            </div>
+            <a class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" asp-page="/Ref/Index">Tanimlara git</a>
+        </div>
+        <div class="mt-4 space-y-3">
+            @foreach (var row in Model.RefNotes)
+            {
+                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                    <div>
+                        <div class="text-sm font-medium">@row.Baslik</div>
+                        <div class="text-xs text-slate-500">@row.Not</div>
+                    </div>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">@row.Deger</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>

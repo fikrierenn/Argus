@@ -1,0 +1,60 @@
+@page
+@model BkmArgus.Pages.Maddeler.CreateModel
+@{
+    ViewData["Title"] = "Yeni Madde";
+}
+
+<h2>Yeni Denetim Maddesi</h2>
+
+<form method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+    <div class="row">
+        <input type="hidden" asp-for="Input.LocationType" value="Mağaza" />
+        <div class="col-12 col-md-4 mb-3">
+            <label asp-for="Input.AuditGroup" class="form-label">Grup</label>
+            <input asp-for="Input.AuditGroup" class="form-control" placeholder="Örn: Satış Alanı" />
+        </div>
+        <div class="col-12 col-md-4 mb-3">
+            <label asp-for="Input.Area" class="form-label">Alan</label>
+            <input asp-for="Input.Area" class="form-control" placeholder="Örn: Mağaza Satış Alanı" />
+            <span asp-validation-for="Input.Area" class="text-danger"></span>
+        </div>
+        <div class="col-12 col-md-4 mb-3">
+            <label asp-for="Input.RiskType" class="form-label">Risk Türü</label>
+            <input asp-for="Input.RiskType" class="form-control" placeholder="Örn: Operasyonel Risk" />
+        </div>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Input.ItemText" class="form-label">Madde Metni</label>
+        <textarea asp-for="Input.ItemText" class="form-control" rows="3" placeholder="Kontrol sorusu..."></textarea>
+        <span asp-validation-for="Input.ItemText" class="text-danger"></span>
+    </div>
+    <div class="row">
+        <div class="col-6 col-md-2 mb-3">
+            <label asp-for="Input.SortOrder" class="form-label">Sıra</label>
+            <input asp-for="Input.SortOrder" class="form-control" type="number" />
+        </div>
+        <div class="col-6 col-md-2 mb-3">
+            <label asp-for="Input.Probability" class="form-label">Olasılık (1-5)</label>
+            <input asp-for="Input.Probability" class="form-control" type="number" min="1" max="5" />
+        </div>
+        <div class="col-6 col-md-2 mb-3">
+            <label asp-for="Input.Impact" class="form-label">Etki (1-5)</label>
+            <input asp-for="Input.Impact" class="form-control" type="number" min="1" max="5" />
+        </div>
+        <div class="col-6 col-md-2 mb-3">
+            <label asp-for="Input.FindingType" class="form-label">Tespit Tipi</label>
+            <select asp-for="Input.FindingType" class="form-select">
+                <option value="">-</option>
+                <option value="H">H (Harici)</option>
+                <option value="E">E (Exempt)</option>
+            </select>
+        </div>
+    </div>
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <a asp-page="Index" class="btn btn-secondary">İptal</a>
+    </div>
+</form>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

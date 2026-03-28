@@ -1,0 +1,82 @@
+@page
+@model BkmArgus.Pages.Aksiyon.DetailModel
+@{
+    ViewData["Title"] = "DOF Detay";
+    var a = Model.Action!;
+}
+
+<h2 class="text-break">DOF - @a.Title</h2>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-12 col-sm-6"><strong>Tur:</strong> @(a.Type == "Corrective" ? "Duzeltici" : "Onleyici")</div>
+            <div class="col-12 col-sm-6"><strong>Oncelik:</strong> <span class="badge @(a.Priority == "Critical" ? "bg-danger" : a.Priority == "High" ? "bg-warning text-dark" : a.Priority == "Medium" ? "bg-info" : "bg-secondary")">@a.Priority</span></div>
+            <div class="col-12 col-sm-6"><strong>Durum:</strong> <span class="badge @(a.Status == "Open" ? "bg-danger" : a.Status == "InProgress" ? "bg-warning text-dark" : a.Status == "PendingValidation" ? "bg-info" : a.Status == "Closed" ? "bg-success" : "bg-secondary")">@a.Status</span></div>
+            <div class="col-12 col-sm-6"><strong>Bitis:</strong> <span class="@(a.IsOverdue ? "text-danger fw-bold" : "")">@a.DueDate.ToString("dd.MM.yyyy")</span> @if (a.IsOverdue) { <span class="badge bg-danger">Gecikmis</span> }</div>
+            <div class="col-12 col-sm-6"><strong>Departman:</strong> @a.Department</div>
+            <div class="col-12 col-sm-6"><strong>Olusturulma:</strong> @a.CreatedAt.ToString("dd.MM.yyyy HH:mm")</div>
+            @if (a.IsEffective == false)
+            {
+                <div class="col-12"><div class="alert alert-danger mb-0 mt-2"><strong>Etkisiz DOF:</strong> @a.EffectivenessNote (Skor: @a.EffectivenessScore?.ToString("F2"))</div></div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">Detaylar</div>
+    <div class="card-body">
+        <p><strong>Aciklama:</strong></p>
+        <p class="ms-2">@a.Description</p>
+        @if (!string.IsNullOrEmpty(a.RootCause))
+        {
+            <p><strong>Kok Neden:</strong></p>
+            <p class="ms-2">@a.RootCause</p>
+        }
+        @if (!string.IsNullOrEmpty(a.ClosureNote))
+        {
+            <p><strong>Kapanis Notu:</strong></p>
+            <p class="ms-2">@a.ClosureNote</p>
+        }
+        @if (a.ClosedAt.HasValue)
+        {
+            <p><strong>Kapanis Tarihi:</strong> @a.ClosedAt.Value.ToString("dd.MM.yyyy HH:mm")</p>
+        }
+    </div>
+</div>
+
+@* DURUM AKSIYONLARI *@
+@if (a.Status == "Open")
+{
+    <form method="post" asp-page-handler="Start" class="d-inline">
+        <input type="hidden" name="id" value="@a.Id" />
+        <button type="submit" class="btn btn-warning">Baslat</button>
+    </form>
+}
+@if (a.Status == "InProgress")
+{
+    <form method="post" asp-page-handler="Validate" class="d-inline">
+        <input type="hidden" name="id" value="@a.Id" />
+        <button type="submit" class="btn btn-info">Dogrulamaya Gonder</button>
+    </form>
+}
+@if (a.Status == "PendingValidation")
+{
+    <form method="post" asp-page-handler="Close" class="d-inline">
+        <input type="hidden" name="id" value="@a.Id" />
+        <div class="mb-2 mt-2">
+            <input type="text" name="closureNote" class="form-control" placeholder="Kapanis notu..." />
+        </div>
+        <button type="submit" class="btn btn-success" onclick="return confirm('DOF kapatilacak. Emin misiniz?');">Kapat</button>
+    </form>
+}
+@if (a.Status != "Closed" && a.Status != "Rejected")
+{
+    <form method="post" asp-page-handler="Reject" class="d-inline ms-2">
+        <input type="hidden" name="id" value="@a.Id" />
+        <button type="submit" class="btn btn-outline-danger" onclick="return confirm('DOF reddedilecek. Emin misiniz?');">Reddet</button>
+    </form>
+}
+
+<a asp-page="Index" class="btn btn-secondary ms-2">Listeye Don</a>

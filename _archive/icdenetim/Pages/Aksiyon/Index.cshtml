@@ -1,0 +1,47 @@
+@page
+@model BkmArgus.Pages.Aksiyon.IndexModel
+@{
+    ViewData["Title"] = "Aksiyonlar (DOF)";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h2 class="mb-0">Aksiyonlar (DOF)</h2>
+    <a asp-page="Create" class="btn btn-primary">Yeni DOF</a>
+</div>
+
+<div class="btn-group mb-3">
+    <a asp-page="Index" class="btn btn-sm @(Model.Filter == null ? "btn-primary" : "btn-outline-primary")">Acik</a>
+    <a asp-page="Index" asp-route-filter="overdue" class="btn btn-sm @(Model.Filter == "overdue" ? "btn-danger" : "btn-outline-danger")">Vadesi Gecmis</a>
+    <a asp-page="Index" asp-route-filter="all" class="btn btn-sm @(Model.Filter == "all" ? "btn-secondary" : "btn-outline-secondary")">Tumu</a>
+</div>
+
+@if (Model.Actions.Count == 0)
+{
+    <div class="alert alert-info">Kayit bulunamadi.</div>
+}
+else
+{
+    <div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr><th>Baslik</th><th>Oncelik</th><th>Durum</th><th>Bitis</th><th>Departman</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var a in Model.Actions)
+        {
+            <tr>
+                <td>
+                    @a.Title
+                    @if (a.IsEffective == false) { <span class="badge bg-danger ms-1">Etkisiz</span> }
+                </td>
+                <td><span class="badge @(a.Priority == "Critical" ? "bg-danger" : a.Priority == "High" ? "bg-warning text-dark" : a.Priority == "Medium" ? "bg-info" : "bg-secondary")">@a.Priority</span></td>
+                <td><span class="badge @(a.Status == "Open" ? "bg-danger" : a.Status == "InProgress" ? "bg-warning text-dark" : a.Status == "PendingValidation" ? "bg-info" : a.Status == "Closed" ? "bg-success" : "bg-secondary")">@a.Status</span></td>
+                <td class="@(a.IsOverdue ? "text-danger fw-bold" : "")">@a.DueDate.ToString("dd.MM.yyyy")</td>
+                <td>@a.Department</td>
+                <td><a asp-page="Detail" asp-route-id="@a.Id" class="btn btn-sm btn-outline-primary">Detay</a></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div>
+}

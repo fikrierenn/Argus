@@ -1,0 +1,46 @@
+## Build
+bin/
+obj/
+publish/
+
+## IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.DotSettings.user
+.idea/
+
+## Secrets
+.env
+appsettings.Development.json
+appsettings.*.local.json
+*.pfx
+*.key
+
+## Frontend
+wwwroot/lib/
+node_modules/
+
+## Logs
+*.log
+logs/
+
+## OS
+Thumbs.db
+.DS_Store
+
+## Dumps
+REPO_AUDIT_BUNDLE*.txt
+all_files_dump.txt
+all_files_clean.txt
+codex_prompt_tr.txt
+build_now.txt
+dotnet_info_now.txt
+git_status_now.txt
+
+## Backups
+*.bak
+
+## NuGet
+nupkg/

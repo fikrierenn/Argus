@@ -1,0 +1,189 @@
+@page "{id:int?}"
+@model UrunModel
+@{
+    ViewData["Title"] = "Urun Detay";
+    ViewData["Subtitle"] = "Kanit odasi ve DOF aksiyonu";
+    var tr = System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
+
+    string TabClass(string tab) => string.Equals(Model.ActiveTab, tab, StringComparison.OrdinalIgnoreCase)
+        ? "rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
+        : "rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600";
+
+    string EtkiClass(int etki) => etki >= 15
+        ? "text-bkm-red"
+        : etki >= 10 ? "text-amber-600" : "text-slate-500";
+}
+
+<div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+        <div class="text-xs uppercase tracking-wide text-slate-400">@Model.Mekan</div>
+        <div class="text-xl font-semibold">@Model.UrunAd</div>
+        <div class="text-xs text-slate-500">@Model.UrunKod - @Model.Donem</div>
+        <div class="text-xs text-slate-500">StokId: @Model.UrunId</div>
+        <div class="text-xs text-slate-500">Kategori3: @Model.Kategori3</div>
+    </div>
+    <button class="rounded-full bg-bkm-red px-4 py-2 text-sm font-semibold text-white" type="button">DOF Baslat</button>
+</div>
+
+<div class="grid gap-4 xl:grid-cols-[2fr_1fr]">
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-semibold">AI ozet</div>
+                <div class="text-xs text-slate-500">Otomatik yorum ve hipotez</div>
+            </div>
+            <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red">@Model.Skor - @Model.SkorSeviye</span>
+        </div>
+        <div class="mt-4 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            @Model.AiOzet
+        </div>
+        @if (Model.AiIstekId.HasValue)
+        {
+            <a class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-bkm-red" asp-page="/Ai/Detay" asp-route-id="@Model.AiIstekId.Value">
+                AI detayi gor
+                <span aria-hidden="true">→</span>
+            </a>
+        }
+        <div class="mt-4 grid gap-3 md:grid-cols-3">
+            <div class="rounded-lg border border-slate-100 bg-white px-4 py-3">
+                <div class="text-xs uppercase text-slate-400">Stok</div>
+                <div class="mt-2 text-lg font-semibold text-slate-900">@Model.StokMiktarText</div>
+                <div class="text-xs text-slate-500">@Model.StokNot</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-white px-4 py-3">
+                <div class="text-xs uppercase text-slate-400">Iade orani</div>
+                <div class="mt-2 text-lg font-semibold text-slate-900">@Model.IadeOranText</div>
+                <div class="text-xs text-slate-500">@Model.IadeNot</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-white px-4 py-3">
+                <div class="text-xs uppercase text-slate-400">Son hareket</div>
+                <div class="mt-2 text-lg font-semibold text-slate-900">@Model.SonHareketGunText</div>
+                <div class="text-xs text-slate-500">@Model.SonHareketTip</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+        <div>
+            <div class="text-sm font-semibold">Ozet bilgiler</div>
+            <div class="text-xs text-slate-500">Risk skor etkileri</div>
+        </div>
+        <div class="space-y-3">
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs uppercase text-slate-400">Kritik flag</div>
+                <div class="text-sm font-semibold">@Model.KritikFlag</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs uppercase text-slate-400">Dof durumu</div>
+                <div class="text-sm font-semibold">@Model.DofDurum</div>
+            </div>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                <div class="text-xs uppercase text-slate-400">Sorumlu</div>
+                <div class="text-sm font-semibold">@Model.DofSorumlu</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="rounded-xl border border-slate-200 bg-white p-5">
+    <div class="flex flex-wrap items-center gap-2">
+        <a class="@TabClass("risk")" asp-page="/Urun/Index" asp-route-id="@Model.UrunId" asp-route-tab="risk">Risk analizi</a>
+        <a class="@TabClass("hareket")" asp-page="/Urun/Index" asp-route-id="@Model.UrunId" asp-route-tab="hareket">Hareket gecmisi</a>
+        <a class="@TabClass("dof")" asp-page="/Urun/Index" asp-route-id="@Model.UrunId" asp-route-tab="dof">DOF gecmisi</a>
+    </div>
+
+    <div class="mt-4">
+        @if (Model.ActiveTab == "risk")
+        {
+            <div class="space-y-3">
+                @foreach (var flag in Model.Flaglar)
+                {
+                    <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                        <div>
+                            <div class="text-sm font-semibold">@flag.Flag</div>
+                            <div class="text-xs text-slate-500">@flag.Aciklama</div>
+                        </div>
+                        <div class="text-sm font-semibold @EtkiClass(flag.Etki)">+@flag.Etki</div>
+                    </div>
+                }
+            </div>
+        }
+        else if (Model.ActiveTab == "hareket")
+        {
+            <div class="space-y-3">
+                @if (Model.Hareketler.Count == 0)
+                {
+                    <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-500">Hareket kaydi yok.</div>
+                }
+                else
+                {
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="text-left text-xs uppercase text-slate-400">
+                                <tr>
+                                    <th class="px-3 py-2">Tarih</th>
+                                    <th class="px-3 py-2">Mekan</th>
+                                    <th class="px-3 py-2">Hareket tipi</th>
+                                    <th class="px-3 py-2">Tip</th>
+                                    <th class="px-3 py-2">Evrak</th>
+                                    <th class="px-3 py-2 text-right">Birim fiyat</th>
+                                    <th class="px-3 py-2 text-right">Giris</th>
+                                    <th class="px-3 py-2 text-right">Cikis</th>
+                                    <th class="px-3 py-2 text-right">Kalan</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @foreach (var row in Model.Hareketler)
+                                {
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-3 py-2 whitespace-nowrap">@row.Tarih.ToString("dd.MM.yyyy")</td>
+                                        <td class="px-3 py-2 whitespace-nowrap">@row.MekanAd</td>
+                                        <td class="px-3 py-2">
+                                            <div class="text-sm font-semibold">@row.HareketTipi</div>
+                                            <div class="text-xs text-slate-500">@row.Islem</div>
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <div class="text-sm font-semibold">@row.Tip</div>
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <div class="text-sm font-semibold">@row.EvrakNo</div>
+                                            <div class="text-xs text-slate-500">@row.Not</div>
+                                        </td>
+                                        <td class="px-3 py-2 text-right">
+                                            @(row.BirimFiyat.HasValue ? row.BirimFiyat.Value.ToString("N2", tr) : "-")
+                                        </td>
+                                        <td class="px-3 py-2 text-right text-emerald-600">
+                                            @(row.Giris.HasValue ? row.Giris.Value.ToString("N0", tr) : "-")
+                                        </td>
+                                        <td class="px-3 py-2 text-right text-rose-600">
+                                            @(row.Cikis.HasValue ? row.Cikis.Value.ToString("N0", tr) : "-")
+                                        </td>
+                                        <td class="px-3 py-2 text-right font-semibold">@row.Kalan.ToString("N0", tr)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="space-y-3">
+                @foreach (var dof in Model.Doflar)
+                {
+                    <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                        <div>
+                            <div class="text-sm font-semibold">@dof.Baslik</div>
+                            <div class="text-xs text-slate-500">Sorumlu: @dof.Sorumlu</div>
+                        </div>
+                        <div class="text-right text-xs text-slate-500">
+                            <div>@dof.Durum</div>
+                            <div>@dof.Tarih</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>

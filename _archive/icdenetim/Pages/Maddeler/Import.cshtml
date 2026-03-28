@@ -1,0 +1,29 @@
+@page
+@model BkmArgus.Pages.Maddeler.ImportModel
+@{
+    ViewData["Title"] = "Excel'den Madde Import";
+}
+
+<h2>Excel'den Denetim Maddeleri Import</h2>
+
+@if (Model.Success && Model.ImportCount > 0)
+{
+    <div class="alert alert-success">@Model.ImportCount madde başarıyla yüklendi.</div>
+}
+else if (!string.IsNullOrEmpty(Model.Error))
+{
+    <div class="alert alert-danger">@Model.Error</div>
+}
+else
+{
+    <p class="text-muted">
+        <strong>denetim.xlsx</strong> dosyasından DENETİM MADDELERİ sayfası okunur.
+        Dosya proje kök dizininde (BkmArgus klasörünün üst dizini) olmalı.
+    </p>
+    <form method="post" class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">Excel'den Yükle</button>
+        <a asp-page="Index" class="btn btn-secondary">İptal</a>
+    </form>
+}
+
+<a asp-page="Index" class="btn btn-outline-secondary mt-3">← Madde Listesine Dön</a>

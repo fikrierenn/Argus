@@ -1,0 +1,253 @@
+@page
+@model AiModel
+@{
+    ViewData["Title"] = "AI Analiz";
+    ViewData["Subtitle"] = "LM/LLM kuyruk ve ciktilar";
+
+    string TabClass(string tab) => string.Equals(Model.ActiveTab, tab, StringComparison.OrdinalIgnoreCase)
+        ? "rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
+        : "rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600";
+
+    string BadgeClass(string? status) => (status ?? string.Empty).ToUpperInvariant() switch
+    {
+        "ERROR" => "bg-rose-50 text-rose-700 border border-rose-200",
+        "LLM_RUNNING" => "bg-amber-50 text-amber-700 border border-amber-200",
+        "LM_RUNNING" => "bg-amber-50 text-amber-700 border border-amber-200",
+        "LM_DONE" => "bg-emerald-50 text-emerald-700 border border-emerald-200",
+        "LLM_DONE" => "bg-emerald-50 text-emerald-700 border border-emerald-200",
+        _ => "bg-slate-50 text-slate-600 border border-slate-200"
+    };
+
+    string FormatDate(DateTime? value) => value.HasValue ? value.Value.ToString("yyyy-MM-dd HH:mm") : "-";
+
+    string ShortText(string? value, int max = 140)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "-";
+        }
+
+        var clean = value.Trim().Replace("\r", " ").Replace("\n", " ");
+        return clean.Length <= max ? clean : $"{clean[..max]}...";
+    }
+}
+
+@if (TempData["Status"] is string status)
+{
+    <div class="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+        @status
+    </div>
+}
+
+<div class="flex flex-wrap items-center gap-2">
+    <a class="@TabClass("queue")" asp-page="/Ai/Index" asp-route-tab="queue">Kuyruk</a>
+    <a class="@TabClass("sonuc")" asp-page="/Ai/Index" asp-route-tab="sonuc">LLM Sonuc</a>
+</div>
+
+<div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm font-semibold">Filtreler</div>
+        <form method="get" class="mt-4 grid gap-3 md:grid-cols-6">
+            <input type="hidden" name="tab" value="@Model.ActiveTab" />
+            <div class="md:col-span-2">
+                <label class="text-xs text-slate-500">Arama</label>
+                <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                       type="text"
+                       name="search"
+                       value="@Model.Search"
+                       placeholder="Mekan, urun, stok" />
+            </div>
+            <div>
+                <label class="text-xs text-slate-500">Durum</label>
+                <select class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm" name="durum">
+                    @foreach (var option in Model.DurumOptions)
+                    {
+                        var isSelected = string.Equals(Model.Durum ?? string.Empty, option.Value, StringComparison.OrdinalIgnoreCase);
+                        if (isSelected)
+                        {
+                            <option value="@option.Value" selected>@option.Label</option>
+                        }
+                        else
+                        {
+                            <option value="@option.Value">@option.Label</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="text-xs text-slate-500">Kesim bas</label>
+                <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                       type="date"
+                       name="kesimBas"
+                       value="@(Model.KesimBas?.ToString("yyyy-MM-dd") ?? string.Empty)" />
+            </div>
+            <div>
+                <label class="text-xs text-slate-500">Kesim bit</label>
+                <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                       type="date"
+                       name="kesimBit"
+                       value="@(Model.KesimBit?.ToString("yyyy-MM-dd") ?? string.Empty)" />
+            </div>
+            <div>
+                <label class="text-xs text-slate-500">Top</label>
+                <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                       type="number"
+                       name="top"
+                       min="10"
+                       max="2000"
+                       value="@Model.Top" />
+            </div>
+            <div class="md:col-span-6">
+                <button class="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white" type="submit">Filtrele</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm font-semibold">Sifirla ve tetikle</div>
+        <form method="post" asp-page-handler="reset" class="mt-4 space-y-3">
+            <div>
+                <label class="text-xs text-slate-500">Top</label>
+                <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                       type="number"
+                       name="top"
+                       min="10"
+                       max="2000"
+                       value="@Model.ResetTop" />
+            </div>
+            <div>
+                <label class="text-xs text-slate-500">Min skor</label>
+                <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                       type="number"
+                       name="minSkor"
+                       min="0"
+                       max="100"
+                       value="@Model.ResetMinSkor" />
+            </div>
+            <label class="flex items-center gap-2 text-xs text-slate-600">
+                <input type="checkbox" name="silVektor" value="true" />
+                Vektorleri de temizle
+            </label>
+            <button class="rounded-full bg-bkm-red px-4 py-2 text-xs font-semibold text-white" type="submit">
+                Sifirla + tetikle
+            </button>
+            <div class="text-[11px] text-slate-500">AiIstek, AiLmSonuc ve AiLlmSonuc sifirlanir.</div>
+        </form>
+    </div>
+</div>
+
+@if (Model.ActiveTab == "sonuc")
+{
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div class="text-sm font-semibold">LLM Sonuc (@Model.Sonuclar.Count)</div>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="text-left text-xs uppercase text-slate-400">
+                    <tr>
+                        <th class="px-3 py-2">Istek</th>
+                        <th class="px-3 py-2">Urun</th>
+                        <th class="px-3 py-2">Model</th>
+                        <th class="px-3 py-2">Guven</th>
+                        <th class="px-3 py-2">Ozet</th>
+                        <th class="px-3 py-2">Durum</th>
+                        <th class="px-3 py-2">Tarih</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @if (Model.Sonuclar.Count == 0)
+                    {
+                        <tr>
+                            <td class="px-3 py-4 text-sm text-slate-500" colspan="7">Kayit bulunamadi.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in Model.Sonuclar)
+                        {
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2">
+                                    <a class="text-bkm-red font-semibold" asp-page="/Ai/Detay" asp-route-id="@row.IstekId">#@row.IstekId</a>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div class="text-sm font-semibold">@row.UrunAd</div>
+                                    <div class="text-xs text-slate-500">@row.UrunKod</div>
+                                </td>
+                                <td class="px-3 py-2">@row.Model</td>
+                                <td class="px-3 py-2">@((row.GuvenSkoru.HasValue) ? row.GuvenSkoru.Value.ToString() : "-")</td>
+                                <td class="px-3 py-2 text-slate-600">@ShortText(row.YoneticiOzeti)</td>
+                                <td class="px-3 py-2">
+                                    <span class="inline-flex rounded-full px-2 py-1 text-[11px] font-semibold @BadgeClass(row.Durum)">@row.Durum</span>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">@FormatDate(row.OlusturmaTarihi)</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else
+{
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div class="text-sm font-semibold">AI Istekleri (@Model.Istekler.Count)</div>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="text-left text-xs uppercase text-slate-400">
+                    <tr>
+                        <th class="px-3 py-2">Istek</th>
+                        <th class="px-3 py-2">Kesim</th>
+                        <th class="px-3 py-2">Mekan</th>
+                        <th class="px-3 py-2">Urun</th>
+                        <th class="px-3 py-2">Skor</th>
+                        <th class="px-3 py-2">Durum</th>
+                        <th class="px-3 py-2">Plan</th>
+                        <th class="px-3 py-2">Guncelleme</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @if (Model.Istekler.Count == 0)
+                    {
+                        <tr>
+                            <td class="px-3 py-4 text-sm text-slate-500" colspan="8">Kayit bulunamadi.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in Model.Istekler)
+                        {
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2">
+                                    <a class="text-bkm-red font-semibold" asp-page="/Ai/Detay" asp-route-id="@row.IstekId">#@row.IstekId</a>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">@FormatDate(row.KesimTarihi)</td>
+                                <td class="px-3 py-2">
+                                    <div class="text-sm font-semibold">@row.MekanAd</div>
+                                    <div class="text-xs text-slate-500">@row.MekanId</div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div class="text-sm font-semibold">@row.UrunAd</div>
+                                    <div class="text-xs text-slate-500">@row.UrunKod</div>
+                                </td>
+                                <td class="px-3 py-2">@((row.RiskSkor.HasValue) ? row.RiskSkor.Value.ToString() : "-")</td>
+                                <td class="px-3 py-2">
+                                    <span class="inline-flex rounded-full px-2 py-1 text-[11px] font-semibold @BadgeClass(row.Durum)">@row.Durum</span>
+                                    @if (!string.IsNullOrWhiteSpace(row.HataMesaji))
+                                    {
+                                        <div class="mt-1 text-[11px] text-rose-600">@ShortText(row.HataMesaji, 80)</div>
+                                    }
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">@row.EvidencePlan</td>
+                                <td class="px-3 py-2 text-xs text-slate-500">@FormatDate(row.GuncellemeTarihi)</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

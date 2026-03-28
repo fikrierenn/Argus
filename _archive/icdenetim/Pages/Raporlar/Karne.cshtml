@@ -1,0 +1,32 @@
+@page
+@model BkmArgus.Pages.Raporlar.KarneModel
+@{
+    ViewData["Title"] = "Karne Raporları";
+}
+
+<h2>Karne Raporları</h2>
+<p class="text-muted">Denetim seçerek karne detayını görüntüleyin.</p>
+
+<div class="table-responsive">
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Rapor No</th>
+            <th>Lokasyon</th>
+            <th>Denetim Tarihi</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var a in Model.Audits)
+        {
+            <tr>
+                <td>@a.ReportNo</td>
+                <td>@a.LocationName</td>
+                <td>@a.AuditDate.ToString("dd.MM.yyyy")</td>
+                <td><a asp-page="KarneDetay" asp-route-id="@a.Id" class="btn btn-sm btn-outline-primary">Karne Görüntüle</a></td>
+            </tr>
+        }
+    </tbody>
+</table>
+</div>

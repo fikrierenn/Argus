@@ -1,0 +1,1144 @@
+@page
+@model BkmArgus.Web.Features.Ref.IndexModel
+@{
+    ViewData["Title"] = "Tanimlar";
+    ViewData["Subtitle"] = "Referans ve parametreler";
+
+    string TabClass(string tab)
+    {
+        var isActive = Model.ActiveTab.Equals(tab, StringComparison.OrdinalIgnoreCase);
+        return isActive
+            ? "rounded-full bg-bkm-red px-3 py-1 text-xs font-semibold text-white"
+            : "rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:border-slate-300 hover:text-slate-800";
+    }
+
+    string StatusBadge(bool aktif)
+    {
+        return aktif ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700";
+    }
+
+    string? ReadonlyAttr(bool isReadonly)
+    {
+        return isReadonly ? "readonly" : null;
+    }
+}
+
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <div class="text-xl font-semibold">Referans tanimlari</div>
+        <div class="text-sm text-slate-500">Risk hesaplari icin gereken temel veri</div>
+    </div>
+    <button class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-700" type="button">Import</button>
+</div>
+
+<div class="mt-4 flex flex-wrap gap-2">
+    <a class="@TabClass("kaynak")" asp-page="/Ref/Index" asp-route-tab="kaynak">Kaynak</a>
+    <a class="@TabClass("irstip")" asp-page="/Ref/Index" asp-route-tab="irstip">Irs tip</a>
+    <a class="@TabClass("mekan")" asp-page="/Ref/Index" asp-route-tab="mekan">Mekan kapsam</a>
+    <a class="@TabClass("tipmap")" asp-page="/Ref/Index" asp-route-tab="tipmap">Tip map</a>
+    <a class="@TabClass("riskparam")" asp-page="/Ref/Index" asp-route-tab="riskparam">Risk param</a>
+    <a class="@TabClass("skor")" asp-page="/Ref/Index" asp-route-tab="skor">Skor agirlik</a>
+    <a class="@TabClass("personel")" asp-page="/Ref/Index" asp-route-tab="personel">Personel</a>
+    <a class="@TabClass("kullanici")" asp-page="/Ref/Index" asp-route-tab="kullanici">Kullanici</a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="mt-4 rounded-lg border border-red-100 bg-red-50 px-4 py-2 text-sm text-bkm-red">@Model.StatusMessage</div>
+}
+
+@if (Model.ActiveTab == "kaynak")
+{
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-xl font-semibold">Kaynak tanimlari</div>
+            <div class="text-sm text-slate-500">DOF kaynak secimleri</div>
+        </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Kaynak sistem</div>
+                    <div class="text-xs text-slate-500">ref.KaynakSistem</div>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.KaynakSistemToplam sistem</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Sistem</th>
+                            <th class="pb-2">Adi</th>
+                            <th class="pb-2">Durum</th>
+                            <th class="pb-2">Aksiyon</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach (var item in Model.KaynakSistemler)
+                        {
+                            <tr>
+                                <td class="py-2 font-semibold">@item.SistemKodu</td>
+                                <td class="py-2">@item.SistemAdi</td>
+                                <td class="py-2">
+                                    <span class="rounded-full @StatusBadge(item.AktifMi) px-3 py-1 text-xs font-semibold">
+                                        @(item.AktifMi ? "Aktif" : "Pasif")
+                                    </span>
+                                </td>
+                                <td class="py-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <a class="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                                           asp-page="/Ref/Index"
+                                           asp-route-tab="@Model.ActiveTab"
+                                           asp-route-editSistem="@item.SistemKodu">Duzenle</a>
+                                        <form method="post"
+                                              class="inline"
+                                              asp-page-handler="ToggleKaynakSistem"
+                                              asp-route-tab="@Model.ActiveTab"
+                                              asp-route-sistemKodu="@item.SistemKodu"
+                                              asp-route-aktifMi="@(item.AktifMi ? false : true)">
+                                            <button class="text-xs font-semibold @(item.AktifMi ? "text-amber-700 hover:text-amber-800" : "text-emerald-700 hover:text-emerald-800")" type="submit">
+                                                @(item.AktifMi ? "Pasife al" : "Aktif et")
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" @(Model.IsEditingSistem ? "open" : "")>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">@(Model.IsEditingSistem ? "Kaynak sistem guncelle" : "Yeni kaynak sistem ekle")</summary>
+                @if (Model.IsEditingSistem)
+                {
+                    <div class="mt-2 text-xs text-slate-500">Duzenleme modunda: @Model.EditSistem</div>
+                }
+                <form method="post"
+                      asp-page-handler="AddKaynakSistem"
+                      asp-route-tab="@Model.ActiveTab"
+                      asp-route-editSistem="@(Model.IsEditingSistem ? Model.EditSistem : null)"
+                      class="mt-3 grid gap-3 md:grid-cols-12">
+                    <div asp-validation-summary="ModelOnly" class="text-sm text-red-600 md:col-span-12"></div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewKaynakSistem.SistemKodu" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewKaynakSistem.SistemKodu"
+                               class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @(Model.IsEditingSistem ? "bg-slate-100 text-slate-500" : "")"
+                               readonly="@ReadonlyAttr(Model.IsEditingSistem)" />
+                        <span asp-validation-for="NewKaynakSistem.SistemKodu" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label asp-for="NewKaynakSistem.SistemAdi" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewKaynakSistem.SistemAdi" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                        <span asp-validation-for="NewKaynakSistem.SistemAdi" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewKaynakSistem.Aciklama" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewKaynakSistem.Aciklama" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-2">
+                        <input asp-for="NewKaynakSistem.AktifMi" class="h-4 w-4" type="checkbox" />
+                        <label asp-for="NewKaynakSistem.AktifMi" class="text-sm text-slate-600">Aktif</label>
+                    </div>
+                    <div class="md:col-span-12 flex items-center justify-end gap-2">
+                        @if (Model.IsEditingSistem)
+                        {
+                            <a class="text-xs font-semibold text-slate-600 hover:text-slate-900" asp-page="/Ref/Index" asp-route-tab="@Model.ActiveTab">Vazgec</a>
+                        }
+                        <button class="rounded-full bg-bkm-red px-3 py-2 text-sm font-semibold text-white" type="submit">
+                            @(Model.IsEditingSistem ? "Guncelle" : "Kaydet")
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Kaynak nesne</div>
+                    <div class="text-xs text-slate-500">ref.KaynakNesne</div>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.KaynakNesneToplam nesne</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Nesne</th>
+                            <th class="pb-2">Adi</th>
+                            <th class="pb-2">Durum</th>
+                            <th class="pb-2">Aksiyon</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach (var item in Model.KaynakNesneler)
+                        {
+                            <tr>
+                                <td class="py-2 font-semibold">@item.NesneKodu</td>
+                                <td class="py-2">@item.NesneAdi</td>
+                                <td class="py-2">
+                                    <span class="rounded-full @StatusBadge(item.AktifMi) px-3 py-1 text-xs font-semibold">
+                                        @(item.AktifMi ? "Aktif" : "Pasif")
+                                    </span>
+                                </td>
+                                <td class="py-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <a class="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                                           asp-page="/Ref/Index"
+                                           asp-route-tab="@Model.ActiveTab"
+                                           asp-route-editNesne="@item.NesneKodu">Duzenle</a>
+                                        <form method="post"
+                                              class="inline"
+                                              asp-page-handler="ToggleKaynakNesne"
+                                              asp-route-tab="@Model.ActiveTab"
+                                              asp-route-nesneKodu="@item.NesneKodu"
+                                              asp-route-aktifMi="@(item.AktifMi ? false : true)">
+                                            <button class="text-xs font-semibold @(item.AktifMi ? "text-amber-700 hover:text-amber-800" : "text-emerald-700 hover:text-emerald-800")" type="submit">
+                                                @(item.AktifMi ? "Pasife al" : "Aktif et")
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" @(Model.IsEditingNesne ? "open" : "")>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">@(Model.IsEditingNesne ? "Kaynak nesne guncelle" : "Yeni kaynak nesne ekle")</summary>
+                @if (Model.IsEditingNesne)
+                {
+                    <div class="mt-2 text-xs text-slate-500">Duzenleme modunda: @Model.EditNesne</div>
+                }
+                <form method="post"
+                      asp-page-handler="AddKaynakNesne"
+                      asp-route-tab="@Model.ActiveTab"
+                      asp-route-editNesne="@(Model.IsEditingNesne ? Model.EditNesne : null)"
+                      class="mt-3 grid gap-3 md:grid-cols-12">
+                    <div asp-validation-summary="ModelOnly" class="text-sm text-red-600 md:col-span-12"></div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewKaynakNesne.NesneKodu" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewKaynakNesne.NesneKodu"
+                               class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @(Model.IsEditingNesne ? "bg-slate-100 text-slate-500" : "")"
+                               readonly="@ReadonlyAttr(Model.IsEditingNesne)" />
+                        <span asp-validation-for="NewKaynakNesne.NesneKodu" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label asp-for="NewKaynakNesne.NesneAdi" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewKaynakNesne.NesneAdi" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                        <span asp-validation-for="NewKaynakNesne.NesneAdi" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewKaynakNesne.Aciklama" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewKaynakNesne.Aciklama" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-2">
+                        <input asp-for="NewKaynakNesne.AktifMi" class="h-4 w-4" type="checkbox" />
+                        <label asp-for="NewKaynakNesne.AktifMi" class="text-sm text-slate-600">Aktif</label>
+                    </div>
+                    <div class="md:col-span-12 flex items-center justify-end gap-2">
+                        @if (Model.IsEditingNesne)
+                        {
+                            <a class="text-xs font-semibold text-slate-600 hover:text-slate-900" asp-page="/Ref/Index" asp-route-tab="@Model.ActiveTab">Vazgec</a>
+                        }
+                        <button class="rounded-full bg-bkm-red px-3 py-2 text-sm font-semibold text-white" type="submit">
+                            @(Model.IsEditingNesne ? "Guncelle" : "Kaydet")
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+    </div>
+}
+
+@if (Model.ActiveTab == "irstip")
+{
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-xl font-semibold">Irs tip eslestirme</div>
+            <div class="text-sm text-slate-500">DerinSIS tiplerini BKM grup kodlarina eslestir</div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">@Model.IrsTipEksikToplam eksik</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.IrsTipToplam tip</span>
+            @if (Model.IrsTipEksik || !string.IsNullOrWhiteSpace(Model.IrsTipArama))
+            {
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.IrsTipler.Count gosterilen</span>
+            }
+        </div>
+    </div>
+
+    <div class="mt-4 rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <div class="text-sm font-semibold">Tip listesi</div>
+                <div class="text-xs text-slate-500">Tum tipleri eslestirme tablosu olarak gosterir</div>
+            </div>
+            <form method="get" asp-page="/Ref/Index" class="flex flex-wrap items-center gap-2 text-xs">
+                <input type="hidden" name="tab" value="irstip" />
+                <label class="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-2">
+                    <input class="h-4 w-4" type="checkbox" name="IrsTipEksik" value="true" @(Model.IrsTipEksik ? "checked" : null) />
+                    <span class="text-slate-600">Sadece eksikler</span>
+                </label>
+                <input class="w-56 rounded-full border border-slate-200 px-3 py-2 text-xs" type="text" name="IrsTipArama" value="@Model.IrsTipArama" placeholder="Tip / grup ara" />
+                <button class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" type="submit">Filtrele</button>
+                <a class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" asp-page="/Ref/Index" asp-route-tab="irstip">Temizle</a>
+            </form>
+        </div>
+
+        <div asp-validation-summary="ModelOnly" class="mt-3 text-sm text-red-600"></div>
+
+        <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <summary class="cursor-pointer text-sm font-semibold text-slate-700">Toplu eslestirme</summary>
+            <form id="bulk-irs-tip"
+                  method="post"
+                  asp-page-handler="BulkIrsTip"
+                  asp-route-tab="irstip"
+                  asp-route-irsTipEksik="@Model.IrsTipEksik"
+                  asp-route-irsTipArama="@Model.IrsTipArama"
+                  class="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                <select asp-for="BulkIrsTip.GrupKodu" class="rounded-lg border border-slate-200 px-3 py-2 text-xs" required>
+                    <option value="">Grup sec</option>
+                    @foreach (var grup in Model.TipGrupSecenekleri)
+                    {
+                        <option value="@grup.GrupKodu">@grup.GrupKodu - @grup.GrupAdi</option>
+                    }
+                </select>
+                <input asp-for="BulkIrsTip.IslemAdi" class="rounded-lg border border-slate-200 px-3 py-2 text-xs" placeholder="Islem adi (opsiyonel)" />
+                <label class="flex items-center gap-2">
+                    <input asp-for="BulkIrsTip.AktifMi" class="h-4 w-4" type="checkbox" />
+                    <span class="text-slate-600">Aktif</span>
+                </label>
+                <button class="rounded-full bg-bkm-red px-3 py-2 text-xs font-semibold text-white" type="submit">Secilileri kaydet</button>
+            </form>
+            <div class="mt-2 text-xs text-slate-500">Tablodan tip secip toplu kaydedebilirsiniz.</div>
+        </details>
+
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-left text-sm">
+                <thead class="text-xs uppercase text-slate-400">
+                    <tr>
+                        <th class="pb-2 w-8">Sec</th>
+                        <th class="pb-2">Tip</th>
+                        <th class="pb-2">Grup</th>
+                        <th class="pb-2">Islem</th>
+                        <th class="pb-2">Durum</th>
+                        <th class="pb-2">Aksiyon</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @foreach (var item in Model.IrsTipler)
+                    {
+                        var map = Model.GetTipMap(item.TipId);
+                        var aktifMi = map?.AktifMi ?? true;
+                        <tr>
+                            <td class="py-3">
+                                <input class="h-4 w-4" type="checkbox" name="SelectedIrsTipIds" value="@item.TipId" form="bulk-irs-tip" />
+                            </td>
+                            <td class="py-3">
+                                <div class="text-sm font-semibold">@item.TipId</div>
+                                <div class="text-xs text-slate-500">@item.TipAdi</div>
+                            </td>
+                            <td class="py-3">
+                                @if (map is null)
+                                {
+                                    <span class="text-xs text-slate-400">-</span>
+                                }
+                                else
+                                {
+                                    <div class="text-sm font-semibold">@map.GrupKodu</div>
+                                    <div class="text-xs text-slate-500">@map.GrupAdi</div>
+                                }
+                            </td>
+                            <td class="py-3 text-xs text-slate-500">
+                                @(string.IsNullOrWhiteSpace(map?.IslemAdi) ? "-" : map?.IslemAdi)
+                            </td>
+                            <td class="py-3">
+                                @if (map is null)
+                                {
+                                    <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Eksik</span>
+                                }
+                                else if (map.AktifMi)
+                                {
+                                    <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Eslesmis</span>
+                                }
+                                else
+                                {
+                                    <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Pasif</span>
+                                }
+                            </td>
+                            <td class="py-3">
+                                <details class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                    <summary class="cursor-pointer text-xs font-semibold text-slate-700">Eslestir</summary>
+                                    <form method="post"
+                                          asp-page-handler="MapIrsTip"
+                                          asp-route-tab="irstip"
+                                          asp-route-irsTipEksik="@Model.IrsTipEksik"
+                                          asp-route-irsTipArama="@Model.IrsTipArama"
+                                          class="mt-3 grid gap-2 text-xs">
+                                        <input type="hidden" name="NewIrsTipMap.TipId" value="@item.TipId" />
+                                        <div>
+                                            <label class="text-xs font-semibold text-slate-500">Grup</label>
+                                            <select name="NewIrsTipMap.GrupKodu" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" required>
+                                                <option value="">Grup sec</option>
+                                                @foreach (var grup in Model.TipGrupSecenekleri)
+                                                {
+                                                    var selected = map is not null && string.Equals(map.GrupKodu, grup.GrupKodu, StringComparison.OrdinalIgnoreCase);
+                                                    <option value="@grup.GrupKodu" selected="@(selected ? "selected" : null)">@grup.GrupKodu - @grup.GrupAdi</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs font-semibold text-slate-500">Islem adi</label>
+                                            <input name="NewIrsTipMap.IslemAdi" value="@map?.IslemAdi" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" placeholder="Opsiyonel" />
+                                        </div>
+                                        <label class="flex items-center gap-2">
+                                            <input class="h-4 w-4" type="checkbox" name="NewIrsTipMap.AktifMi" value="true" checked="@(aktifMi ? "checked" : null)" />
+                                            <span class="text-slate-600">Aktif</span>
+                                        </label>
+                                        <div class="flex justify-end">
+                                            <button class="rounded-full bg-bkm-red px-3 py-2 text-xs font-semibold text-white" type="submit">Kaydet</button>
+                                        </div>
+                                    </form>
+                                </details>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (Model.ActiveTab == "mekan")
+{
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-xl font-semibold">Mekan kapsam</div>
+            <div class="text-sm text-slate-500">Takip edilen mekan listesi</div>
+        </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Mekan kapsam</div>
+                    <div class="text-xs text-slate-500">ref.AyarMekanKapsam</div>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.MekanAktif aktif</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">MekanId</th>
+                            <th class="pb-2">Durum</th>
+                            <th class="pb-2">Aciklama</th>
+                            <th class="pb-2">Aksiyon</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach (var item in Model.Mekanlar)
+                        {
+                            <tr>
+                                <td class="py-2 font-semibold">@item.MekanId</td>
+                                <td class="py-2">
+                                    <span class="rounded-full @StatusBadge(item.AktifMi) px-3 py-1 text-xs font-semibold">
+                                        @(item.AktifMi ? "Aktif" : "Pasif")
+                                    </span>
+                                </td>
+                                <td class="py-2">@(item.Aciklama ?? "-")</td>
+                                <td class="py-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <a class="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                                           asp-page="/Ref/Index"
+                                           asp-route-tab="@Model.ActiveTab"
+                                           asp-route-editMekanId="@item.MekanId">Duzenle</a>
+                                        <form method="post"
+                                              class="inline"
+                                              asp-page-handler="ToggleMekan"
+                                              asp-route-tab="@Model.ActiveTab"
+                                              asp-route-mekanId="@item.MekanId"
+                                              asp-route-aktifMi="@(item.AktifMi ? false : true)">
+                                            <button class="text-xs font-semibold @(item.AktifMi ? "text-amber-700 hover:text-amber-800" : "text-emerald-700 hover:text-emerald-800")" type="submit">
+                                                @(item.AktifMi ? "Pasife al" : "Aktif et")
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" @(Model.IsEditingMekan ? "open" : "")>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">@(Model.IsEditingMekan ? "Mekan guncelle" : "Yeni mekan ekle")</summary>
+                @if (Model.IsEditingMekan)
+                {
+                    <div class="mt-2 text-xs text-slate-500">Duzenleme modunda: @Model.EditMekanId</div>
+                }
+                <form method="post"
+                      asp-page-handler="AddMekan"
+                      asp-route-tab="@Model.ActiveTab"
+                      asp-route-editMekanId="@(Model.IsEditingMekan ? Model.EditMekanId : null)"
+                      class="mt-3 grid gap-3 md:grid-cols-12">
+                    <div asp-validation-summary="ModelOnly" class="text-sm text-red-600 md:col-span-12"></div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewMekan.MekanId" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewMekan.MekanId"
+                               class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @(Model.IsEditingMekan ? "bg-slate-100 text-slate-500" : "")"
+                               type="number"
+                               min="1"
+                               readonly="@ReadonlyAttr(Model.IsEditingMekan)" />
+                        <span asp-validation-for="NewMekan.MekanId" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-7">
+                        <label asp-for="NewMekan.Aciklama" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewMekan.Aciklama" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Kisa not" />
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-2">
+                        <input asp-for="NewMekan.AktifMi" class="h-4 w-4" type="checkbox" />
+                        <label asp-for="NewMekan.AktifMi" class="text-sm text-slate-600">Aktif</label>
+                    </div>
+                    <div class="md:col-span-12 flex items-center justify-end gap-2">
+                        @if (Model.IsEditingMekan)
+                        {
+                            <a class="text-xs font-semibold text-slate-600 hover:text-slate-900" asp-page="/Ref/Index" asp-route-tab="@Model.ActiveTab">Vazgec</a>
+                        }
+                        <button class="rounded-full bg-bkm-red px-3 py-2 text-sm font-semibold text-white" type="submit">
+                            @(Model.IsEditingMekan ? "Guncelle" : "Kaydet")
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+    </div>
+}
+
+@if (Model.ActiveTab == "tipmap")
+{
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-xl font-semibold">Tip grup map</div>
+            <div class="text-sm text-slate-500">TipId bazli map listesi</div>
+        </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Tip grup map</div>
+                    <div class="text-xs text-slate-500">ref.IrsTipGrupMap</div>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.TipMapToplam tip</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">TipId</th>
+                            <th class="pb-2">GrupKodu</th>
+                            <th class="pb-2">GrupAdi</th>
+                            <th class="pb-2">Islem</th>
+                            <th class="pb-2">Durum</th>
+                            <th class="pb-2">Aksiyon</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach (var item in Model.TipMaplar)
+                        {
+                            <tr>
+                                <td class="py-2 font-semibold">@item.TipId</td>
+                                <td class="py-2">@item.GrupKodu</td>
+                                <td class="py-2">@item.GrupAdi</td>
+                                <td class="py-2">@(item.IslemAdi ?? "-")</td>
+                                <td class="py-2">
+                                    <span class="rounded-full @StatusBadge(item.AktifMi) px-3 py-1 text-xs font-semibold">
+                                        @(item.AktifMi ? "Aktif" : "Pasif")
+                                    </span>
+                                </td>
+                                <td class="py-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <a class="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                                           asp-page="/Ref/Index"
+                                           asp-route-tab="@Model.ActiveTab"
+                                           asp-route-editTipId="@item.TipId">Duzenle</a>
+                                        <form method="post"
+                                              class="inline"
+                                              asp-page-handler="ToggleTipMap"
+                                              asp-route-tab="@Model.ActiveTab"
+                                              asp-route-tipId="@item.TipId"
+                                              asp-route-aktifMi="@(item.AktifMi ? false : true)">
+                                            <button class="text-xs font-semibold @(item.AktifMi ? "text-amber-700 hover:text-amber-800" : "text-emerald-700 hover:text-emerald-800")" type="submit">
+                                                @(item.AktifMi ? "Pasife al" : "Aktif et")
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" @(Model.IsEditingTipMap ? "open" : "")>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">@(Model.IsEditingTipMap ? "Tip map guncelle" : "Yeni tip map ekle")</summary>
+                @if (Model.IsEditingTipMap)
+                {
+                    <div class="mt-2 text-xs text-slate-500">Duzenleme modunda: @Model.EditTipId</div>
+                }
+                <form method="post"
+                      asp-page-handler="AddTipMap"
+                      asp-route-tab="@Model.ActiveTab"
+                      asp-route-editTipId="@(Model.IsEditingTipMap ? Model.EditTipId : null)"
+                      class="mt-3 grid gap-3 md:grid-cols-12">
+                    <div asp-validation-summary="ModelOnly" class="text-sm text-red-600 md:col-span-12"></div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewTipMap.TipId" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewTipMap.TipId"
+                               class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @(Model.IsEditingTipMap ? "bg-slate-100 text-slate-500" : "")"
+                               type="number"
+                               min="0"
+                               readonly="@ReadonlyAttr(Model.IsEditingTipMap)" />
+                        <span asp-validation-for="NewTipMap.TipId" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewTipMap.GrupKodu" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewTipMap.GrupKodu" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                        <span asp-validation-for="NewTipMap.GrupKodu" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewTipMap.GrupAdi" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewTipMap.GrupAdi" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                        <span asp-validation-for="NewTipMap.GrupAdi" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewTipMap.IslemAdi" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewTipMap.IslemAdi" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-2">
+                        <input asp-for="NewTipMap.AktifMi" class="h-4 w-4" type="checkbox" />
+                        <label asp-for="NewTipMap.AktifMi" class="text-sm text-slate-600">Aktif</label>
+                    </div>
+                    <div class="md:col-span-12 flex items-center justify-end gap-2">
+                        @if (Model.IsEditingTipMap)
+                        {
+                            <a class="text-xs font-semibold text-slate-600 hover:text-slate-900" asp-page="/Ref/Index" asp-route-tab="@Model.ActiveTab">Vazgec</a>
+                        }
+                        <button class="rounded-full bg-bkm-red px-3 py-2 text-sm font-semibold text-white" type="submit">
+                            @(Model.IsEditingTipMap ? "Guncelle" : "Kaydet")
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+    </div>
+}
+
+@if (Model.ActiveTab == "riskparam")
+{
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-xl font-semibold">Risk param</div>
+            <div class="text-sm text-slate-500">Esikler ve ayarlar</div>
+        </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Risk param</div>
+                    <div class="text-xs text-slate-500">ref.RiskParam</div>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.RiskParamToplam param</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Param</th>
+                            <th class="pb-2">Deger</th>
+                            <th class="pb-2">Aciklama</th>
+                            <th class="pb-2">Durum</th>
+                            <th class="pb-2">Aksiyon</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach (var item in Model.RiskParamlar)
+                        {
+                            <tr>
+                                <td class="py-2 font-semibold">@item.ParamKodu</td>
+                                <td class="py-2">@((item.DegerInt?.ToString() ?? item.DegerDec?.ToString("0.###") ?? item.DegerStr ?? "-"))</td>
+                                <td class="py-2">@(item.Aciklama ?? "-")</td>
+                                <td class="py-2">
+                                    <span class="rounded-full @StatusBadge(item.AktifMi) px-3 py-1 text-xs font-semibold">
+                                        @(item.AktifMi ? "Aktif" : "Pasif")
+                                    </span>
+                                </td>
+                                <td class="py-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <a class="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                                           asp-page="/Ref/Index"
+                                           asp-route-tab="@Model.ActiveTab"
+                                           asp-route-editParamKodu="@item.ParamKodu">Duzenle</a>
+                                        <form method="post"
+                                              class="inline"
+                                              asp-page-handler="ToggleRiskParam"
+                                              asp-route-tab="@Model.ActiveTab"
+                                              asp-route-paramKodu="@item.ParamKodu"
+                                              asp-route-aktifMi="@(item.AktifMi ? false : true)">
+                                            <button class="text-xs font-semibold @(item.AktifMi ? "text-amber-700 hover:text-amber-800" : "text-emerald-700 hover:text-emerald-800")" type="submit">
+                                                @(item.AktifMi ? "Pasife al" : "Aktif et")
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" @(Model.IsEditingRiskParam ? "open" : "")>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">@(Model.IsEditingRiskParam ? "Risk param guncelle" : "Yeni risk param ekle")</summary>
+                @if (Model.IsEditingRiskParam)
+                {
+                    <div class="mt-2 text-xs text-slate-500">Duzenleme modunda: @Model.EditParamKodu</div>
+                }
+                <form method="post"
+                      asp-page-handler="AddRiskParam"
+                      asp-route-tab="@Model.ActiveTab"
+                      asp-route-editParamKodu="@(Model.IsEditingRiskParam ? Model.EditParamKodu : null)"
+                      class="mt-3 grid gap-3 md:grid-cols-12">
+                    <div asp-validation-summary="ModelOnly" class="text-sm text-red-600 md:col-span-12"></div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewRiskParam.ParamKodu" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewRiskParam.ParamKodu"
+                               class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @(Model.IsEditingRiskParam ? "bg-slate-100 text-slate-500" : "")"
+                               readonly="@ReadonlyAttr(Model.IsEditingRiskParam)" />
+                        <span asp-validation-for="NewRiskParam.ParamKodu" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewRiskParam.DegerInt" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewRiskParam.DegerInt" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" type="number" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewRiskParam.DegerDec" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewRiskParam.DegerDec" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" type="number" step="0.001" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewRiskParam.DegerStr" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewRiskParam.DegerStr" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewRiskParam.Aciklama" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewRiskParam.Aciklama" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-2">
+                        <input asp-for="NewRiskParam.AktifMi" class="h-4 w-4" type="checkbox" />
+                        <label asp-for="NewRiskParam.AktifMi" class="text-sm text-slate-600">Aktif</label>
+                    </div>
+                    <div class="md:col-span-12 flex items-center justify-end gap-2">
+                        @if (Model.IsEditingRiskParam)
+                        {
+                            <a class="text-xs font-semibold text-slate-600 hover:text-slate-900" asp-page="/Ref/Index" asp-route-tab="@Model.ActiveTab">Vazgec</a>
+                        }
+                        <button class="rounded-full bg-bkm-red px-3 py-2 text-sm font-semibold text-white" type="submit">
+                            @(Model.IsEditingRiskParam ? "Guncelle" : "Kaydet")
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+    </div>
+}
+
+@if (Model.ActiveTab == "skor")
+{
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-xl font-semibold">Skor agirlik</div>
+            <div class="text-sm text-slate-500">Flag puanlari</div>
+        </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Skor agirlik</div>
+                    <div class="text-xs text-slate-500">ref.RiskSkorAgirlik</div>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.SkorToplam flag</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Flag</th>
+                            <th class="pb-2">Puan</th>
+                            <th class="pb-2">Oncelik</th>
+                            <th class="pb-2">Durum</th>
+                            <th class="pb-2">Aksiyon</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach (var item in Model.SkorAgirliklar)
+                        {
+                            <tr>
+                                <td class="py-2 font-semibold">@item.FlagKodu</td>
+                                <td class="py-2">@item.Puan</td>
+                                <td class="py-2">@item.Oncelik</td>
+                                <td class="py-2">
+                                    <span class="rounded-full @StatusBadge(item.AktifMi) px-3 py-1 text-xs font-semibold">
+                                        @(item.AktifMi ? "Aktif" : "Pasif")
+                                    </span>
+                                </td>
+                                <td class="py-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <a class="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                                           asp-page="/Ref/Index"
+                                           asp-route-tab="@Model.ActiveTab"
+                                           asp-route-editFlagKodu="@item.FlagKodu">Duzenle</a>
+                                        <form method="post"
+                                              class="inline"
+                                              asp-page-handler="ToggleSkor"
+                                              asp-route-tab="@Model.ActiveTab"
+                                              asp-route-flagKodu="@item.FlagKodu"
+                                              asp-route-aktifMi="@(item.AktifMi ? false : true)">
+                                            <button class="text-xs font-semibold @(item.AktifMi ? "text-amber-700 hover:text-amber-800" : "text-emerald-700 hover:text-emerald-800")" type="submit">
+                                                @(item.AktifMi ? "Pasife al" : "Aktif et")
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" @(Model.IsEditingSkor ? "open" : "")>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">@(Model.IsEditingSkor ? "Skor agirlik guncelle" : "Yeni skor agirlik ekle")</summary>
+                @if (Model.IsEditingSkor)
+                {
+                    <div class="mt-2 text-xs text-slate-500">Duzenleme modunda: @Model.EditFlagKodu</div>
+                }
+                <form method="post"
+                      asp-page-handler="AddSkor"
+                      asp-route-tab="@Model.ActiveTab"
+                      asp-route-editFlagKodu="@(Model.IsEditingSkor ? Model.EditFlagKodu : null)"
+                      class="mt-3 grid gap-3 md:grid-cols-12">
+                    <div asp-validation-summary="ModelOnly" class="text-sm text-red-600 md:col-span-12"></div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewSkor.FlagKodu" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewSkor.FlagKodu"
+                               class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @(Model.IsEditingSkor ? "bg-slate-100 text-slate-500" : "")"
+                               readonly="@ReadonlyAttr(Model.IsEditingSkor)" />
+                        <span asp-validation-for="NewSkor.FlagKodu" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewSkor.Puan" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewSkor.Puan" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" type="number" min="1" />
+                        <span asp-validation-for="NewSkor.Puan" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewSkor.Oncelik" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewSkor.Oncelik" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" type="number" min="1" />
+                        <span asp-validation-for="NewSkor.Oncelik" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewSkor.Aciklama" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewSkor.Aciklama" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-2">
+                        <input asp-for="NewSkor.AktifMi" class="h-4 w-4" type="checkbox" />
+                        <label asp-for="NewSkor.AktifMi" class="text-sm text-slate-600">Aktif</label>
+                    </div>
+                    <div class="md:col-span-12 flex items-center justify-end gap-2">
+                        @if (Model.IsEditingSkor)
+                        {
+                            <a class="text-xs font-semibold text-slate-600 hover:text-slate-900" asp-page="/Ref/Index" asp-route-tab="@Model.ActiveTab">Vazgec</a>
+                        }
+                        <button class="rounded-full bg-bkm-red px-3 py-2 text-sm font-semibold text-white" type="submit">
+                            @(Model.IsEditingSkor ? "Guncelle" : "Kaydet")
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+    </div>
+}
+
+@if (Model.ActiveTab == "personel")
+{
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-xl font-semibold">Personel</div>
+            <div class="text-sm text-slate-500">Hiyerarsi ve birim listesi</div>
+        </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Personel</div>
+                    <div class="text-xs text-slate-500">ref.Personel</div>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.PersonelToplam personel</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Personel</th>
+                            <th class="pb-2">Unvan</th>
+                            <th class="pb-2">Birim</th>
+                            <th class="pb-2">Ust</th>
+                            <th class="pb-2">Durum</th>
+                            <th class="pb-2">Aksiyon</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach (var item in Model.Personeller)
+                        {
+                            <tr>
+                                <td class="py-2">
+                                    <div class="text-sm font-semibold">@item.Ad @item.Soyad</div>
+                                    <div class="text-xs text-slate-500">@item.PersonelKodu</div>
+                                </td>
+                                <td class="py-2">@item.Unvan</td>
+                                <td class="py-2">@item.Birim</td>
+                                <td class="py-2">@Model.GetPersonelAd(item.UstPersonelId)</td>
+                                <td class="py-2">
+                                    <span class="rounded-full @StatusBadge(item.AktifMi) px-3 py-1 text-xs font-semibold">
+                                        @(item.AktifMi ? "Aktif" : "Pasif")
+                                    </span>
+                                </td>
+                                <td class="py-2">
+                                    @if (!string.IsNullOrWhiteSpace(item.PersonelKodu))
+                                    {
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <a class="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                                               asp-page="/Ref/Index"
+                                               asp-route-tab="@Model.ActiveTab"
+                                               asp-route-editPersonelKodu="@item.PersonelKodu">Duzenle</a>
+                                            <form method="post"
+                                                  class="inline"
+                                                  asp-page-handler="TogglePersonel"
+                                                  asp-route-tab="@Model.ActiveTab"
+                                                  asp-route-personelKodu="@item.PersonelKodu"
+                                                  asp-route-aktifMi="@(item.AktifMi ? false : true)">
+                                                <button class="text-xs font-semibold @(item.AktifMi ? "text-amber-700 hover:text-amber-800" : "text-emerald-700 hover:text-emerald-800")" type="submit">
+                                                    @(item.AktifMi ? "Pasife al" : "Aktif et")
+                                                </button>
+                                            </form>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-xs text-slate-400">Kod yok</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" @(Model.IsEditingPersonel ? "open" : "")>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">@(Model.IsEditingPersonel ? "Personel guncelle" : "Yeni personel ekle")</summary>
+                @if (Model.IsEditingPersonel)
+                {
+                    <div class="mt-2 text-xs text-slate-500">Duzenleme modunda: @Model.EditPersonelKodu</div>
+                }
+                <form method="post"
+                      asp-page-handler="AddPersonel"
+                      asp-route-tab="@Model.ActiveTab"
+                      asp-route-editPersonelKodu="@(Model.IsEditingPersonel ? Model.EditPersonelKodu : null)"
+                      class="mt-3 grid gap-3 md:grid-cols-12">
+                    <div asp-validation-summary="ModelOnly" class="text-sm text-red-600 md:col-span-12"></div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewPersonel.PersonelKodu" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewPersonel.PersonelKodu"
+                               class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @(Model.IsEditingPersonel ? "bg-slate-100 text-slate-500" : "")"
+                               readonly="@ReadonlyAttr(Model.IsEditingPersonel)" />
+                    </div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewPersonel.Ad" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewPersonel.Ad" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                        <span asp-validation-for="NewPersonel.Ad" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewPersonel.Soyad" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewPersonel.Soyad" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                        <span asp-validation-for="NewPersonel.Soyad" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewPersonel.Unvan" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewPersonel.Unvan" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewPersonel.Birim" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewPersonel.Birim" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-4">
+                        <label asp-for="NewPersonel.UstPersonelId" class="text-xs font-semibold text-slate-500">Ust personel</label>
+                        <select asp-for="NewPersonel.UstPersonelId" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                            <option value="">Seciniz</option>
+                            @foreach (var personel in Model.Personeller)
+                            {
+                                <option value="@personel.PersonelId">@personel.Ad @personel.Soyad</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label asp-for="NewPersonel.Eposta" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewPersonel.Eposta" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-3">
+                        <label asp-for="NewPersonel.Telefon" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewPersonel.Telefon" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-2">
+                        <input asp-for="NewPersonel.AktifMi" class="h-4 w-4" type="checkbox" />
+                        <label asp-for="NewPersonel.AktifMi" class="text-sm text-slate-600">Aktif</label>
+                    </div>
+                    <div class="md:col-span-12 flex items-center justify-end gap-2">
+                        @if (Model.IsEditingPersonel)
+                        {
+                            <a class="text-xs font-semibold text-slate-600 hover:text-slate-900" asp-page="/Ref/Index" asp-route-tab="@Model.ActiveTab">Vazgec</a>
+                        }
+                        <button class="rounded-full bg-bkm-red px-3 py-2 text-sm font-semibold text-white" type="submit">
+                            @(Model.IsEditingPersonel ? "Guncelle" : "Kaydet")
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+    </div>
+}
+
+@if (Model.ActiveTab == "kullanici")
+{
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="text-xl font-semibold">Kullanici</div>
+            <div class="text-sm text-slate-500">Hesaplar ve roller</div>
+        </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Kullanici</div>
+                    <div class="text-xs text-slate-500">ref.Kullanici</div>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">@Model.KullaniciToplam kullanici</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Kullanici</th>
+                            <th class="pb-2">Personel</th>
+                            <th class="pb-2">Rol</th>
+                            <th class="pb-2">Durum</th>
+                            <th class="pb-2">Aksiyon</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach (var item in Model.Kullanicilar)
+                        {
+                            <tr>
+                                <td class="py-2 font-semibold">@item.KullaniciAdi</td>
+                                <td class="py-2">@Model.GetPersonelAd(item.PersonelId)</td>
+                                <td class="py-2">@item.RolKodu</td>
+                                <td class="py-2">
+                                    <span class="rounded-full @StatusBadge(item.AktifMi) px-3 py-1 text-xs font-semibold">
+                                        @(item.AktifMi ? "Aktif" : "Pasif")
+                                    </span>
+                                </td>
+                                <td class="py-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <a class="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                                           asp-page="/Ref/Index"
+                                           asp-route-tab="@Model.ActiveTab"
+                                           asp-route-editKullaniciAdi="@item.KullaniciAdi">Duzenle</a>
+                                        <form method="post"
+                                              class="inline"
+                                              asp-page-handler="ToggleKullanici"
+                                              asp-route-tab="@Model.ActiveTab"
+                                              asp-route-kullaniciAdi="@item.KullaniciAdi"
+                                              asp-route-aktifMi="@(item.AktifMi ? false : true)">
+                                            <button class="text-xs font-semibold @(item.AktifMi ? "text-amber-700 hover:text-amber-800" : "text-emerald-700 hover:text-emerald-800")" type="submit">
+                                                @(item.AktifMi ? "Pasife al" : "Aktif et")
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" @(Model.IsEditingKullanici ? "open" : "")>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">@(Model.IsEditingKullanici ? "Kullanici guncelle" : "Yeni kullanici ekle")</summary>
+                @if (Model.IsEditingKullanici)
+                {
+                    <div class="mt-2 text-xs text-slate-500">Duzenleme modunda: @Model.EditKullaniciAdi</div>
+                }
+                <form method="post"
+                      asp-page-handler="AddKullanici"
+                      asp-route-tab="@Model.ActiveTab"
+                      asp-route-editKullaniciAdi="@(Model.IsEditingKullanici ? Model.EditKullaniciAdi : null)"
+                      class="mt-3 grid gap-3 md:grid-cols-12">
+                    <div asp-validation-summary="ModelOnly" class="text-sm text-red-600 md:col-span-12"></div>
+                    <div class="md:col-span-4">
+                        <label asp-for="NewKullanici.KullaniciAdi" class="text-xs font-semibold text-slate-500"></label>
+                        <input asp-for="NewKullanici.KullaniciAdi"
+                               class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm @(Model.IsEditingKullanici ? "bg-slate-100 text-slate-500" : "")"
+                               readonly="@ReadonlyAttr(Model.IsEditingKullanici)" />
+                        <span asp-validation-for="NewKullanici.KullaniciAdi" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label asp-for="NewKullanici.PersonelId" class="text-xs font-semibold text-slate-500">Personel</label>
+                        <select asp-for="NewKullanici.PersonelId" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                            <option value="">Seciniz</option>
+                            @foreach (var personel in Model.Personeller)
+                            {
+                                <option value="@personel.PersonelId">@personel.Ad @personel.Soyad</option>
+                            }
+                        </select>
+                        <span asp-validation-for="NewKullanici.PersonelId" class="text-xs text-red-600"></span>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="NewKullanici.RolKodu" class="text-xs font-semibold text-slate-500">Rol</label>
+                        <select asp-for="NewKullanici.RolKodu" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                            <option value="YONETICI">Yonetici</option>
+                            <option value="DENETCI">Denetci</option>
+                            <option value="IZLEYICI">Izleyici</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-2">
+                        <input asp-for="NewKullanici.AktifMi" class="h-4 w-4" type="checkbox" />
+                        <label asp-for="NewKullanici.AktifMi" class="text-sm text-slate-600">Aktif</label>
+                    </div>
+                    <div class="md:col-span-12 flex items-center justify-end gap-2">
+                        @if (Model.IsEditingKullanici)
+                        {
+                            <a class="text-xs font-semibold text-slate-600 hover:text-slate-900" asp-page="/Ref/Index" asp-route-tab="@Model.ActiveTab">Vazgec</a>
+                        }
+                        <button class="rounded-full bg-bkm-red px-3 py-2 text-sm font-semibold text-white" type="submit">
+                            @(Model.IsEditingKullanici ? "Guncelle" : "Kaydet")
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+    </div>
+}
+

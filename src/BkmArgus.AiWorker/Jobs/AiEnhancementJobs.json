@@ -1,0 +1,252 @@
+{
+  "aiEnhancementJobs": {
+    "description": "BKMDenetim AI Geliştirme V2 - Konsolide Sistem Job Konfigürasyonu",
+    "version": "2.0",
+    "lastUpdated": "2025-01-08",
+    "jobs": [
+      {
+        "jobId": "ai-memory-maintenance",
+        "jobName": "AI Hafıza Katmanı Bakımı",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 2 * * *",
+        "enabled": true,
+        "priority": "ORTA",
+        "configuration": {
+          "storedProcedure": "ai.sp_AiMemory_LayerMaintenance",
+          "parameters": {},
+          "timeoutMinutes": 30,
+          "retryCount": 2
+        },
+        "description": "Hafıza katmanları arasında veri taşıma ve arşivleme işlemlerini gerçekleştirir"
+      },
+      {
+        "jobId": "ai-embedding-maintenance", 
+        "jobName": "AI Embedding Bakımı",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 3 * * *",
+        "enabled": true,
+        "priority": "ORTA",
+        "configuration": {
+          "storedProcedure": "ai.sp_AiEmbedding_Maintenance",
+          "parameters": {
+            "BatchSize": 500
+          },
+          "timeoutMinutes": 45,
+          "retryCount": 2
+        },
+        "description": "Embedding kalite skorlarını günceller ve eski embedding'leri arşivler"
+      },
+      {
+        "jobId": "ai-model-performance-update",
+        "jobName": "AI Model Performans Güncelleme",
+        "jobType": "SQL_STORED_PROCEDURE", 
+        "schedule": "0 1 * * *",
+        "enabled": true,
+        "priority": "YUKSEK",
+        "configuration": {
+          "storedProcedure": "ai.sp_AiModel_PerformanceUpdate",
+          "parameters": {},
+          "timeoutMinutes": 20,
+          "retryCount": 3
+        },
+        "description": "Model performans metriklerini güncelleyip yeniden eğitim önerilerini kontrol eder"
+      },
+      {
+        "jobId": "ai-feedback-processing",
+        "jobName": "AI Geri Bildirim İşleme",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 */4 * * *",
+        "enabled": true,
+        "priority": "YUKSEK",
+        "configuration": {
+          "storedProcedure": "ai.sp_AiFeedback_Process",
+          "parameters": {
+            "BatchSize": 100
+          },
+          "timeoutMinutes": 15,
+          "retryCount": 2
+        },
+        "description": "Bekleyen geri bildirimleri işleyip öğrenme desenlerini entegre eder"
+      },
+      {
+        "jobId": "ai-anomaly-detection",
+        "jobName": "AI Anomali Tespiti",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 */6 * * *",
+        "enabled": true,
+        "priority": "ORTA",
+        "configuration": {
+          "storedProcedure": "ai.sp_AiAnomaly_Detect",
+          "parameters": {
+            "DetectionMethod": "Z_SKORU",
+            "SensitivityLevel": 2.5
+          },
+          "timeoutMinutes": 25,
+          "retryCount": 2
+        },
+        "description": "Risk skorlarında anomali tespiti yapar ve uyarılar oluşturur"
+      },
+      {
+        "jobId": "ai-risk-prediction",
+        "jobName": "AI Risk Tahmini",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 4 * * *",
+        "enabled": true,
+        "priority": "ORTA",
+        "configuration": {
+          "storedProcedure": "ai.sp_AiRisk_Predict",
+          "parameters": {
+            "ModelId": 1,
+            "PredictionHorizon": 7
+          },
+          "timeoutMinutes": 40,
+          "retryCount": 2
+        },
+        "description": "Gelecek risk skorlarını tahmin eder ve trend analizi yapar"
+      },
+      {
+        "jobId": "erp-stok-extract",
+        "jobName": "ERP Stok Verisi Çekme",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 0 * * *",
+        "enabled": true,
+        "priority": "YUKSEK",
+        "configuration": {
+          "storedProcedure": "etl.sp_ErpStok_Extract",
+          "parameters": {
+            "BatchSize": 1000
+          },
+          "timeoutMinutes": 30,
+          "retryCount": 3
+        },
+        "description": "ERP sisteminden stok verilerini çeker ve staging tablosuna yükler"
+      },
+      {
+        "jobId": "erp-satis-extract",
+        "jobName": "ERP Satış Verisi Çekme",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 1 * * *",
+        "enabled": true,
+        "priority": "YUKSEK",
+        "configuration": {
+          "storedProcedure": "etl.sp_ErpSatis_Extract",
+          "parameters": {
+            "BatchSize": 5000
+          },
+          "timeoutMinutes": 45,
+          "retryCount": 3
+        },
+        "description": "ERP sisteminden satış verilerini çeker ve staging tablosuna yükler"
+      },
+      {
+        "jobId": "erp-stok-hareket-extract",
+        "jobName": "ERP Stok Hareket Verisi Çekme",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 2 * * *",
+        "enabled": true,
+        "priority": "YUKSEK",
+        "configuration": {
+          "storedProcedure": "etl.sp_ErpStokHareket_Extract",
+          "parameters": {
+            "BatchSize": 10000
+          },
+          "timeoutMinutes": 60,
+          "retryCount": 3
+        },
+        "description": "ERP sisteminden stok hareket verilerini çeker ve staging tablosuna yükler"
+      },
+      {
+        "jobId": "staging-to-main-load",
+        "jobName": "Staging'den Ana Tablolara Yükleme",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 3 * * *",
+        "enabled": true,
+        "priority": "YUKSEK",
+        "configuration": {
+          "storedProcedure": "etl.sp_StagingToMain_Load",
+          "parameters": {
+            "TableName": "ALL",
+            "BatchSize": 1000
+          },
+          "timeoutMinutes": 90,
+          "retryCount": 3
+        },
+        "description": "Staging tablolarından ana tablolara veri yükler ve işlem durumunu günceller"
+      },
+      {
+        "jobId": "ai-system-health-check",
+        "jobName": "AI Sistem Sağlık Kontrolü",
+        "jobType": "SQL_STORED_PROCEDURE",
+        "schedule": "0 */2 * * *",
+        "enabled": true,
+        "priority": "DUSUK",
+        "configuration": {
+          "storedProcedure": "ai.sp_AiSystem_HealthCheck",
+          "parameters": {},
+          "timeoutMinutes": 5,
+          "retryCount": 1
+        },
+        "description": "AI sisteminin genel sağlık durumunu kontrol eder ve metrikleri toplar"
+      },
+      {
+        "jobId": "ai-agent-pipeline-executor",
+        "jobName": "AI Ajan Pipeline Çalıştırıcı",
+        "jobType": "CSHARP_CLASS",
+        "schedule": "CONTINUOUS",
+        "enabled": true,
+        "priority": "KRITIK",
+        "configuration": {
+          "className": "AiAgentPipelineExecutor",
+          "maxConcurrentPipelines": 5,
+          "pipelineTimeoutMinutes": 30,
+          "retryCount": 2,
+          "pollingIntervalSeconds": 30
+        },
+        "description": "Bekleyen AI analiz isteklerini alır ve çok ajanlı pipeline'ları çalıştırır"
+      },
+      {
+        "jobId": "ai-request-processor",
+        "jobName": "AI İstek İşleyici",
+        "jobType": "CSHARP_CLASS",
+        "schedule": "CONTINUOUS",
+        "enabled": true,
+        "priority": "KRITIK",
+        "configuration": {
+          "className": "AiRequestProcessor",
+          "maxConcurrentRequests": 10,
+          "requestTimeoutMinutes": 15,
+          "retryCount": 3,
+          "pollingIntervalSeconds": 15
+        },
+        "description": "Yeni AI analiz isteklerini oluşturur ve işleme kuyruğuna ekler"
+      }
+    ]
+  },
+  "globalSettings": {
+    "maxRetryAttempts": 3,
+    "defaultTimeoutMinutes": 30,
+    "logLevel": "INFO",
+    "enableHealthChecks": true,
+    "healthCheckIntervalMinutes": 30,
+    "enablePerformanceMetrics": true,
+    "metricsRetentionDays": 90
+  },
+  "notifications": {
+    "enableEmailNotifications": true,
+    "enableSlackNotifications": false,
+    "criticalJobFailureNotification": true,
+    "dailySummaryReport": true,
+    "weeklyPerformanceReport": true
+  },
+  "dependencies": {
+    "requiredServices": [
+      "SQL Server",
+      "Ollama LLM Service",
+      "Semantic Memory Service"
+    ],
+    "optionalServices": [
+      "Email Service",
+      "Monitoring Service"
+    ]
+  }
+}

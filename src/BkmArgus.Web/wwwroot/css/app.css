@@ -1,0 +1,12 @@
+:root {
+  --bkm-red: #E30613;
+  --bkm-dark: #2D2D2D;
+  --bkm-canvas: #F3F4F6;
+  --bkm-safe: #10B981;
+}
+
+.bg-bkm-dark { background-color: var(--bkm-dark); }
+.bg-bkm-canvas { background-color: var(--bkm-canvas); }
+.bg-bkm-red { background-color: var(--bkm-red); }
+.text-bkm-red { color: var(--bkm-red); }
+.border-bkm-red { border-color: var(--bkm-red); }
