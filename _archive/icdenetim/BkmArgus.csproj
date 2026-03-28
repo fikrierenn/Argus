@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>BkmArgus</RootNamespace>
+    <AssemblyName>BkmArgus</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Data\Schema.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\Migration_Skills.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\Migration_CorrectiveActions.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\Migration_AuditLog.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\Migration_AiInfrastructure.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\Migration_DataIntelligence.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\Migration_DofEffectiveness.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\Migration_SkillSeed.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\Migration_Compatibility.sql" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="ExcelDataReader" Version="3.8.0" />
+    <PackageReference Include="ExcelDataReader.DataSet" Version="3.8.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.3.9" />
+    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="dbup-sqlserver" Version="5.0.40" />
+  </ItemGroup>
+
+</Project>

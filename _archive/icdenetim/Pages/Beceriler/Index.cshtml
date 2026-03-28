@@ -1,0 +1,46 @@
+@page
+@model BkmArgus.Pages.Beceriler.IndexModel
+@{
+    ViewData["Title"] = "Beceriler";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h2 class="mb-0">Beceriler</h2>
+    <a asp-page="Create" class="btn btn-primary">Yeni Beceri</a>
+</div>
+
+@if (Model.Skills.Count == 0)
+{
+    <div class="alert alert-info">Kayit bulunamadi.</div>
+}
+else
+{
+    <div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr><th>Kod</th><th>Ad</th><th>Departman</th><th>Durum</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var s in Model.Skills)
+        {
+            <tr>
+                <td><code>@s.Code</code></td>
+                <td>@s.Name</td>
+                <td>@s.Department</td>
+                <td>
+                    @if (s.IsActive)
+                    {
+                        <span class="badge bg-success">Aktif</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Pasif</span>
+                    }
+                </td>
+                <td><a asp-page="Edit" asp-route-id="@s.Id" class="btn btn-sm btn-outline-primary">Duzenle</a></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    </div>
+}

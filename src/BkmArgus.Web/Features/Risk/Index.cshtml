@@ -1,0 +1,301 @@
+@page
+@model RiskModel
+@{
+    ViewData["Title"] = "Risk Gezgini";
+    ViewData["Subtitle"] = "Filtreli risk listesi ve hizli aksiyon";
+
+    string ScoreBadge(int skor) => skor switch
+    {
+        >= 90 => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
+        >= 70 => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
+        _ => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+    };
+
+    string StokBadge(bool stokVar) => stokVar
+        ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+        : "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red";
+
+    string FlagBadge(string flag) => flag switch
+    {
+        "GIRISSIZSATIS" => "rounded-full bg-red-50 px-2 py-1 text-[10px] font-semibold text-bkm-red",
+        "STOKYOK" => "rounded-full bg-red-50 px-2 py-1 text-[10px] font-semibold text-bkm-red",
+        "IADEYUKSEK" => "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700",
+        "SAYIMDUZELTME" => "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700",
+        _ => "rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600"
+    };
+
+    string FlagText(string flag) => flag switch
+    {
+        "GIRISSIZSATIS" => "GirissizSatis",
+        "STOKYOK" => "StokYok",
+        "NETBIRIKIM" => "NetBirikim",
+        "IADEYUKSEK" => "IadeYuksek",
+        "SAYIMDUZELTME" => "SayimDuzeltme",
+        "HIZLIDEVIR" => "HizliDevir",
+        _ => flag
+    };
+
+    bool IsSelected(IEnumerable<string> values, string value) =>
+        values.Any(item => string.Equals(item, value, StringComparison.OrdinalIgnoreCase));
+
+    bool IsSelectedValue(string? current, string value) =>
+        string.Equals(current, value, StringComparison.OrdinalIgnoreCase);
+
+    bool IsSelectedInt(int current, int value) => current == value;
+
+    string Initials(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "--";
+        }
+
+        return value.Length >= 2 ? value[..2].ToUpperInvariant() : value[..1].ToUpperInvariant();
+    }
+}
+
+<div class="grid gap-4 xl:grid-cols-[280px_1fr]">
+    <form class="space-y-4 rounded-xl border border-slate-200 bg-white p-5" method="get">
+        <input type="hidden" name="search" value="@Model.Search" />
+        <input type="hidden" name="orderBy" value="@Model.OrderBy" />
+        <input type="hidden" name="orderDir" value="@Model.OrderDir" />
+        <input type="hidden" name="kesimBas" value="@(Model.KesimBas?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="kesimBit" value="@(Model.KesimBit?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <input type="hidden" name="page" value="1" />
+        <div>
+            <div class="text-sm font-semibold">Filtreler</div>
+            <div class="text-xs text-slate-500">URL ile paylasilabilir durum</div>
+        </div>
+
+        <div>
+            <div class="text-xs uppercase tracking-wide text-slate-400">Mekan</div>
+            <div class="mt-2 space-y-2">
+                @foreach (var mekan in Model.MekanOptions)
+                {
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input class="rounded border-slate-300" type="checkbox" name="mekan" value="@mekan.Value" @(IsSelected(Model.SelectedMekan, mekan.Value) ? "checked" : null) />
+                        <span>@mekan.Label</span>
+                    </label>
+                }
+            </div>
+        </div>
+
+        <div>
+            <div class="text-xs uppercase tracking-wide text-slate-400">Risk tipi</div>
+            <div class="mt-2 grid gap-2">
+                @foreach (var tip in Model.TipOptions)
+                {
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input class="rounded border-slate-300" type="checkbox" name="tip" value="@tip" @(IsSelected(Model.SelectedTip, tip) ? "checked" : null) />
+                        <span>@FlagText(tip)</span>
+                    </label>
+                }
+            </div>
+        </div>
+
+        <div>
+            <div class="text-xs uppercase tracking-wide text-slate-400">Skor araligi</div>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+                <label class="text-xs text-slate-500">
+                    Min
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" type="number" name="minSkor" min="0" max="100" value="@Model.MinSkor" />
+                </label>
+                <label class="text-xs text-slate-500">
+                    Max
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" type="number" name="maxSkor" min="0" max="100" value="@Model.MaxSkor" />
+                </label>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" type="submit">Filtrele</button>
+            <a class="text-xs text-slate-500" asp-page="/Risk/Index">Temizle</a>
+        </div>
+    </form>
+
+    <div class="space-y-4">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <div class="text-sm font-semibold">Risk listesi</div>
+                <div class="text-xs text-slate-500">@Model.Rows.Count satir (sayfa @Model.PageIndex)</div>
+            </div>
+            <form class="flex flex-wrap items-center gap-2" method="get">
+                @foreach (var mekan in Model.SelectedMekan)
+                {
+                    <input type="hidden" name="mekan" value="@mekan" />
+                }
+                @foreach (var tip in Model.SelectedTip)
+                {
+                    <input type="hidden" name="tip" value="@tip" />
+                }
+                @if (Model.MinSkor.HasValue)
+                {
+                    <input type="hidden" name="minSkor" value="@Model.MinSkor" />
+                }
+                @if (Model.MaxSkor.HasValue)
+                {
+                    <input type="hidden" name="maxSkor" value="@Model.MaxSkor" />
+                }
+                <input type="hidden" name="page" value="1" />
+                <input class="w-44 rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" name="search" value="@Model.Search" placeholder="Ara (urun/kod/mekan)" />
+                <input class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" type="date" name="kesimBas" value="@(Model.KesimBas?.ToString("yyyy-MM-dd"))" />
+                <input class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" type="date" name="kesimBit" value="@(Model.KesimBit?.ToString("yyyy-MM-dd"))" />
+                <select class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" name="orderBy">
+                    @foreach (var option in Model.OrderOptions)
+                    {
+                        <option value="@option.Value" selected="@(IsSelectedValue(Model.OrderBy, option.Value) ? "selected" : null)">@option.Label</option>
+                    }
+                </select>
+                <select class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" name="orderDir">
+                    <option value="DESC" selected="@(IsSelectedValue(Model.OrderDir, "DESC") ? "selected" : null)">Azalan</option>
+                    <option value="ASC" selected="@(IsSelectedValue(Model.OrderDir, "ASC") ? "selected" : null)">Artan</option>
+                </select>
+                <select class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" name="pageSize">
+                    @foreach (var size in Model.PageSizeOptions)
+                    {
+                        <option value="@size" selected="@(IsSelectedInt(Model.PageSize, size) ? "selected" : null)">Top @size</option>
+                    }
+                </select>
+                <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="submit">Uygula</button>
+                <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="button">Excel indir</button>
+            </form>
+        </div>
+
+        <div class="hidden rounded-xl border border-slate-200 bg-white p-4 md:block">
+            <table class="min-w-full text-left text-sm">
+                <thead class="text-xs uppercase text-slate-400">
+                    <tr>
+                        <th class="pb-2">Mekan</th>
+                        <th class="pb-2">Urun</th>
+                        <th class="pb-2">Donem</th>
+                        <th class="pb-2">Skor</th>
+                        <th class="pb-2">Flag</th>
+                        <th class="pb-2">Stok</th>
+                        <th class="pb-2">Son hareket</th>
+                        <th class="pb-2">Aksiyon</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr class="text-slate-700">
+                            <td class="py-3">@row.Mekan</td>
+                            <td class="py-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-500">@Initials(row.Urun)</div>
+                                    <div>
+                                        <div class="text-sm font-semibold">@row.Urun</div>
+                                        <div class="text-xs text-slate-500">@row.UrunKod</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="py-3">@row.Donem</td>
+                            <td class="py-3">
+                                <span class="@ScoreBadge(row.Skor)">@row.Skor</span>
+                            </td>
+                            <td class="py-3">
+                                <div class="flex flex-wrap gap-1">
+                                    @foreach (var flag in row.Flags)
+                                    {
+                                        <span class="@FlagBadge(flag)" title="@FlagText(flag)">@FlagText(flag)</span>
+                                    }
+                                </div>
+                            </td>
+                            <td class="py-3">
+                                <span class="@StokBadge(row.StokVar)">@row.StokAdet</span>
+                            </td>
+                            <td class="py-3 text-xs text-slate-500">@row.SonHareketGun gun once</td>
+                            <td class="py-3">
+                            <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" asp-page="/Urun/Index" asp-route-id="@row.Id" asp-route-mekanId="@row.MekanId">Incele</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <form method="get">
+                @foreach (var mekan in Model.SelectedMekan)
+                {
+                    <input type="hidden" name="mekan" value="@mekan" />
+                }
+                @foreach (var tip in Model.SelectedTip)
+                {
+                    <input type="hidden" name="tip" value="@tip" />
+                }
+                <input type="hidden" name="search" value="@Model.Search" />
+                @if (Model.MinSkor.HasValue)
+                {
+                    <input type="hidden" name="minSkor" value="@Model.MinSkor" />
+                }
+                @if (Model.MaxSkor.HasValue)
+                {
+                    <input type="hidden" name="maxSkor" value="@Model.MaxSkor" />
+                }
+                <input type="hidden" name="kesimBas" value="@(Model.KesimBas?.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="kesimBit" value="@(Model.KesimBit?.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="orderBy" value="@Model.OrderBy" />
+                <input type="hidden" name="orderDir" value="@Model.OrderDir" />
+                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                <input type="hidden" name="page" value="@(Model.PageIndex - 1)" />
+                <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="submit" @(Model.HasPrevPage ? null : "disabled")>Onceki</button>
+            </form>
+            <div class="text-xs text-slate-500">Sayfa @Model.PageIndex</div>
+            <form method="get">
+                @foreach (var mekan in Model.SelectedMekan)
+                {
+                    <input type="hidden" name="mekan" value="@mekan" />
+                }
+                @foreach (var tip in Model.SelectedTip)
+                {
+                    <input type="hidden" name="tip" value="@tip" />
+                }
+                <input type="hidden" name="search" value="@Model.Search" />
+                @if (Model.MinSkor.HasValue)
+                {
+                    <input type="hidden" name="minSkor" value="@Model.MinSkor" />
+                }
+                @if (Model.MaxSkor.HasValue)
+                {
+                    <input type="hidden" name="maxSkor" value="@Model.MaxSkor" />
+                }
+                <input type="hidden" name="kesimBas" value="@(Model.KesimBas?.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="kesimBit" value="@(Model.KesimBit?.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="orderBy" value="@Model.OrderBy" />
+                <input type="hidden" name="orderDir" value="@Model.OrderDir" />
+                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                <input type="hidden" name="page" value="@(Model.PageIndex + 1)" />
+                <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="submit" @(Model.HasNextPage ? null : "disabled")>Sonraki</button>
+            </form>
+        </div>
+
+        <div class="space-y-3 md:hidden">
+            @foreach (var row in Model.Rows)
+            {
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm font-semibold">@row.Urun</div>
+                        <span class="@ScoreBadge(row.Skor)">@row.Skor</span>
+                    </div>
+                    <div class="text-xs text-slate-500">@row.UrunKod - @row.Mekan</div>
+                    <div class="mt-3 flex flex-wrap gap-1">
+                        @foreach (var flag in row.Flags)
+                        {
+                            <span class="@FlagBadge(flag)">@FlagText(flag)</span>
+                        }
+                    </div>
+                    <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
+                        <span>@row.Donem</span>
+                        <span>@row.SonHareketGun gun once</span>
+                    </div>
+                    <div class="mt-3 flex items-center justify-between">
+                        <span class="@StokBadge(row.StokVar)">Stok @row.StokAdet</span>
+                        <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" asp-page="/Urun/Index" asp-route-id="@row.Id" asp-route-mekanId="@row.MekanId">Incele</a>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>

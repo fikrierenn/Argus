@@ -1,0 +1,24 @@
+@page
+@model ErrorModel
+@{
+    ViewData["Title"] = "Hata";
+}
+
+<h1 class="text-danger text-break">Hata.</h1>
+<h2 class="text-danger text-break">İsteğiniz işlenirken bir hata oluştu.</h2>
+
+@if (Model.ShowRequestId)
+{
+    <p class="text-break">
+        <strong>İstek ID:</strong> <code>@Model.RequestId</code>
+    </p>
+}
+
+<h3>Geliştirme Modu</h3>
+<p class="text-break">
+    <strong>Development</strong> ortamına geçiş yapıldığında oluşan hata hakkında detaylı bilgi gösterilir.
+</p>
+<p class="text-break">
+    <strong>Dağıtılan uygulamalarda Development ortamı etkinleştirilmemelidir.</strong>
+    Kullanıcılara istisnalardan gelen hassas bilgilerin gösterilmesine neden olabilir.
+</p>

@@ -1,0 +1,130 @@
+@page
+@model BkmArgus.Pages.Raporlar.KarneDetayModel
+@{
+    ViewData["Title"] = "Karne Raporu";
+}
+
+<h2>Karne - @Model.Audit?.ReportNo</h2>
+<div class="card mb-3">
+    <div class="card-header">Denetim Bilgileri</div>
+    <div class="card-body">
+        <p class="mb-0"><span class="d-block d-md-inline"><strong>Lokasyon:</strong> @Model.Audit?.LocationName</span> <span class="d-none d-md-inline">|</span> <span class="d-block d-md-inline mt-1 mt-md-0"><strong>Tarih:</strong> @Model.Audit?.AuditDate.ToString("dd.MM.yyyy")</span></p>
+        @if (Model.Audit?.IsFinalized == true && Model.Audit?.FinalizedAt != null)
+        {
+            <small class="text-success">✓ Kesinleştirildi: @Model.Audit.FinalizedAt?.ToString("dd.MM.yyyy HH:mm")</small>
+        }
+    </div>
+</div>
+
+@* Puan özeti kartları - mobil uyumlu *@
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-primary h-100">
+            <div class="card-body text-center py-3">
+                <div class="display-6 fw-bold text-primary">@Model.Puan.ToString("N0")%</div>
+                <small class="text-muted">Genel Puan</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card h-100">
+            <div class="card-body text-center py-3">
+                <div class="display-6 fw-bold">@Model.ToplamMadde</div>
+                <small class="text-muted">Toplam Madde</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-success h-100">
+            <div class="card-body text-center py-3">
+                <div class="display-6 fw-bold text-success">@Model.EvetSayisi</div>
+                <small class="text-muted">EVET (Uygun)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-danger h-100">
+            <div class="card-body text-center py-3">
+                <div class="display-6 fw-bold text-danger">@Model.HayirSayisi</div>
+                <small class="text-muted">HAYIR (Uygun Değil)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Grafikler - Chart.js ile otomatik oluşturulur - mobilde tam genişlik *@
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">EVET / HAYIR Dağılımı</div>
+            <div class="card-body">
+                <canvas id="chartPie" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Gruplara Göre Puan</div>
+            <div class="card-body">
+                <canvas id="chartBar" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2 flex-wrap">
+    <a asp-page="Karne" class="btn btn-secondary">← Karne Listesi</a>
+    <a asp-page="/Denetimler/Index" class="btn btn-outline-primary">Denetimler</a>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+// Grafik verileri - güvenli JSON serialization
+var evetSayisi = @Model.EvetSayisi;
+var hayirSayisi = @Model.HayirSayisi;
+var grupOzetleri = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.GrupOzetleri));
+
+// Pasta grafik - EVET/HAYIR dağılımı
+new Chart(document.getElementById('chartPie'), {
+    type: 'doughnut',
+    data: {
+        labels: ['EVET (Uygun)', 'HAYIR (Uygun Değil)'],
+        datasets: [{
+            data: [evetSayisi, hayirSayisi],
+            backgroundColor: ['#198754', '#dc3545'],
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' } }
+    }
+});
+
+// Çubuk grafik - gruplara göre puan
+new Chart(document.getElementById('chartBar'), {
+    type: 'bar',
+    data: {
+        labels: grupOzetleri.map(function(g) { return g.grupAdi; }),
+        datasets: [{
+            label: 'Puan (%)',
+            data: grupOzetleri.map(function(g) { return g.puan; }),
+            backgroundColor: 'rgba(225, 0, 28, 0.7)',
+            borderColor: '#E1001C',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        scales: {
+            x: { min: 0, max: 100, ticks: { callback: function(v) { return v + '%'; } } }
+        },
+        plugins: { legend: { display: false } }
+    }
+});
+</script>
+}

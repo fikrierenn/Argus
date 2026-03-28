@@ -1,0 +1,204 @@
+@page
+@model BkmArgus.Pages.Dashboard.IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+@* === OZET KARTLARI === *@
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-label">Toplam DOF</div>
+            <div class="stat-value">@Model.Actions.Total</div>
+            <div class="stat-sub">@Model.Actions.Closed kapatıldı</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-label">Açık DOF</div>
+            <div class="stat-value text-warning">@(Model.Actions.Open + Model.Actions.InProgress)</div>
+            <div class="stat-sub">@Model.Actions.InProgress devam ediyor</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card" style="border-color: #dc3545;">
+            <div class="stat-label">Vadesi Geçmiş</div>
+            <div class="stat-value text-danger">@Model.Actions.Overdue</div>
+            <div class="stat-sub">acil aksiyon gerekli</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-label">Ort. Çözüm Süresi</div>
+            <div class="stat-value">@Model.AvgResolutionDays.ToString("F0")</div>
+            <div class="stat-sub">gün</div>
+        </div>
+    </div>
+</div>
+
+@* === GRAFIKLER === *@
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card">
+            <div class="card-header">Aylik Denetim Skoru Trendi</div>
+            <div class="card-body">
+                <canvas id="scoreTrendChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card">
+            <div class="card-header">Departman Basarisizlik Oranlari</div>
+            <div class="card-body">
+                <canvas id="deptRiskChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* === RISKLI LOKASYONLAR + TEKRARLAYAN BULGULAR === *@
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card">
+            <div class="card-header">En Riskli Lokasyonlar</div>
+            <div class="card-body p-0">
+                @if (Model.RiskiestLocations.Count == 0)
+                {
+                    <p class="text-muted p-3 mb-0">Henuz veri yok.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead><tr><th>Lokasyon</th><th>Denetim</th><th>Basarisizlik</th><th>Risk</th></tr></thead>
+                        <tbody>
+                        @foreach (var loc in Model.RiskiestLocations)
+                        {
+                            <tr>
+                                <td>@loc.LocationName</td>
+                                <td>@loc.AuditCount</td>
+                                <td>%@loc.FailureRate</td>
+                                <td><span class="badge @(loc.AvgFailedRiskScore > 15 ? "bg-danger" : loc.AvgFailedRiskScore > 8 ? "bg-warning" : "bg-secondary")">@loc.AvgFailedRiskScore?.ToString("F1")</span></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card">
+            <div class="card-header">Tekrarlayan Bulgular</div>
+            <div class="card-body p-0">
+                @if (Model.RepeatedFindings.Count == 0)
+                {
+                    <p class="text-muted p-3 mb-0">Henuz veri yok.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead><tr><th>Bulgu</th><th>Tekrar</th><th>Lokasyon</th><th></th></tr></thead>
+                        <tbody>
+                        @foreach (var f in Model.RepeatedFindings)
+                        {
+                            <tr>
+                                <td class="text-truncate" style="max-width:250px;" title="@f.ItemText">@f.ItemText</td>
+                                <td>@f.FailCount</td>
+                                <td>@f.DistinctLocationCount</td>
+                                <td>@if (f.IsSystemic) { <span class="badge bg-danger">Sistemik</span> }</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@* === AI UYARILARI === *@
+<div class="card mb-4">
+    <div class="card-header">Son AI Uyarilari</div>
+    <div class="card-body p-0">
+        @if (Model.RecentAlerts.Count == 0)
+        {
+            <p class="text-muted p-3 mb-0">Henuz AI uyarisi uretilmedi. Denetim kesinlestirildikce otomatik uyarilar burada gorunecek.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead><tr><th>Tarih</th><th>Tur</th><th>Ozet</th><th>Onem</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var alert in Model.RecentAlerts)
+                {
+                    <tr>
+                        <td class="text-nowrap">@alert.CreatedAt.ToString("dd.MM HH:mm")</td>
+                        <td><span class="badge bg-info">@alert.AnalysisType</span></td>
+                        <td>@alert.Summary</td>
+                        <td><span class="badge @(alert.Severity == "Critical" ? "bg-danger" : alert.Severity == "High" ? "bg-warning" : "bg-secondary")">@alert.Severity</span></td>
+                        <td>@if (alert.IsActionable && !alert.ActionTaken) { <span class="badge bg-primary">Aksiyon Gerekli</span> }</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // Skor Trend Grafigi
+    var trendData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ScoreTrend));
+    if (trendData.length > 0) {
+        new Chart(document.getElementById('scoreTrendChart'), {
+            type: 'line',
+            data: {
+                labels: trendData.map(d => d.label),
+                datasets: [{
+                    label: 'Ortalama Skor (%)',
+                    data: trendData.map(d => d.averageScore),
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13,110,253,0.1)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { min: 0, max: 100 } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    // Departman Risk Grafigi
+    var deptData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DepartmentRisks));
+    if (deptData.length > 0) {
+        new Chart(document.getElementById('deptRiskChart'), {
+            type: 'bar',
+            data: {
+                labels: deptData.map(d => d.department),
+                datasets: [{
+                    label: 'Basarisizlik Orani (%)',
+                    data: deptData.map(d => d.failureRate),
+                    backgroundColor: deptData.map(d => d.failureRate > 30 ? '#dc3545' : d.failureRate > 15 ? '#ffc107' : '#198754')
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                scales: { x: { min: 0, max: 100 } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+</script>
+}

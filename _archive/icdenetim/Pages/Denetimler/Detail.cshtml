@@ -1,0 +1,37 @@
+@page
+@model BkmArgus.Pages.Denetimler.DetailModel
+@{
+    ViewData["Title"] = "Denetim Detay";
+}
+
+<h2 class="text-break">Denetim Detay - @Model.Audit?.ReportNo</h2>
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-12 col-sm-6"><p class="mb-0"><strong>Lokasyon:</strong> @Model.Audit?.LocationName</p></div>
+            <div class="col-12 col-sm-6"><p class="mb-0"><strong>Denetim Tarihi:</strong> @Model.Audit?.AuditDate.ToString("dd.MM.yyyy")</p></div>
+            <div class="col-12 col-sm-6"><p class="mb-0"><strong>Rapor Tarihi:</strong> @Model.Audit?.ReportDate.ToString("dd.MM.yyyy")</p></div>
+            <div class="col-12 col-sm-6"><p class="mb-0"><strong>Yönetici:</strong> @Model.Audit?.Manager</p></div>
+            <div class="col-12"><p class="mb-0"><strong>Direktörlük:</strong> @Model.Audit?.Directorate</p></div>
+        </div>
+        @if (Model.Audit?.IsFinalized == true)
+        {
+            <span class="badge bg-success mt-2">Kesinleşti</span>
+        }
+    </div>
+</div>
+<div class="d-flex gap-2 flex-wrap align-items-center">
+    @if (Model.Audit?.IsFinalized == true)
+    {
+        <a asp-page="/Raporlar/KarneDetay" asp-route-id="@Model.Id" class="btn btn-primary">Rapor Görüntüle</a>
+    }
+    else
+    {
+        <a asp-page="Edit" asp-route-id="@Model.Id" class="btn btn-primary">Düzenle</a>
+        <form method="post" asp-page-handler="Finalize" asp-route-id="@Model.Id" class="d-inline">
+            <button type="submit" class="btn btn-success" onclick="return confirm('Denetimi kesinleştirmek istediğinize emin misiniz?');">Kesinleştir</button>
+        </form>
+    }
+    <a asp-page="Delete" asp-route-id="@Model.Id" class="btn btn-outline-danger">Sil</a>
+    <a asp-page="Index" class="btn btn-secondary">Listeye Dön</a>
+</div>

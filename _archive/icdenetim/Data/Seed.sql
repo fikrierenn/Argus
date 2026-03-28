@@ -1,0 +1,3 @@
+-- İlk kullanıcı (admin) - şifre: 123456
+-- Not: Uygulama ilk çalıştığında DbInitializer otomatik oluşturur.
+-- Manuel seed için Schema.sql çalıştırdıktan sonra uygulamayı bir kez başlatın.

@@ -1,0 +1,49 @@
+@page
+@model BkmArgus.Pages.Raporlar.IndexModel
+@{
+    ViewData["Title"] = "Raporlar";
+}
+
+<h2>Raporlar</h2>
+
+<div class="row mt-4 g-3">
+    <div class="col-12 col-md-6">
+        <div class="card">
+            <div class="card-header">Denetim Özet Raporu</div>
+            <div class="card-body">
+                <p class="text-muted">Lokasyon ve tarih aralığına göre denetim özeti.</p>
+                <form method="get" asp-page-handler="Ozet">
+                    <div class="mb-2">
+                        <label class="form-label">Başlangıç Tarihi</label>
+                        <input type="date" name="baslangic" class="form-control" value="@Model.Baslangic?.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Bitiş Tarihi</label>
+                        <input type="date" name="bitis" class="form-control" value="@Model.Bitis?.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <button type="submit" class="btn btn-primary">Rapor Al</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="card">
+            <div class="card-header">Karne Raporu</div>
+            <div class="card-body">
+                <p class="text-muted">Belirli bir denetimin karne özeti.</p>
+                <a asp-page="Karne" class="btn btn-primary w-100">Karne Raporları</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.OzetRapor != null)
+{
+    <div class="card mt-4">
+        <div class="card-header">Özet Sonuç</div>
+        <div class="card-body">
+            <p><strong>Toplam Denetim:</strong> @Model.OzetRapor.ToplamDenetim</p>
+            <p><strong>Ortalama Puan:</strong> @Model.OzetRapor.OrtalamaPuan.ToString("N2")</p>
+        </div>
+    </div>
+}

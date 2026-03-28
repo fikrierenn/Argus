@@ -1,0 +1,36 @@
+@{
+    var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
+    string Active(string prefix) => currentPage.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+}
+
+<nav class="sidebar-nav">
+    <div class="nav-section">GENEL</div>
+    <a class="nav-item @Active("/Dashboard")" asp-page="/Dashboard/Index">
+        <i class="bi bi-speedometer2"></i>
+        <span>Dashboard</span>
+    </a>
+    <a class="nav-item @Active("/Denetimler")" asp-page="/Denetimler/Index">
+        <i class="bi bi-clipboard-check"></i>
+        <span>Denetimler</span>
+    </a>
+    <a class="nav-item @Active("/Maddeler")" asp-page="/Maddeler/Index">
+        <i class="bi bi-list-check"></i>
+        <span>Maddeler</span>
+    </a>
+
+    <div class="nav-section">YONETIM</div>
+    <a class="nav-item @Active("/Aksiyon")" asp-page="/Aksiyon/Index">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>Aksiyonlar</span>
+    </a>
+    <a class="nav-item @Active("/Raporlar")" asp-page="/Raporlar/Index">
+        <i class="bi bi-bar-chart-line"></i>
+        <span>Raporlar</span>
+    </a>
+
+    <div class="nav-section">AYARLAR</div>
+    <a class="nav-item @Active("/Beceriler")" asp-page="/Beceriler/Index">
+        <i class="bi bi-gear"></i>
+        <span>Beceriler</span>
+    </a>
+</nav>

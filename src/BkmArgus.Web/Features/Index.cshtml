@@ -1,0 +1,60 @@
+@page "/"
+@model IndexModel
+@{
+    ViewData["Title"] = "Genel Bakis";
+    ViewData["Subtitle"] = "Sabah ozet ve hizli aksiyonlar";
+
+    string ToneClass(string tone) => tone switch
+    {
+        "tone-good" => "border-l-4 border-emerald-500 text-emerald-600",
+        "tone-warn" => "border-l-4 border-amber-500 text-amber-600",
+        _ => "border-l-4 border-bkm-red text-bkm-red"
+    };
+}
+
+<div class="grid gap-4 lg:grid-cols-4">
+    @foreach (var card in Model.StatusCards)
+    {
+        <div class="rounded-xl border border-slate-200 bg-white p-4 @ToneClass(card.Tone)">
+            <div class="text-xs uppercase tracking-wide text-slate-400">@card.Baslik</div>
+            <div class="mt-2 text-2xl font-semibold text-slate-900">@card.Deger</div>
+            <div class="mt-1 text-xs text-slate-500">@card.Not</div>
+        </div>
+    }
+</div>
+
+<div class="grid gap-4 xl:grid-cols-2">
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-semibold">Hizli aksiyonlar</div>
+                <div class="text-xs text-slate-500">Sik kullanilan ekranlar</div>
+            </div>
+        </div>
+        <div class="mt-4 space-y-2">
+            <a class="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm" asp-page="/Dashboard/Index">
+                Risk dashboard
+                <span class="text-xs text-slate-400">Son 24 saat</span>
+            </a>
+            <a class="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm" asp-page="/Risk/Index">
+                Risk gezgini
+                <span class="text-xs text-slate-400">Filtreli liste</span>
+            </a>
+            <a class="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm" asp-page="/Ref/Index">
+                Tanimlar
+                <span class="text-xs text-slate-400">Parametreler</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm font-semibold">Bugun notlari</div>
+        <div class="text-xs text-slate-500">Takip edilmesi gerekenler</div>
+        <ul class="mt-4 space-y-2 text-sm text-slate-600">
+            @foreach (var note in Model.QuickNotes)
+            {
+                <li class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">@note</li>
+            }
+        </ul>
+    </div>
+</div>
