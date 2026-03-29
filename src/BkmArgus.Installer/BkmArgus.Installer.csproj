@@ -31,4 +31,8 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\..\Shared\BkmDenetimConnection.cs" Link="Shared\BkmDenetimConnection.cs" />
+  </ItemGroup>
+
 </Project>

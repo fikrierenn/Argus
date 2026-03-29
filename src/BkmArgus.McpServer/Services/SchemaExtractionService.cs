@@ -1,3 +1,4 @@
+using BkmArgus.Infrastructure;
 using Microsoft.Data.SqlClient;
 using Dapper;
 using BkmArgus.McpServer.Models;
@@ -12,22 +13,7 @@ public class SchemaExtractionService
 
     public SchemaExtractionService(IConfiguration configuration, ILogger<SchemaExtractionService> logger)
     {
-        var envConn = configuration["BKM_DENETIM_CONN"];
-        var appConn = configuration.GetConnectionString("BkmDenetim");
-        
-        if (!string.IsNullOrWhiteSpace(envConn))
-        {
-            _connectionString = envConn;
-        }
-        else if (!string.IsNullOrWhiteSpace(appConn))
-        {
-            _connectionString = appConn;
-        }
-        else
-        {
-            throw new InvalidOperationException("BKM_DENETIM_CONN veya ConnectionStrings:BkmDenetim tanımlı değil.");
-        }
-        
+        _connectionString = BkmDenetimConnection.Resolve(configuration);
         _logger = logger;
     }
 

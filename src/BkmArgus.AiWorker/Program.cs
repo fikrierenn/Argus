@@ -1,4 +1,5 @@
 using BkmArgus.AiWorker;
+using BkmArgus.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -29,21 +30,7 @@ IHost host = Host.CreateDefaultBuilder(args)
             .BindConfiguration("AiWorker")
             .Configure<IConfiguration>((options, config) =>
             {
-                var envConn = config["BKM_DENETIM_CONN"];
-                var appConn = config.GetConnectionString("BkmDenetim");
-                
-                if (!string.IsNullOrWhiteSpace(envConn))
-                {
-                    options.ConnectionString = envConn;
-                }
-                else if (!string.IsNullOrWhiteSpace(appConn))
-                {
-                    options.ConnectionString = appConn;
-                }
-                else
-                {
-                    throw new InvalidOperationException("BKM_DENETIM_CONN veya ConnectionStrings:BkmDenetim tanımlı değil.");
-                }
+                options.ConnectionString = BkmDenetimConnection.Resolve(config);
             });
         services.AddHttpClient("ollama", client =>
         {
