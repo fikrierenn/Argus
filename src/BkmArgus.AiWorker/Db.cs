@@ -1,3 +1,4 @@
+using BkmArgus.Infrastructure;
 using Microsoft.Data.SqlClient;
 using Dapper;
 using System.Data;
@@ -10,21 +11,7 @@ public sealed class Db
 
     public Db(IConfiguration configuration)
     {
-        var envConn = configuration["BKM_DENETIM_CONN"];
-        var appConn = configuration.GetConnectionString("BkmDenetim");
-        if (!string.IsNullOrWhiteSpace(envConn))
-        {
-            _connectionString = envConn;
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(appConn))
-        {
-            _connectionString = appConn;
-            return;
-        }
-
-        throw new InvalidOperationException("BKM_DENETIM_CONN veya ConnectionStrings:BkmDenetim tanimli degil.");
+        _connectionString = BkmDenetimConnection.Resolve(configuration);
     }
 
     public SqlConnection CreateConnection() => new SqlConnection(_connectionString);

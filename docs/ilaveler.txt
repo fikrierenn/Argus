@@ -1,0 +1,13 @@
+1
+Yeni fonksiyonel özellik fikirleri geliştiriliyor ve plan güncelleniyor
+
+Mimari işlemler (kod ve SQL tarafındaki birleştirmeler) tamamlandıktan sonra, platformu gerçekten "Yapay Zeka Destekli Akıllı Bir Denetim Merkezi"ne dönüştürecek çok güzel işlevsel özellikler ekleyebiliriz.
+
+Senin için aklımdaki 6 Yenilikçi Özelliği implementation_plan.md dosyasına Faz 5 / Gelecek Vizyonu olarak ekledim:
+
+Denetçi "Copilot" Asistanı: Yöneticilerin "Geçen ay Kadıköy şubesinde en çok tekrarlanan hatalar nelerdi?" diye sorabileceği, doğrudan veritabanı ve açık DÖF'lerle konuşan bir LLM chatbot.
+Fotoğraftan Bulgu Tespiti (Görsel AI): Denetçi mağazada fotoğraf çektiğinde (örn: dağınık depo, eksik etiket), Vision tabanlı yapay zekanın sorunları fotoğraftan algılayıp doğrudan bulgu (DÖF) taslağı oluşturması.
+Akıllı Rota Optimizasyonu: ETL'den gelen risk skorlarına göre hangi denetçinin ertesi gün hangi mağazaya gitmesi gerektiğini sistemin otomatik planlaması.
+Proaktif Risk Öngörüsü: Mevcut AI'ın sadece tespit üretmesi değil; yaklaşan dönemler (sayım haftası, bayram yoğunluğu) için "Bu mağazalarda X riski artabilir" diye erken uyarı üretmesi.
+Gerçek Zamanlı (Anlık) Alarmlar: Gece çalışan günlük ETL ötesinde, gün içi olağandışı iade/kasa iptali anında ekrana ve mobile anlık (push) bildirim düşmesi.
+Oyunlaştırma (Mağaza Ligi): Mağazaların risk skoruna göre puanlanıp "En iyi 5" ve "Acil Müdahale Edilmesi Gereken 5" şube gibi motive edici panoların kurulması.

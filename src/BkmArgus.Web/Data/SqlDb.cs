@@ -1,4 +1,5 @@
 using System.Data;
+using BkmArgus.Infrastructure;
 using Dapper;
 using Microsoft.Data.SqlClient;
 
@@ -10,11 +11,8 @@ public sealed class SqlDb
 
     public SqlDb(IConfiguration configuration)
     {
-        var envConn = configuration["BKM_DENETIM_CONN"];
-        _connectionString = !string.IsNullOrWhiteSpace(envConn)
-            ? envConn
-            : configuration.GetConnectionString("BkmDenetim")
-              ?? throw new InvalidOperationException("ConnectionStrings:BkmDenetim tanimli degil.");
+        // BkmDenetimConnection: BKM_DENETIM_CONN > BkmDenetim > BkmArgus (birleşik repo uyumu)
+        _connectionString = BkmDenetimConnection.Resolve(configuration);
     }
 
     public async Task<bool> CanConnectAsync()

@@ -11,4 +11,9 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.3" />
   </ItemGroup>
 
+  <!-- BKMDenetim bağlantı dizesi: BkmDenetim / BkmArgus appsettings uyumu (ortak dosya) -->
+  <ItemGroup>
+    <Compile Include="..\..\Shared\BkmDenetimConnection.cs" Link="Shared\BkmDenetimConnection.cs" />
+  </ItemGroup>
+
 </Project>
