@@ -68,8 +68,8 @@ public class AiModel : PageModel
         if (ActiveTab == "insights")
         {
             Insights = (await _db.QueryAsync<dynamic>(
-                "ai.sp_ProactiveInsight_List",
-                new { Top = 50 })).ToList();
+                "ai.sp_Insight_List",
+                new { Top = 50, SadeceAktif = 1 })).ToList();
             return;
         }
 

@@ -91,7 +91,7 @@ public class DashboardModel : PageModel
         if (Tab == "ai")
         {
             AiKpi = await _db.QuerySingleAsync<AiDashboardKpi>("ai.sp_AiDashboard_Kpi");
-            ProactiveInsights = (await _db.QueryAsync<dynamic>("ai.sp_ProactiveInsight_List", new { Top = 5, SadeceAktif = 1 })).ToList();
+            ProactiveInsights = (await _db.QueryAsync<dynamic>("ai.sp_Insight_List", new { Top = 5, SadeceAktif = 1 })).ToList();
             AiSkillHistory = (await _db.QueryAsync<dynamic>("ai.sp_AiDashboard_SkillHistory", new { Top = 5 })).ToList();
         }
     }
