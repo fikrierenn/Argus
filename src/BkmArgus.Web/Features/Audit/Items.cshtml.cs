@@ -10,7 +10,6 @@ public class ItemsModel : PageModel
     public ItemsModel(SqlDb db) => _db = db;
 
     [BindProperty(SupportsGet = true)] public string? Group { get; set; }
-    [BindProperty(SupportsGet = true)] public bool? IsActive { get; set; }
     [BindProperty] public ItemInput Input { get; set; } = new();
     [BindProperty(SupportsGet = true)] public int? EditId { get; set; }
 
@@ -34,8 +33,7 @@ public class ItemsModel : PageModel
                     SortOrder = item.SortOrder,
                     FindingType = item.FindingType,
                     Probability = item.Probability,
-                    Impact = item.Impact,
-                    IsActive = item.IsActive
+                    Impact = item.Impact
                 };
             }
         }
@@ -54,9 +52,7 @@ public class ItemsModel : PageModel
             Input.FindingType,
             Input.Probability,
             Input.Impact,
-            SkillId = (int?)null,
-            Input.IsActive,
-            CreatedByUserId = 1
+            SkillId = (int?)null
         });
         TempData["StatusMessage"] = "Madde eklendi.";
         return RedirectToPage();
@@ -76,9 +72,7 @@ public class ItemsModel : PageModel
             Input.FindingType,
             Input.Probability,
             Input.Impact,
-            SkillId = (int?)null,
-            Input.IsActive,
-            UpdatedByUserId = 1
+            SkillId = (int?)null
         });
         TempData["StatusMessage"] = "Madde guncellendi.";
         return RedirectToPage();
@@ -89,8 +83,7 @@ public class ItemsModel : PageModel
         Items = await _db.QueryAsync<ItemRow>("audit.sp_Item_List", new
         {
             LocationType = (string?)null,
-            AuditGroup = Group,
-            IsActive
+            AuditGroup = Group
         });
         Groups = Items.Select(i => i.AuditGroup ?? "").Where(g => g != "").Distinct().OrderBy(g => g).ToList();
     }
@@ -105,7 +98,6 @@ public class ItemsModel : PageModel
         public string? FindingType { get; set; }
         public int Probability { get; set; } = 3;
         public int Impact { get; set; } = 3;
-        public bool IsActive { get; set; } = true;
     }
 
     public sealed record ItemRow
@@ -121,8 +113,6 @@ public class ItemsModel : PageModel
         public int Probability { get; init; }
         public int Impact { get; init; }
         public int RiskScore { get; init; }
-        public bool IsActive { get; init; }
         public DateTime? CreatedAt { get; init; }
-        public DateTime? UpdatedAt { get; init; }
     }
 }

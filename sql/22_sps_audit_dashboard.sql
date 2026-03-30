@@ -302,8 +302,8 @@ BEGIN
             -- Pending DOF count (ACIK status)
             (
                 SELECT CASE
-                    WHEN OBJECT_ID(N'dof.DofKayit', N'U') IS NOT NULL
-                    THEN (SELECT COUNT(*) FROM dof.DofKayit WHERE Durum = 'ACIK' AND KaynakSistemKodu = 'SAHA_DENETIM')
+                    WHEN OBJECT_ID(N'dof.Findings', N'U') IS NOT NULL
+                    THEN (SELECT COUNT(*) FROM dof.Findings WHERE Status = 'ACIK' AND SourceSystemCode = 'SAHA_DENETIM')
                     ELSE 0
                 END
             )   AS PendingDofCount;
