@@ -1,13 +1,20 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BkmArgus.Web.Data;
+using BkmArgus.Web.Services;
 
 namespace BkmArgus.Web.Features.Audit;
 
 public class ReportsModel : PageModel
 {
     private readonly SqlDb _db;
-    public ReportsModel(SqlDb db) => _db = db;
+    private readonly ExcelExportService _export;
+
+    public ReportsModel(SqlDb db, ExcelExportService export)
+    {
+        _db = db;
+        _export = export;
+    }
 
     [BindProperty(SupportsGet = true)] public string? Tab { get; set; }
     [BindProperty(SupportsGet = true)] public string? Location { get; set; }
@@ -48,6 +55,90 @@ public class ReportsModel : PageModel
         {
             Systemic = await _db.QueryAsync<SystemicRow>("audit.sp_Report_SystemicFindings");
         }
+    }
+
+    public async Task<IActionResult> OnGetExportAsync()
+    {
+        var tab = string.IsNullOrWhiteSpace(Tab) ? "karne" : Tab.ToLowerInvariant();
+
+        if (tab == "karne")
+        {
+            var data = await _db.QueryAsync<ScorecardRow>("audit.sp_Report_Scorecard", new
+            {
+                MagazaAdi = Location,
+                BaslangicTarihi = (DateTime?)null,
+                BitisTarihi = (DateTime?)null
+            });
+
+            var bytes = _export.Export(data, "Denetim Karnesi", new Dictionary<string, Func<ScorecardRow, object?>>
+            {
+                ["Magaza"] = r => r.LocationName,
+                ["Denetim Sayisi"] = r => r.AuditCount,
+                ["Ort. Uyum (%)"] = r => r.AvgComplianceRate,
+                ["Son Denetim"] = r => r.LastAuditDate,
+                ["Son Uyum (%)"] = r => r.LastComplianceRate
+            });
+
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"denetim_karnesi_{DateTime.Today:yyyyMMdd}.xlsx");
+        }
+        else if (tab == "trend")
+        {
+            var data = await _db.QueryAsync<TrendRow>("audit.sp_Report_MonthlyTrend", new
+            {
+                MagazaAdi = Location,
+                AySayisi = 12
+            });
+
+            var bytes = _export.Export(data, "Aylik Trend", new Dictionary<string, Func<TrendRow, object?>>
+            {
+                ["Yil"] = r => r.Year,
+                ["Ay"] = r => r.Month,
+                ["Denetim Sayisi"] = r => r.AuditCount,
+                ["Ort. Uyum (%)"] = r => r.AvgComplianceRate
+            });
+
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"aylik_trend_{DateTime.Today:yyyyMMdd}.xlsx");
+        }
+        else if (tab == "tekrar")
+        {
+            var data = await _db.QueryAsync<RepeatingRow>("audit.sp_Report_RepeatingFindings", new
+            {
+                MinTekrar = 2,
+                Ust = 20
+            });
+
+            var bytes = _export.Export(data, "Tekrar Eden Bulgular", new Dictionary<string, Func<RepeatingRow, object?>>
+            {
+                ["Madde Metni"] = r => r.ItemText,
+                ["Basarisizlik"] = r => r.TotalFailures,
+                ["Magaza Sayisi"] = r => r.DistinctLocationCount,
+                ["Denetim Sayisi"] = r => r.DistinctAuditCount,
+                ["Ort. Risk"] = r => r.AvgRiskScore,
+                ["Sistemik"] = r => r.IsSystemic
+            });
+
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"tekrar_eden_bulgular_{DateTime.Today:yyyyMMdd}.xlsx");
+        }
+        else if (tab == "sistemik")
+        {
+            var data = await _db.QueryAsync<SystemicRow>("audit.sp_Report_SystemicFindings");
+
+            var bytes = _export.Export(data, "Sistemik Bulgular", new Dictionary<string, Func<SystemicRow, object?>>
+            {
+                ["Madde Metni"] = r => r.ItemText,
+                ["Magaza Sayisi"] = r => r.DistinctLocationCount,
+                ["Toplam Basarisizlik"] = r => r.TotalFailures,
+                ["Son Gorulme"] = r => r.LastSeenDate
+            });
+
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"sistemik_bulgular_{DateTime.Today:yyyyMMdd}.xlsx");
+        }
+
+        return RedirectToPage();
     }
 
     public sealed record ScorecardRow

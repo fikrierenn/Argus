@@ -1,4 +1,6 @@
 using BkmArgus.Web.Data;
+using BkmArgus.Web.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace BkmArgus.Web.Features;
@@ -6,6 +8,7 @@ namespace BkmArgus.Web.Features;
 public class RiskModel : PageModel
 {
     private readonly SqlDb _db;
+    private readonly ExcelExportService _export;
 
     private static readonly IReadOnlyList<string> TipList = new[]
     {
@@ -46,9 +49,10 @@ public class RiskModel : PageModel
     public bool HasPrevPage => PageIndex > 1;
     public bool HasNextPage => Rows.Count == PageSize;
 
-    public RiskModel(SqlDb db)
+    public RiskModel(SqlDb db, ExcelExportService export)
     {
         _db = db;
+        _export = export;
     }
 
     public async Task OnGetAsync(
@@ -121,6 +125,53 @@ public class RiskModel : PageModel
             row.SonHareketGun ?? 0,
             BuildFlags(row)))
             .ToList();
+    }
+
+    public async Task<IActionResult> OnGetExportAsync(
+        string? search,
+        int? minSkor,
+        int? maxSkor,
+        DateTime? kesimBas,
+        DateTime? kesimBit,
+        string[]? mekan,
+        string[]? tip,
+        string? orderBy,
+        string? orderDir)
+    {
+        var mekanCsv = mekan is { Length: > 0 } ? string.Join(",", mekan) : null;
+        var tipCsv = tip is { Length: > 0 } ? string.Join(",", tip) : null;
+
+        var data = await _db.QueryAsync<RiskRowRaw>(
+            "rpt.sp_RiskList",
+            new
+            {
+                Top = 5000,
+                Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
+                MinSkor = minSkor,
+                MaxSkor = maxSkor,
+                KesimBas = kesimBas?.Date,
+                KesimBit = kesimBit?.Date,
+                MekanCSV = mekanCsv,
+                TipCSV = tipCsv,
+                OrderBy = NormalizeOrderBy(orderBy),
+                OrderDir = NormalizeOrderDir(orderDir),
+                Page = 1,
+                PageSize = 5000
+            });
+
+        var bytes = _export.Export(data, "Risk Listesi", new Dictionary<string, Func<RiskRowRaw, object?>>
+        {
+            ["Mekan"] = r => r.MekanAd,
+            ["Urun Kodu"] = r => r.UrunKod,
+            ["Urun Adi"] = r => r.UrunAd,
+            ["Donem"] = r => r.DonemKodu,
+            ["Risk Skoru"] = r => r.RiskSkor,
+            ["Stok"] = r => r.StokMiktar,
+            ["Son Hareket (Gun)"] = r => r.SonHareketGun
+        });
+
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"risk_listesi_{DateTime.Today:yyyyMMdd}.xlsx");
     }
 
     public record RiskRow(

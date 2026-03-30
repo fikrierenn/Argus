@@ -56,6 +56,8 @@
             <div class="flex items-center gap-2">
                 <button class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" type="submit">Filtrele</button>
                 <a class="text-xs text-slate-500" asp-page="/Audit/Reports" asp-route-tab="@Model.Tab">Temizle</a>
+                <a class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600"
+                   href="/Audit/Reports?handler=Export&Tab=@Model.Tab&Location=@Model.Location">Excel indir</a>
             </div>
         </form>
     </div>
