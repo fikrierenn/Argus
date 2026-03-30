@@ -83,4 +83,32 @@ app.MapPost("/api/notifications/mark-all-read", async (HttpContext ctx, Notifica
     return Results.Ok();
 }).RequireAuthorization();
 
+// DOF drag & drop transition API
+app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db) =>
+{
+    var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    var role = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "DENETCI";
+    if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
+
+    var dofId = long.Parse(ctx.Request.Query["dofId"].ToString());
+    var newStatus = ctx.Request.Query["newStatus"].ToString();
+
+    try
+    {
+        await db.ExecuteAsync("dof.sp_Finding_Transition", new
+        {
+            DofId = dofId,
+            NewStatus = newStatus,
+            UserId = userId,
+            UserRole = role,
+            Reason = "Kanban surukle-birak ile degistirildi"
+        });
+        return Results.Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { success = false, error = ex.Message });
+    }
+}).RequireAuthorization();
+
 app.Run();
