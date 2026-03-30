@@ -195,7 +195,7 @@ BEGIN
             f.Rating,
             COALESCE(
                 se.OutputJson,
-                lr.ExecutiveSummary
+                lr.ResultText
             ) AS ApprovedOutput,
             COALESCE(se.SkillId, 'analysis') AS SkillId,
             COALESCE(se.InputJson, '') AS InputContext
@@ -272,7 +272,7 @@ BEGIN
             i.IsActioned, i.ActionedByUserId, i.ActionedAt, i.ActionNote,
             i.CreatedAt,
             CASE i.EntityType
-                WHEN 'MEKAN' THEN (SELECT TOP 1 ls.LocationName FROM ref.LocationSettings ls WHERE ls.LocationId = i.EntityId)
+                WHEN 'MEKAN' THEN (SELECT TOP 1 ls.Description FROM ref.LocationSettings ls WHERE ls.LocationId = i.EntityId)
                 ELSE NULL
             END AS EntityName
         FROM ai.ProactiveInsights i
@@ -412,9 +412,9 @@ BEGIN
             se.ExecutionId, se.SkillId, se.RequestedByUserId, se.EntityType, se.EntityId,
             se.Status, se.InputJson, se.OutputJson, se.ModelName, se.ConfidenceScore,
             se.ErrorMessage, se.CreatedAt, se.CompletedAt,
-            u.KullaniciAdi AS RequestedByUserName
+            u.Username AS RequestedByUserName
         FROM ai.SkillExecutions se
-        LEFT JOIN audit.Users u ON u.UserId = se.RequestedByUserId
+        LEFT JOIN audit.Users u ON u.Id = se.RequestedByUserId
         WHERE se.ExecutionId = @ExecutionId;
     END TRY
     BEGIN CATCH
@@ -440,9 +440,9 @@ BEGIN
             se.ExecutionId, se.SkillId, se.RequestedByUserId, se.EntityType, se.EntityId,
             se.Status, se.ModelName, se.ConfidenceScore, se.ErrorMessage,
             se.CreatedAt, se.CompletedAt,
-            u.KullaniciAdi AS RequestedByUserName
+            u.Username AS RequestedByUserName
         FROM ai.SkillExecutions se
-        LEFT JOIN audit.Users u ON u.UserId = se.RequestedByUserId
+        LEFT JOIN audit.Users u ON u.Id = se.RequestedByUserId
         WHERE (@SkillId IS NULL OR se.SkillId = @SkillId)
           AND (@VarlikTipi IS NULL OR se.EntityType = @VarlikTipi)
           AND (@VarlikId IS NULL OR se.EntityId = @VarlikId)
@@ -501,14 +501,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
     BEGIN TRY
-        -- Find locations: no audit in @GunEsik days AND ERP risk >= @RiskEsik
-        ;WITH LocationLastAudit AS (
-            SELECT a.LocationId, MAX(a.AuditDate) AS LastAuditDate
-            FROM audit.Audits a
-            WHERE a.Status = 'KESINLESMIS'
-            GROUP BY a.LocationId
-        ),
-        LocationRisk AS (
+        -- Find high-risk locations from ERP that may need audit attention
+        ;WITH LocationRisk AS (
             SELECT r.LocationId, AVG(r.RiskScore) AS AvgRisk
             FROM rpt.DailyProductRisk r
             WHERE r.SnapshotDate >= DATEADD(day, -7, CAST(SYSDATETIME() AS date))
@@ -519,23 +513,16 @@ BEGIN
         SELECT
             'DENETIM_PLANLA',
             CASE WHEN lr.AvgRisk >= 80 THEN 'KRITIK' WHEN lr.AvgRisk >= 70 THEN 'YUKSEK' ELSE 'ORTA' END,
-            N'Denetim Planlanmali: ' + ISNULL(ls.LocationName, N'Mekan #' + CAST(lr.LocationId AS nvarchar(10))),
-            N'Son denetim: ' +
-                CASE
-                    WHEN la.LastAuditDate IS NULL THEN N'Hic denetlenmemis'
-                    ELSE FORMAT(la.LastAuditDate, 'dd.MM.yyyy') + N' (' + CAST(DATEDIFF(day, la.LastAuditDate, SYSDATETIME()) AS nvarchar(10)) + N' gun once)'
-                END +
-                N'. Ortalama ERP risk skoru: ' + CAST(CAST(lr.AvgRisk AS int) AS nvarchar(10)),
+            N'Yuksek Riskli Mekan: ' + ISNULL(ls.Description, N'Mekan #' + CAST(lr.LocationId AS nvarchar(10))),
+            N'Ortalama ERP risk skoru: ' + CAST(CAST(lr.AvgRisk AS int) AS nvarchar(10)) +
+                N'/100. Denetim planlanmasi onerilir.',
             'MEKAN',
             lr.LocationId,
             lr.AvgRisk,
             @RiskEsik
         FROM LocationRisk lr
-        LEFT JOIN LocationLastAudit la ON la.LocationId = lr.LocationId
         LEFT JOIN ref.LocationSettings ls ON ls.LocationId = lr.LocationId
-        WHERE (la.LastAuditDate IS NULL OR DATEDIFF(day, la.LastAuditDate, SYSDATETIME()) >= @GunEsik)
-          -- Avoid duplicates within 24h
-          AND NOT EXISTS (
+        WHERE NOT EXISTS (
               SELECT 1 FROM ai.ProactiveInsights p
               WHERE p.InsightType = 'DENETIM_PLANLA' AND p.EntityType = 'MEKAN' AND p.EntityId = lr.LocationId
                 AND p.CreatedAt >= DATEADD(hour, -24, SYSDATETIME())
@@ -559,9 +546,10 @@ BEGIN
     SET NOCOUNT ON;
     BEGIN TRY
         -- Compare current quarter avg compliance vs previous quarter
+        -- audit.Audits uses LocationName (string) and Id as PK
         ;WITH QuarterlyCompliance AS (
             SELECT
-                a.LocationId,
+                a.LocationName,
                 CASE
                     WHEN a.AuditDate >= DATEADD(month, -3, SYSDATETIME()) THEN 'CURRENT'
                     WHEN a.AuditDate >= DATEADD(month, -6, SYSDATETIME()) THEN 'PREVIOUS'
@@ -570,13 +558,13 @@ BEGIN
             FROM audit.Audits a
             INNER JOIN (
                 SELECT AuditId,
-                    CAST(SUM(CASE WHEN IsCompliant = 1 THEN 1.0 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100 AS decimal(5,1)) AS ComplianceRate
+                    CAST(SUM(CASE WHEN IsPassed = 1 THEN 1.0 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100 AS decimal(5,1)) AS ComplianceRate
                 FROM audit.AuditResults
                 GROUP BY AuditId
-            ) ar ON ar.AuditId = a.AuditId
-            WHERE a.Status = 'KESINLESMIS'
+            ) ar ON ar.AuditId = a.Id
+            WHERE a.IsFinalized = 1
               AND a.AuditDate >= DATEADD(month, -6, SYSDATETIME())
-            GROUP BY a.LocationId,
+            GROUP BY a.LocationName,
                 CASE
                     WHEN a.AuditDate >= DATEADD(month, -3, SYSDATETIME()) THEN 'CURRENT'
                     WHEN a.AuditDate >= DATEADD(month, -6, SYSDATETIME()) THEN 'PREVIOUS'
@@ -584,12 +572,12 @@ BEGIN
         ),
         TrendDrop AS (
             SELECT
-                c.LocationId,
+                c.LocationName,
                 c.AvgCompliance AS CurrentRate,
                 p.AvgCompliance AS PreviousRate,
                 p.AvgCompliance - c.AvgCompliance AS DropAmount
             FROM QuarterlyCompliance c
-            INNER JOIN QuarterlyCompliance p ON c.LocationId = p.LocationId AND p.Period = 'PREVIOUS'
+            INNER JOIN QuarterlyCompliance p ON c.LocationName = p.LocationName AND p.Period = 'PREVIOUS'
             WHERE c.Period = 'CURRENT'
               AND p.AvgCompliance - c.AvgCompliance >= @DusisEsik
         )
@@ -597,19 +585,19 @@ BEGIN
         SELECT
             'TREND_UYARI',
             CASE WHEN td.DropAmount >= 20 THEN 'KRITIK' WHEN td.DropAmount >= 15 THEN 'YUKSEK' ELSE 'ORTA' END,
-            N'Uyum Dususu: ' + ISNULL(ls.LocationName, N'Mekan #' + CAST(td.LocationId AS nvarchar(10))),
-            N'Uyum orani %%' + CAST(CAST(td.PreviousRate AS int) AS nvarchar(5)) +
-                N' -> %%' + CAST(CAST(td.CurrentRate AS int) AS nvarchar(5)) +
-                N' (%%' + CAST(CAST(td.DropAmount AS int) AS nvarchar(5)) + N' dusus)',
+            N'Uyum Dususu: ' + td.LocationName,
+            N'Uyum orani %' + CAST(CAST(td.PreviousRate AS int) AS nvarchar(5)) +
+                N' -> %' + CAST(CAST(td.CurrentRate AS int) AS nvarchar(5)) +
+                N' (%' + CAST(CAST(td.DropAmount AS int) AS nvarchar(5)) + N' dusus)',
             'MEKAN',
-            td.LocationId,
+            0,  -- no LocationId available, use 0
             td.DropAmount,
             @DusisEsik
         FROM TrendDrop td
-        LEFT JOIN ref.LocationSettings ls ON ls.LocationId = td.LocationId
         WHERE NOT EXISTS (
             SELECT 1 FROM ai.ProactiveInsights p
-            WHERE p.InsightType = 'TREND_UYARI' AND p.EntityType = 'MEKAN' AND p.EntityId = td.LocationId
+            WHERE p.InsightType = 'TREND_UYARI' AND p.EntityType = 'MEKAN'
+              AND p.Title = N'Uyum Dususu: ' + td.LocationName
               AND p.CreatedAt >= DATEADD(hour, -24, SYSDATETIME())
         );
 
@@ -762,9 +750,9 @@ BEGIN
             se.ExecutionId, se.SkillId, se.EntityType, se.EntityId,
             se.Status, se.ModelName, se.ConfidenceScore,
             se.CreatedAt, se.CompletedAt,
-            u.KullaniciAdi AS RequestedByUserName
+            u.Username AS RequestedByUserName
         FROM ai.SkillExecutions se
-        LEFT JOIN audit.Users u ON u.UserId = se.RequestedByUserId
+        LEFT JOIN audit.Users u ON u.Id = se.RequestedByUserId
         ORDER BY se.CreatedAt DESC;
     END TRY
     BEGIN CATCH

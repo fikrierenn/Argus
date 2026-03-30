@@ -704,7 +704,7 @@ WHEN NOT MATCHED THEN
                     commandType: CommandType.StoredProcedure);
 
                 await connection.ExecuteAsync(@"
-                    INSERT INTO log.Notifications (UserId, NotificationType, Title, Message, Link, IsRead, CreatedAt)
+                    INSERT INTO log.Notifications (UserId, Type, Title, Message, Link, IsRead, CreatedAt)
                     VALUES (@UserId, @Type, @Title, @Message, @Link, 0, SYSDATETIME())",
                     new
                     {

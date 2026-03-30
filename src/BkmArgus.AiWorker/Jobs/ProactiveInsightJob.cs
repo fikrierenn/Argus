@@ -148,10 +148,10 @@ public class ProactiveInsightJob : BaseAiJob
             var message = $"{totalInsights} adet proaktif insight tespit edildi. Detaylar için AI sayfasını inceleyin.";
 
             using var command = new SqlCommand(@"
-                INSERT INTO log.Notifications (UserId, NotificationType, Title, Message, Link)
-                SELECT u.UserId, 'AI_INSIGHT', @Title, @Message, '/Ai?tab=insights'
+                INSERT INTO log.Notifications (UserId, Type, Title, Message, Link)
+                SELECT u.Id, 'AI_INSIGHT', @Title, @Message, '/Ai?tab=insights'
                 FROM audit.Users u
-                WHERE u.Rol = 'ADMIN' AND u.IsActive = 1", connection)
+                WHERE u.RoleCode = 'ADMIN' AND u.IsActive = 1", connection)
             {
                 CommandTimeout = 30
             };
