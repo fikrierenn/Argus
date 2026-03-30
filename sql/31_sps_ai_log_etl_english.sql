@@ -502,7 +502,7 @@ BEGIN
         ),
         Aggr AS (
             SELECT
-                KesimTarihi=@KesimTarihi,
+                KesimTarihi=CAST(@KesimGunu AS datetime2(0)),
                 d.DonemKodu,
                 m.MekanId,
                 m.StokId,
