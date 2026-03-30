@@ -25,6 +25,7 @@ builder.Services.AddRazorPages(options =>
 builder.Services.AddSingleton<BkmArgus.Web.Data.SqlDb>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddSingleton<ExcelExportService>();
 
 var app = builder.Build();
 

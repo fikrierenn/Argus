@@ -159,7 +159,8 @@
                     }
                 </select>
                 <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="submit">Uygula</button>
-                <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="button">Excel indir</button>
+                <a class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600"
+                   href="/Risk?handler=Export&search=@Model.Search&minSkor=@Model.MinSkor&maxSkor=@Model.MaxSkor&kesimBas=@(Model.KesimBas?.ToString("yyyy-MM-dd"))&kesimBit=@(Model.KesimBit?.ToString("yyyy-MM-dd"))&orderBy=@Model.OrderBy&orderDir=@Model.OrderDir@(string.Join("", Model.SelectedMekan.Select(m => "&mekan=" + m)))@(string.Join("", Model.SelectedTip.Select(t => "&tip=" + t)))">Excel indir</a>
             </form>
         </div>
 
