@@ -176,7 +176,7 @@ public class DashboardModel : PageModel
     private static string FormatNumber(int value) => value.ToString("N0", TrCulture);
 
     public record RiskRow(int UrunId, int MekanId, string Mekan, string Urun, string Donem, int Skor, string Flag, string Stok);
-    public record DofRow(string Baslik, string Sorumlu, string SLA, string Durum);
+    public record DofRow(string Title, string Sorumlu, string SLA, string Status);
     public record HealthRow(string Kod, string Durum, string Not);
     public record RefSummary(string Baslik, string Deger, string Not);
 

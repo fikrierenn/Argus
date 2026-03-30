@@ -580,9 +580,9 @@ BEGIN
     DECLARE @Kesim date = @KesimGunu;
     IF @Kesim IS NULL
     BEGIN
-        SELECT @Kesim = MAX(SnapshotDay)
+        SELECT @Kesim = MAX(CONVERT(date, SnapshotDate))
         FROM rpt.DailyProductRisk
-        WHERE SnapshotDay BETWEEN @Bas AND @Bit;
+        WHERE CONVERT(date, SnapshotDate) BETWEEN @Bas AND @Bit;
     END
     IF @Kesim IS NULL
         RETURN;
