@@ -133,6 +133,16 @@
                 </a>
             </nav>
             <div class="px-5 py-4 border-t border-white/10 text-xs text-slate-400">
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    var sidebarRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+                    var sidebarRoleLabel = sidebarRole switch { "ADMIN" => "Yonetici", "MUDUR" => "Mudur", "DENETCI" => "Denetci", _ => sidebarRole };
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                        <span class="text-slate-300">@(User.FindFirst("FullName")?.Value ?? User.Identity.Name)</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 mb-2">Rol: @sidebarRoleLabel</div>
+                }
                 <div class="flex items-center gap-2">
                     <span class="inline-flex h-2 w-2 rounded-full @(dbOk ? "bg-emerald-500" : "bg-red-500")"></span>
                     <span>@(dbOk ? "Baglanti OK" : "Baglanti yok")</span>
@@ -155,13 +165,25 @@
                     <div class="flex flex-wrap items-center gap-3">
                         <input class="rounded-full border border-slate-200 px-4 py-2 text-sm" type="date" value="@DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd")" />
                         <input class="rounded-full border border-slate-200 px-4 py-2 text-sm" type="text" placeholder="Ara" />
-                        <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600">MA</span>
-                            <div class="leading-tight">
-                                <div class="text-xs font-semibold text-slate-700">Mert Aydin</div>
-                                <div class="text-[10px] text-slate-500">Denetci</div>
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            var fullName = User.FindFirst("FullName")?.Value ?? User.Identity.Name ?? "";
+                            var initials = string.Join("", fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => w[0])).ToUpperInvariant();
+                            var roleClaim = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "DENETCI";
+                            var roleDisplay = roleClaim switch { "ADMIN" => "Yonetici", "MUDUR" => "Mudur", "DENETCI" => "Denetci", _ => roleClaim };
+                            <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                                <span class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600">@initials</span>
+                                <div class="leading-tight">
+                                    <div class="text-xs font-semibold text-slate-700">@fullName</div>
+                                    <div class="text-[10px] text-slate-500">@roleDisplay</div>
+                                </div>
                             </div>
-                        </div>
+                            <a asp-page="/Account/Logout" class="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 transition">Cikis</a>
+                        }
+                        else
+                        {
+                            <a asp-page="/Account/Login" class="rounded-full bg-bkm-red px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition">Giris Yap</a>
+                        }
                     </div>
                 </div>
                 <div class="px-6 pb-4 lg:hidden flex flex-wrap gap-2">

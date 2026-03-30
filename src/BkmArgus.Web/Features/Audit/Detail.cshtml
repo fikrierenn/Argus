@@ -1,5 +1,6 @@
 @page "{id:int}"
 @model DetailModel
+@attribute [Authorize]
 @{
     ViewData["Title"] = "Denetim Detay";
     ViewData["Subtitle"] = Model.Audit?.LocationName ?? "";
