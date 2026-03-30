@@ -1,0 +1,226 @@
+@page "{id:int}"
+@model EditModel
+@{
+    ViewData["Title"] = "Denetim Duzenle";
+    ViewData["Subtitle"] = Model.Audit?.LocationName ?? "";
+
+    var total = Model.Audit?.TotalItems ?? 0;
+    var answered = Model.Results.Count(r => r.IsPassed) + Model.Results.Count(r => !r.IsPassed && r.Remark is not null);
+    var pct = total > 0 ? (int)(Model.Audit!.ComplianceRate) : 0;
+
+    string RiskBadge(string? level) => level switch
+    {
+        "Yuksek" => "rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-bkm-red",
+        "Orta" => "rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700",
+        _ => "rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+    };
+}
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        @msg
+    </div>
+}
+
+<!-- Sticky Header -->
+<div class="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-slate-200 bg-white px-6 py-4 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+            <div class="flex items-center gap-2">
+                <a asp-page="Index" class="text-slate-400 hover:text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M15 19l-7-7 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+                <h2 class="truncate text-lg font-semibold">@Model.Audit!.LocationName</h2>
+                @if (Model.Audit.LocationType is not null)
+                {
+                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">@Model.Audit.LocationType</span>
+                }
+            </div>
+            <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                <span>@Model.Audit.AuditDate.ToString("dd.MM.yyyy")</span>
+                @if (Model.Audit.ReportNo is not null)
+                {
+                    <span>Rapor: @Model.Audit.ReportNo</span>
+                }
+                @if (Model.Audit.Manager is not null)
+                {
+                    <span>Mudur: @Model.Audit.Manager</span>
+                }
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="text-right">
+                <div class="text-2xl font-bold text-slate-800">%@pct</div>
+                <div class="text-[10px] text-slate-500">@Model.Audit.PassedItems / @total uygun</div>
+            </div>
+        </div>
+    </div>
+    <!-- Progress bar -->
+    <div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        <div class="h-full rounded-full transition-all duration-300 @(pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-bkm-red")"
+             style="width: @(pct)%"></div>
+    </div>
+</div>
+
+<form method="post" id="auditForm">
+    <!-- Grouped Results Accordion -->
+    <div class="space-y-4">
+        @{ var groupIndex = 0; }
+        @foreach (var group in Model.GroupedResults)
+        {
+            var groupId = $"group_{groupIndex}";
+            var groupPassed = group.Count(r => r.IsPassed);
+            var groupTotal = group.Count();
+            var groupPct = groupTotal > 0 ? (int)((decimal)groupPassed / groupTotal * 100) : 0;
+            <div class="rounded-xl border border-slate-200 bg-white shadow-sm" x-data="{ open: true }">
+                <button type="button"
+                        class="flex w-full items-center justify-between px-4 py-3 text-left"
+                        onclick="this.closest('[x-data]').classList.toggle('collapsed'); var c = this.querySelector('.chevron'); c.classList.toggle('rotate-180'); var b = this.nextElementSibling; b.style.display = b.style.display === 'none' ? '' : 'none';">
+                    <div class="flex items-center gap-3">
+                        <svg class="chevron h-4 w-4 text-slate-400 transition-transform rotate-180" viewBox="0 0 24 24" fill="none">
+                            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="text-sm font-semibold text-slate-800">@group.Key</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">@groupPassed / @groupTotal</span>
+                        <span class="text-xs font-semibold @(groupPct >= 80 ? "text-emerald-600" : groupPct >= 50 ? "text-amber-600" : "text-bkm-red")">%@groupPct</span>
+                    </div>
+                </button>
+
+                <div class="border-t border-slate-100" id="@groupId">
+                    <div class="divide-y divide-slate-100">
+                        @foreach (var result in group.OrderBy(r => r.SortOrder))
+                        {
+                            var fieldName = $"result_{result.Id}";
+                            <div class="px-4 py-3 @(!result.IsPassed && result.Remark is not null ? "bg-red-50/50" : "")">
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                    <!-- Item info -->
+                                    <div class="min-w-0 flex-1">
+                                        <div class="text-sm text-slate-800">@result.ItemText</div>
+                                        <div class="mt-1 flex flex-wrap items-center gap-2">
+                                            <span class="@RiskBadge(result.RiskLevel)">
+                                                @result.Probability x @result.Impact = @result.RiskScore
+                                            </span>
+                                            @if (result.Area is not null)
+                                            {
+                                                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">@result.Area</span>
+                                            }
+                                            @if (result.RepeatCount > 0)
+                                            {
+                                                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">@(result.RepeatCount)x tekrar</span>
+                                            }
+                                            @if (result.IsSystemic)
+                                            {
+                                                <span class="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-bkm-red">Sistemik</span>
+                                            }
+                                            @if (result.PhotoCount > 0)
+                                            {
+                                                <span class="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                                                    <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="1.5"/></svg>
+                                                    @result.PhotoCount
+                                                </span>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <!-- EVET / HAYIR radio buttons -->
+                                    <div class="flex shrink-0 items-center gap-2">
+                                        <label class="cursor-pointer">
+                                            <input type="radio" name="@fieldName" value="true"
+                                                   class="peer sr-only" @(result.IsPassed ? "checked" : "")>
+                                            <span class="inline-flex items-center justify-center rounded-lg border-2 border-slate-200 px-4 py-2 text-sm font-semibold text-slate-400 transition-all
+                                                         peer-checked:border-emerald-500 peer-checked:bg-emerald-500 peer-checked:text-white">
+                                                EVET
+                                            </span>
+                                        </label>
+                                        <label class="cursor-pointer">
+                                            <input type="radio" name="@fieldName" value="false"
+                                                   class="peer sr-only" @(!result.IsPassed ? "checked" : "")>
+                                            <span class="inline-flex items-center justify-center rounded-lg border-2 border-slate-200 px-4 py-2 text-sm font-semibold text-slate-400 transition-all
+                                                         peer-checked:border-bkm-red peer-checked:bg-bkm-red peer-checked:text-white">
+                                                HAYIR
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            groupIndex++;
+        }
+    </div>
+
+    <!-- Sticky bottom bar -->
+    <div class="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="text-xs text-slate-500">
+                @Model.Results.Count madde &middot; @Model.Audit!.PassedItems uygun &middot; @Model.Audit.FailedItems uygunsuz
+            </div>
+            <div class="flex items-center gap-3">
+                <button type="submit" asp-page-handler="Save"
+                        class="rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                    Kaydet
+                </button>
+                <button type="button" id="btnFinalize"
+                        class="rounded-full bg-bkm-red px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors">
+                    Kesinlestir
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Finalize confirmation modal -->
+<div id="finalizeModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div class="mx-4 w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <div class="text-center">
+            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+                <svg class="h-6 w-6 text-bkm-red" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 9v4m0 4h.01M12 3l9.5 17H2.5L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h3 class="mt-4 text-lg font-semibold text-slate-800">Denetimi Kesinlestir</h3>
+            <p class="mt-2 text-sm text-slate-500">
+                Bu islem geri alinamaz. Denetim kesinlestirildikten sonra sonuclar degistirilemez ve analiz pipeline baslatilir.
+            </p>
+        </div>
+        <div class="mt-6 flex items-center justify-center gap-3">
+            <button type="button" id="btnCancelFinalize"
+                    class="rounded-full border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Vazgec
+            </button>
+            <form method="post" asp-page-handler="Finalize">
+                <input type="hidden" name="Id" value="@Model.Id" />
+                <button type="submit"
+                        class="rounded-full bg-bkm-red px-5 py-2 text-sm font-semibold text-white hover:bg-red-700">
+                    Evet, Kesinlestir
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // Finalize confirmation modal
+    const modal = document.getElementById('finalizeModal');
+    document.getElementById('btnFinalize').addEventListener('click', () => {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    });
+    document.getElementById('btnCancelFinalize').addEventListener('click', () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    });
+</script>
+}

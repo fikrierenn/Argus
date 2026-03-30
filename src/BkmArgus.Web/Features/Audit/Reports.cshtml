@@ -1,0 +1,276 @@
+@page
+@model BkmArgus.Web.Features.Audit.ReportsModel
+@{
+    ViewData["Title"] = "Raporlar";
+    ViewData["Subtitle"] = "Denetim raporlari ve analizler";
+
+    string TabClass(string tab) => string.Equals(Model.Tab, tab, StringComparison.OrdinalIgnoreCase)
+        ? "rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
+        : "rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600 hover:border-slate-300 hover:text-slate-800";
+
+    string ScoreBadge(decimal pct) => pct switch
+    {
+        >= 90m => "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700",
+        >= 70m => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
+        _      => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red"
+    };
+
+    string RiskBadge(decimal score) => score switch
+    {
+        >= 15m => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
+        >= 9m  => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
+        _      => "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+    };
+
+    string FormatDate(DateTime? d) => d.HasValue ? d.Value.ToString("dd.MM.yyyy") : "-";
+
+    string MonthName(int month) => month switch
+    {
+        1  => "Ocak",  2  => "Subat",  3  => "Mart",
+        4  => "Nisan", 5  => "Mayis",  6  => "Haziran",
+        7  => "Temmuz",8  => "Agustos",9  => "Eylul",
+        10 => "Ekim",  11 => "Kasim",  12 => "Aralik",
+        _  => month.ToString()
+    };
+}
+
+<div class="space-y-4">
+    <!-- Tab navigation -->
+    <div class="flex flex-wrap items-center gap-2">
+        <a class="@TabClass("karne")" asp-page="/Audit/Reports" asp-route-tab="karne" asp-route-location="@Model.Location">Karne</a>
+        <a class="@TabClass("trend")" asp-page="/Audit/Reports" asp-route-tab="trend" asp-route-location="@Model.Location">Trend</a>
+        <a class="@TabClass("tekrar")" asp-page="/Audit/Reports" asp-route-tab="tekrar" asp-route-location="@Model.Location">Tekrar Eden</a>
+        <a class="@TabClass("sistemik")" asp-page="/Audit/Reports" asp-route-tab="sistemik" asp-route-location="@Model.Location">Sistemik</a>
+    </div>
+
+    <!-- Location filter -->
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <form class="flex flex-wrap items-end gap-3" method="get">
+            <input type="hidden" name="Tab" value="@Model.Tab" />
+            <div>
+                <label class="text-xs text-slate-500">Magaza Adi</label>
+                <input class="mt-1 w-48 rounded-full border border-slate-200 px-4 py-2 text-sm"
+                       type="text" name="Location" value="@Model.Location" placeholder="Ara..." />
+            </div>
+            <div class="flex items-center gap-2">
+                <button class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" type="submit">Filtrele</button>
+                <a class="text-xs text-slate-500" asp-page="/Audit/Reports" asp-route-tab="@Model.Tab">Temizle</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Karne (Scorecard) tab -->
+    @if (Model.Tab == "karne")
+    {
+        <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Magaza Karnesi</div>
+                    <div class="text-xs text-slate-500">@Model.Scorecards.Count magaza</div>
+                </div>
+            </div>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Magaza</th>
+                            <th class="pb-2">Denetim Sayisi</th>
+                            <th class="pb-2">Ort. Uyum</th>
+                            <th class="pb-2">Son Denetim</th>
+                            <th class="pb-2">Son Uyum</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @if (Model.Scorecards.Count == 0)
+                        {
+                            <tr>
+                                <td class="py-8 text-center text-sm text-slate-400" colspan="5">Kayit bulunamadi.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var row in Model.Scorecards)
+                            {
+                                <tr class="text-slate-700 hover:bg-slate-50">
+                                    <td class="py-3 font-semibold text-sm">@row.LocationName</td>
+                                    <td class="py-3 text-sm">@row.AuditCount</td>
+                                    <td class="py-3">
+                                        <span class="@ScoreBadge(row.AvgComplianceRate)">%@row.AvgComplianceRate.ToString("0.0")</span>
+                                    </td>
+                                    <td class="py-3 text-sm text-slate-500">@FormatDate(row.LastAuditDate)</td>
+                                    <td class="py-3">
+                                        <span class="@ScoreBadge(row.LastComplianceRate)">%@row.LastComplianceRate.ToString("0.0")</span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Trend tab -->
+    @if (Model.Tab == "trend")
+    {
+        <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Aylik Trend</div>
+                    <div class="text-xs text-slate-500">Son 12 ay</div>
+                </div>
+            </div>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Donem</th>
+                            <th class="pb-2">Denetim Sayisi</th>
+                            <th class="pb-2">Ort. Uyum</th>
+                            <th class="pb-2">Gorsel</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @if (Model.Trends.Count == 0)
+                        {
+                            <tr>
+                                <td class="py-8 text-center text-sm text-slate-400" colspan="4">Kayit bulunamadi.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var row in Model.Trends)
+                            {
+                                var barWidth = Math.Min(100, (int)row.AvgComplianceRate);
+                                var barColor = row.AvgComplianceRate >= 90m ? "bg-emerald-500"
+                                    : row.AvgComplianceRate >= 70m ? "bg-amber-500"
+                                    : "bg-red-500";
+                                <tr class="text-slate-700 hover:bg-slate-50">
+                                    <td class="py-3 text-sm font-semibold">@MonthName(row.Month) @row.Year</td>
+                                    <td class="py-3 text-sm">@row.AuditCount</td>
+                                    <td class="py-3">
+                                        <span class="@ScoreBadge(row.AvgComplianceRate)">%@row.AvgComplianceRate.ToString("0.0")</span>
+                                    </td>
+                                    <td class="py-3 w-48">
+                                        <div class="h-4 w-full rounded-full bg-slate-100">
+                                            <div class="h-4 rounded-full @barColor" style="width:@(barWidth)%"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Tekrar Eden (Repeating) tab -->
+    @if (Model.Tab == "tekrar")
+    {
+        <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Tekrar Eden Bulgular</div>
+                    <div class="text-xs text-slate-500">En az 2 kez tekrarlayan maddeler</div>
+                </div>
+            </div>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Madde Metni</th>
+                            <th class="pb-2">Basarisizlik</th>
+                            <th class="pb-2">Magaza</th>
+                            <th class="pb-2">Denetim</th>
+                            <th class="pb-2">Ort. Risk</th>
+                            <th class="pb-2">Sistemik</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @if (Model.Repeating.Count == 0)
+                        {
+                            <tr>
+                                <td class="py-8 text-center text-sm text-slate-400" colspan="6">Kayit bulunamadi.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var row in Model.Repeating)
+                            {
+                                <tr class="text-slate-700 hover:bg-slate-50">
+                                    <td class="py-3 text-sm max-w-xs truncate" title="@row.ItemText">@row.ItemText</td>
+                                    <td class="py-3 text-sm font-semibold">@row.TotalFailures</td>
+                                    <td class="py-3 text-sm">@row.DistinctLocationCount</td>
+                                    <td class="py-3 text-sm">@row.DistinctAuditCount</td>
+                                    <td class="py-3">
+                                        <span class="@RiskBadge(row.AvgRiskScore)">@row.AvgRiskScore.ToString("0.0")</span>
+                                    </td>
+                                    <td class="py-3">
+                                        @if (row.IsSystemic)
+                                        {
+                                            <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red">Sistemik</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Hayir</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Sistemik tab -->
+    @if (Model.Tab == "sistemik")
+    {
+        <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Sistemik Bulgular</div>
+                    <div class="text-xs text-slate-500">Birden fazla lokasyonda tekrarlayan maddeler</div>
+                </div>
+            </div>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Madde Metni</th>
+                            <th class="pb-2">Magaza Sayisi</th>
+                            <th class="pb-2">Toplam Basarisizlik</th>
+                            <th class="pb-2">Son Gorulme</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @if (Model.Systemic.Count == 0)
+                        {
+                            <tr>
+                                <td class="py-8 text-center text-sm text-slate-400" colspan="4">Kayit bulunamadi.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var row in Model.Systemic)
+                            {
+                                <tr class="text-slate-700 hover:bg-slate-50">
+                                    <td class="py-3 text-sm max-w-xs truncate" title="@row.ItemText">@row.ItemText</td>
+                                    <td class="py-3 text-sm font-semibold">@row.DistinctLocationCount</td>
+                                    <td class="py-3 text-sm font-semibold">@row.TotalFailures</td>
+                                    <td class="py-3 text-sm text-slate-500">@FormatDate(row.LastSeenDate)</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
