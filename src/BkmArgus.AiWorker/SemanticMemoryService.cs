@@ -40,7 +40,7 @@ public sealed class SemanticMemoryService
 
         await using var connection = _db.CreateConnection();
         var rows = await connection.QueryAsync<SemanticVectorRow>(
-            "ai.sp_SemanticVector_List",
+            "ai.sp_SemanticVector_ListWeighted",
             new { Top = _options.SemanticTop, KritikMi = true },
             commandType: CommandType.StoredProcedure);
 
@@ -70,10 +70,11 @@ public sealed class SemanticMemoryService
                 continue;
             }
 
-            var sim = CosineSimilarity(vector, other);
-            if (sim > best)
+            var rawSim = CosineSimilarity(vector, other);
+            var weightedScore = rawSim * row.Weight;
+            if (weightedScore > best)
             {
-                best = sim;
+                best = weightedScore;
                 bestRow = row;
             }
         }
@@ -108,7 +109,7 @@ public sealed class SemanticMemoryService
 
         await using var connection = _db.CreateConnection();
         var rows = await connection.QueryAsync<SemanticVectorRow>(
-            "ai.sp_SemanticVector_List",
+            "ai.sp_SemanticVector_ListWeighted",
             new { Top = _options.SemanticTop, KritikMi = (bool?)null },
             commandType: CommandType.StoredProcedure);
 
@@ -137,8 +138,9 @@ public sealed class SemanticMemoryService
                 continue;
             }
 
-            var sim = CosineSimilarity(vector, other);
-            if (sim <= 0)
+            var rawSim = CosineSimilarity(vector, other);
+            var weightedScore = rawSim * row.Weight;
+            if (weightedScore <= 0)
             {
                 continue;
             }
@@ -148,7 +150,7 @@ public sealed class SemanticMemoryService
                 SourceId = row.SourceId,
                 DofId = row.DofId,
                 Title = string.IsNullOrWhiteSpace(row.Title) ? "Gecmis kayit" : row.Title,
-                Similarity = sim,
+                Similarity = weightedScore,
                 IsCritical = row.IsCritical
             });
         }

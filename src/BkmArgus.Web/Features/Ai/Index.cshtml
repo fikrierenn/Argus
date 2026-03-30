@@ -43,8 +43,12 @@
 <div class="flex flex-wrap items-center gap-2">
     <a class="@TabClass("queue")" asp-page="/Ai/Index" asp-route-tab="queue">Kuyruk</a>
     <a class="@TabClass("sonuc")" asp-page="/Ai/Index" asp-route-tab="sonuc">LLM Sonuc</a>
+    <a class="@TabClass("insights")" asp-page="/Ai/Index" asp-route-tab="insights">Insights</a>
+    <a class="@TabClass("skills")" asp-page="/Ai/Index" asp-route-tab="skills">Skills</a>
 </div>
 
+@if (Model.ActiveTab == "queue" || Model.ActiveTab == "sonuc")
+{
 <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
     <div class="rounded-xl border border-slate-200 bg-white p-5">
         <div class="text-sm font-semibold">Filtreler</div>
@@ -136,6 +140,7 @@
         </form>
     </div>
 </div>
+}
 
 @if (Model.ActiveTab == "sonuc")
 {
@@ -190,7 +195,7 @@
         </div>
     </div>
 }
-else
+else if (Model.ActiveTab == "queue")
 {
     <div class="rounded-xl border border-slate-200 bg-white p-5">
         <div class="flex items-center justify-between">
@@ -244,6 +249,145 @@ else
                                 </td>
                                 <td class="px-3 py-2 text-xs text-slate-500">@row.EvidencePlan</td>
                                 <td class="px-3 py-2 text-xs text-slate-500">@FormatDate(row.GuncellemeTarihi)</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else if (Model.ActiveTab == "insights")
+{
+    string InsightSeverityBadge(string severity) => (severity ?? "").ToUpperInvariant() switch
+    {
+        "KRITIK" => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
+        "YUKSEK" => "rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700",
+        "ORTA" => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
+        _ => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+    };
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-semibold">Proaktif Oneriler (@Model.Insights.Count)</div>
+                <div class="text-xs text-slate-500">AI tarafindan uretilen tum oneriler</div>
+            </div>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="text-left text-xs uppercase text-slate-400">
+                    <tr>
+                        <th class="px-3 py-2">Seviye</th>
+                        <th class="px-3 py-2">Baslik</th>
+                        <th class="px-3 py-2">Aciklama</th>
+                        <th class="px-3 py-2">Kaynak</th>
+                        <th class="px-3 py-2">Olusturma</th>
+                        <th class="px-3 py-2">Aksiyon</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @if (Model.Insights.Count == 0)
+                    {
+                        <tr>
+                            <td class="px-3 py-4 text-sm text-slate-500" colspan="6">Kayit bulunamadi.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in Model.Insights)
+                        {
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2">
+                                    <span class="@InsightSeverityBadge((string)(row.Severity ?? ""))">@(row.Severity ?? "-")</span>
+                                </td>
+                                <td class="px-3 py-2 font-medium">@(row.Title ?? "-")</td>
+                                <td class="px-3 py-2 text-xs text-slate-600 max-w-xs truncate" title="@(row.Description ?? "")">
+                                    @ShortText((string)(row.Description ?? ""), 100)
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">@(row.Source ?? "-")</td>
+                                <td class="px-3 py-2 text-xs text-slate-500">
+                                    @{
+                                        var insightDate = (DateTime?)row.CreatedAt;
+                                    }
+                                    @(insightDate?.ToString("dd.MM.yyyy HH:mm") ?? "-")
+                                </td>
+                                <td class="px-3 py-2">
+                                    <a class="rounded-full bg-bkm-red px-3 py-1 text-xs font-semibold text-white"
+                                       asp-page="/Dof/Index">Aksiyona Al</a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else if (Model.ActiveTab == "skills")
+{
+    string SkillStatusBadge(string status) => (status ?? "").ToUpperInvariant() switch
+    {
+        "DONE" => "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700",
+        "RUNNING" => "rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700",
+        "ERROR" => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
+        "QUEUED" => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600",
+        _ => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+    };
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-semibold">Skill Calisma Gecmisi (@Model.SkillHistory.Count)</div>
+                <div class="text-xs text-slate-500">AI skill calisma kayitlari</div>
+            </div>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="text-left text-xs uppercase text-slate-400">
+                    <tr>
+                        <th class="px-3 py-2">Skill</th>
+                        <th class="px-3 py-2">Versiyon</th>
+                        <th class="px-3 py-2">Baslangic</th>
+                        <th class="px-3 py-2">Bitis</th>
+                        <th class="px-3 py-2">Sure</th>
+                        <th class="px-3 py-2">Durum</th>
+                        <th class="px-3 py-2">Sonuc</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @if (Model.SkillHistory.Count == 0)
+                    {
+                        <tr>
+                            <td class="px-3 py-4 text-sm text-slate-500" colspan="7">Kayit bulunamadi.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in Model.SkillHistory)
+                        {
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-3 py-2 font-medium">@(row.SkillName ?? "-")</td>
+                                <td class="px-3 py-2 text-xs text-slate-500">@(row.SkillVersion ?? "-")</td>
+                                <td class="px-3 py-2 text-xs text-slate-500">
+                                    @{
+                                        var skillStart = (DateTime?)row.StartedAt;
+                                    }
+                                    @(skillStart?.ToString("dd.MM.yyyy HH:mm") ?? "-")
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">
+                                    @{
+                                        var skillEnd = (DateTime?)row.CompletedAt;
+                                    }
+                                    @(skillEnd?.ToString("dd.MM.yyyy HH:mm") ?? "-")
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-500">@(row.DurationMs != null ? $"{row.DurationMs}ms" : "-")</td>
+                                <td class="px-3 py-2">
+                                    <span class="inline-flex @SkillStatusBadge((string)(row.Status ?? ""))">@(row.Status ?? "-")</span>
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-600 max-w-xs truncate" title="@(row.ResultSummary ?? "")">
+                                    @ShortText((string)(row.ResultSummary ?? ""), 80)
+                                </td>
                             </tr>
                         }
                     }

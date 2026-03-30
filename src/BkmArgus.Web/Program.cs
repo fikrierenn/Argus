@@ -111,4 +111,52 @@ app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.Sql
     }
 }).RequireAuthorization();
 
+// --- AI Skill Execution API ---
+app.MapPost("/api/ai/skill/execute", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db) =>
+{
+    var form = await ctx.Request.ReadFromJsonAsync<SkillExecuteRequest>();
+    if (form is null) return Results.BadRequest();
+
+    var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
+
+    var result = await db.QuerySingleAsync<ExecutionIdResult>(
+        "ai.sp_SkillExecution_Insert",
+        new { SkillId = form.SkillId, KullaniciId = userId,
+              VarlikTipi = form.EntityType, VarlikId = form.EntityId,
+              GirdiJson = form.InputJson });
+
+    return Results.Ok(new { executionId = result?.Id ?? 0 });
+}).RequireAuthorization();
+
+app.MapGet("/api/ai/skill/status/{id:int}", async (int id, BkmArgus.Web.Data.SqlDb db) =>
+{
+    var result = await db.QuerySingleAsync<SkillStatusResult>(
+        "ai.sp_SkillExecution_Get", new { ExecutionId = id });
+    return result is null ? Results.NotFound() : Results.Ok(result);
+}).RequireAuthorization();
+
+// --- AI Feedback API ---
+app.MapPost("/api/ai/feedback", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db) =>
+{
+    var form = await ctx.Request.ReadFromJsonAsync<FeedbackRequest>();
+    if (form is null) return Results.BadRequest();
+
+    var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
+
+    await db.ExecuteAsync("ai.sp_Feedback_Upsert",
+        new { form.RequestId, form.SkillExecutionId, Onay = form.IsApproved,
+              Puan = form.Rating, Yorum = form.Comment, KullaniciId = userId });
+
+    return Results.Ok();
+}).RequireAuthorization();
+
 app.Run();
+
+// --- DTO Records for Minimal API ---
+record SkillExecuteRequest(string SkillId, string EntityType, int EntityId, string? InputJson);
+record FeedbackRequest(int? RequestId, int? SkillExecutionId, bool IsApproved, int? Rating, string? Comment);
+record ExecutionIdResult(int Id);
+record SkillStatusResult(int ExecutionId, string SkillId, string Status, string? OutputJson,
+    string? ModelName, int? ConfidenceScore, string? ErrorMessage, DateTime CreatedAt, DateTime? CompletedAt);

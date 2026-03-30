@@ -35,7 +35,23 @@ public class CreateModel : PageModel
         });
 
         if (result?.DofId > 0)
+        {
+            // Auto-trigger AI action recommendation
+            try
+            {
+                await _db.ExecuteAsync("ai.sp_SkillExecution_Insert", new
+                {
+                    SkillId = "dof.recommend",
+                    KullaniciId = userId,
+                    VarlikTipi = "DOF",
+                    VarlikId = result.DofId,
+                    GirdiJson = (string?)null
+                });
+            }
+            catch { /* non-critical */ }
+
             return RedirectToPage("Detail", new { id = result.DofId });
+        }
 
         ModelState.AddModelError("", "DOF olusturulamadi.");
         return Page();

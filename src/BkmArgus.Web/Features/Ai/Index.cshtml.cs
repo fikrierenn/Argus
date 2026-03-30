@@ -19,6 +19,8 @@ public class AiModel : PageModel
 
     public IReadOnlyList<IstekRow> Istekler { get; private set; } = Array.Empty<IstekRow>();
     public IReadOnlyList<LlmRow> Sonuclar { get; private set; } = Array.Empty<LlmRow>();
+    public List<dynamic> Insights { get; set; } = new();
+    public List<dynamic> SkillHistory { get; set; } = new();
 
     public IReadOnlyList<OptionItem> DurumOptions { get; } = new[]
     {
@@ -63,6 +65,22 @@ public class AiModel : PageModel
             return;
         }
 
+        if (ActiveTab == "insights")
+        {
+            Insights = (await _db.QueryAsync<dynamic>(
+                "ai.sp_ProactiveInsight_List",
+                new { Top = 50 })).ToList();
+            return;
+        }
+
+        if (ActiveTab == "skills")
+        {
+            SkillHistory = (await _db.QueryAsync<dynamic>(
+                "ai.sp_SkillExecution_List",
+                new { Top = 50 })).ToList();
+            return;
+        }
+
         Istekler = await _db.QueryAsync<IstekRow>(
             "ai.sp_AnalysisQueue_List",
             new
@@ -104,6 +122,8 @@ public class AiModel : PageModel
         return tab.Trim().ToLowerInvariant() switch
         {
             "sonuc" => "sonuc",
+            "insights" => "insights",
+            "skills" => "skills",
             _ => "queue"
         };
     }

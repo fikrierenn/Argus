@@ -1,0 +1,174 @@
+@*
+    Reusable AI Skill Panel
+    Usage: @await Html.PartialAsync("_SkillPanel", null, new ViewDataDictionary(ViewData)
+        { ["SkillId"] = "risk.analyzer", ["EntityType"] = "AUDIT", ["EntityId"] = "123" })
+*@
+@{
+    var skillId = ViewData["SkillId"]?.ToString() ?? "";
+    var entityType = ViewData["EntityType"]?.ToString() ?? "";
+    var entityId = ViewData["EntityId"]?.ToString() ?? "0";
+    var panelId = $"skill-panel-{skillId.Replace(".", "-")}";
+}
+
+<div id="@panelId" class="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+    <!-- Trigger Button -->
+    <div id="@(panelId)-trigger">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-semibold">AI Analiz</div>
+                <div class="text-xs text-slate-500">@skillId</div>
+            </div>
+            <button onclick="skillPanelExecute_@(panelId.Replace("-","_"))()"
+                    class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 transition">
+                AI Analiz Baslat
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="@(panelId)-loading" class="hidden">
+        <div class="flex items-center gap-3">
+            <svg class="h-5 w-5 animate-spin text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <div>
+                <div class="text-sm font-semibold">AI Analiz calisiyor...</div>
+                <div class="text-xs text-slate-500">Sonuc bekleniyor</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Result State -->
+    <div id="@(panelId)-result" class="hidden">
+        <div class="flex items-center justify-between">
+            <div class="text-sm font-semibold">AI Analiz Sonucu</div>
+            <div id="@(panelId)-confidence" class="rounded-full px-3 py-1 text-xs font-semibold"></div>
+        </div>
+        <pre id="@(panelId)-output" class="mt-3 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 max-h-64 overflow-y-auto"></pre>
+        <div class="mt-3 flex items-center gap-3" id="@(panelId)-feedback">
+            <button onclick="skillPanelFeedback_@(panelId.Replace("-","_"))(true)"
+                    class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700 hover:bg-emerald-100 transition">
+                Faydali
+            </button>
+            <button onclick="skillPanelFeedback_@(panelId.Replace("-","_"))(false)"
+                    class="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-100 transition">
+                Faydali Degil
+            </button>
+            <a id="@(panelId)-detay-link" href="#" class="text-xs text-slate-500 hover:text-slate-700 underline">Detay</a>
+        </div>
+        <div id="@(panelId)-feedback-sent" class="hidden mt-3 text-xs text-emerald-600">Geri bildiriminiz kaydedildi.</div>
+    </div>
+
+    <!-- Error State -->
+    <div id="@(panelId)-error" class="hidden">
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
+            <span id="@(panelId)-error-msg"></span>
+        </div>
+        <button onclick="skillPanelExecute_@(panelId.Replace("-","_"))()"
+                class="mt-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition">
+            Tekrar Dene
+        </button>
+    </div>
+</div>
+
+<script>
+(function() {
+    var pid = '@panelId';
+    var fnSuffix = pid.replaceAll('-', '_');
+    var executionId = null;
+    var pollTimer = null;
+
+    function el(suffix) { return document.getElementById(pid + '-' + suffix); }
+    function showState(state) {
+        ['trigger', 'loading', 'result', 'error'].forEach(function(s) {
+            var e = el(s);
+            if (e) e.classList.toggle('hidden', s !== state);
+        });
+    }
+
+    window['skillPanelExecute_' + fnSuffix] = async function() {
+        showState('loading');
+        try {
+            var res = await fetch('/api/ai/skill/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    skillId: '@skillId',
+                    entityType: '@entityType',
+                    entityId: parseInt('@entityId'),
+                    inputJson: null
+                })
+            });
+            if (!res.ok) {
+                showState('error');
+                el('error-msg').textContent = 'Istek gonderilemedi (HTTP ' + res.status + ')';
+                return;
+            }
+            var data = await res.json();
+            executionId = data.executionId;
+            pollStatus();
+        } catch (e) {
+            showState('error');
+            el('error-msg').textContent = 'Baglanti hatasi: ' + e.message;
+        }
+    };
+
+    async function pollStatus() {
+        if (!executionId) return;
+        try {
+            var res = await fetch('/api/ai/skill/status/' + executionId);
+            if (!res.ok) {
+                pollTimer = setTimeout(pollStatus, 3000);
+                return;
+            }
+            var data = await res.json();
+            if (data.status === 'DONE') {
+                showState('result');
+                var output = data.outputJson || '-';
+                try {
+                    var parsed = JSON.parse(output);
+                    output = JSON.stringify(parsed, null, 2);
+                } catch(_) {}
+                el('output').textContent = output;
+                var conf = el('confidence');
+                if (data.confidenceScore != null) {
+                    conf.textContent = data.confidenceScore + ' / 100';
+                    conf.className = 'rounded-full px-3 py-1 text-xs font-semibold ' +
+                        (data.confidenceScore >= 80 ? 'bg-emerald-100 text-emerald-700' :
+                         data.confidenceScore >= 50 ? 'bg-amber-100 text-amber-700' :
+                         'bg-rose-100 text-rose-700');
+                }
+                el('detay-link').href = '/Ai/SkillResult?id=' + executionId;
+            } else if (data.status === 'ERROR') {
+                showState('error');
+                el('error-msg').textContent = data.errorMessage || 'Bilinmeyen hata';
+            } else {
+                pollTimer = setTimeout(pollStatus, 3000);
+            }
+        } catch(e) {
+            pollTimer = setTimeout(pollStatus, 3000);
+        }
+    }
+
+    window['skillPanelFeedback_' + fnSuffix] = async function(isApproved) {
+        try {
+            await fetch('/api/ai/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    skillExecutionId: executionId,
+                    isApproved: isApproved,
+                    rating: isApproved ? 5 : 1,
+                    comment: null,
+                    requestId: null
+                })
+            });
+            el('feedback').classList.add('hidden');
+            el('feedback-sent').classList.remove('hidden');
+        } catch(e) {
+            console.error('Feedback error:', e);
+        }
+    };
+})();
+</script>

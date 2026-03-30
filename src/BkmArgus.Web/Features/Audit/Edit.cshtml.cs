@@ -9,7 +9,8 @@ namespace BkmArgus.Web.Features.Audit;
 public class EditModel : PageModel
 {
     private readonly SqlDb _db;
-    public EditModel(SqlDb db) => _db = db;
+    private readonly ILogger<EditModel> _logger;
+    public EditModel(SqlDb db, ILogger<EditModel> logger) { _db = db; _logger = logger; }
 
     [BindProperty(SupportsGet = true)] public int Id { get; set; }
 
@@ -57,6 +58,24 @@ public class EditModel : PageModel
 
         // Run analysis pipeline
         await _db.ExecuteAsync("audit.sp_Analysis_FullPipeline", new { AuditId = Id });
+
+        // Auto-trigger AI analysis skill
+        try
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            await _db.ExecuteAsync("ai.sp_SkillExecution_Insert", new
+            {
+                SkillId = "audit.analyze",
+                KullaniciId = userId,
+                VarlikTipi = "DENETIM",
+                VarlikId = Id,
+                GirdiJson = (string?)null
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Auto AI trigger failed for audit {AuditId}", Id);
+        }
 
         TempData["StatusMessage"] = "Denetim kesinlestirildi ve analiz pipeline tamamlandi.";
         return RedirectToPage("Detail", new { id = Id });

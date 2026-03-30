@@ -214,10 +214,12 @@ public class AiJobScheduler : BackgroundService
             // AI jobları için özel handling - sadece gerçekten C# gerektiren işler
             BaseAiJob jobInstance = className switch
             {
-                "BkmArgus.AiWorker.Jobs.RiskPredictionJob" => 
+                "BkmArgus.AiWorker.Jobs.RiskPredictionJob" =>
                     ActivatorUtilities.CreateInstance<RiskPredictionJob>(scope.ServiceProvider),
-                "BkmArgus.AiWorker.Jobs.AgentPipelineMonitorJob" => 
+                "BkmArgus.AiWorker.Jobs.AgentPipelineMonitorJob" =>
                     ActivatorUtilities.CreateInstance<AgentPipelineMonitorJob>(scope.ServiceProvider),
+                "BkmArgus.AiWorker.Jobs.ProactiveInsightJob" =>
+                    ActivatorUtilities.CreateInstance<ProactiveInsightJob>(scope.ServiceProvider),
                 _ => throw new InvalidOperationException($"İş sınıfı {className} desteklenmiyor")
             };
             

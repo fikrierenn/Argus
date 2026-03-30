@@ -2,7 +2,9 @@ using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using BkmArgus.AiWorker.Skills;
 using Dapper;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,6 +21,7 @@ public sealed class AiWorkerService : BackgroundService
     private readonly LmRules _rules;
     private readonly AiWorkerOptions _options;
     private readonly ILogger<AiWorkerService> _logger;
+    private readonly IServiceProvider _serviceProvider;
     private DateTime _lastVectorSyncUtc = DateTime.MinValue;
 
     public AiWorkerService(
@@ -28,7 +31,8 @@ public sealed class AiWorkerService : BackgroundService
         LlmService llm,
         LmRules rules,
         IOptions<AiWorkerOptions> options,
-        ILogger<AiWorkerService> logger)
+        ILogger<AiWorkerService> logger,
+        IServiceProvider serviceProvider)
     {
         _db = db;
         _embedding = embedding;
@@ -37,6 +41,7 @@ public sealed class AiWorkerService : BackgroundService
         _rules = rules;
         _options = options.Value;
         _logger = logger;
+        _serviceProvider = serviceProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -46,6 +51,7 @@ public sealed class AiWorkerService : BackgroundService
             await SyncVectorsIfNeededAsync(stoppingToken);
             await ProcessQueueAsync(stoppingToken);
             await ProcessLlmQueueAsync(stoppingToken);
+            await ProcessSkillQueueAsync(stoppingToken);
             _logger.LogInformation("AI Worker cycle completed.");
             await Task.Delay(TimeSpan.FromSeconds(_options.PollSeconds), stoppingToken);
         }
@@ -200,6 +206,55 @@ OUTPUT
         }
 
         await SyncDocVectorsAsync(connection, token);
+        await SyncGoldenVectorsAsync(connection, token);
+    }
+
+    private async Task SyncGoldenVectorsAsync(IDbConnection connection, CancellationToken token)
+    {
+        if (!_embedding.IsReady)
+        {
+            return;
+        }
+
+        var approved = await connection.QueryAsync<ApprovedExample>(
+            "ai.sp_Feedback_TopApproved",
+            new { Top = 20 },
+            commandType: CommandType.StoredProcedure);
+
+        foreach (var item in approved)
+        {
+            if (token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (string.IsNullOrWhiteSpace(item.ApprovedOutput))
+            {
+                continue;
+            }
+
+            var vector = await _embedding.TryEmbedAsync(item.ApprovedOutput, token);
+            if (vector is null || vector.Length == 0)
+            {
+                continue;
+            }
+
+            var title = $"GOLDEN:{item.SkillId}:{item.FeedbackId}";
+            var summary = item.ApprovedOutput.Length > 500
+                ? item.ApprovedOutput[..500]
+                : item.ApprovedOutput;
+
+            await connection.ExecuteAsync(
+                "ai.sp_SemanticVector_UpsertGolden",
+                new
+                {
+                    RiskId = (long)item.FeedbackId,
+                    Baslik = title,
+                    OzetMetin = summary,
+                    VektorJson = JsonSerializer.Serialize(vector)
+                },
+                commandType: CommandType.StoredProcedure);
+        }
     }
 
     private static string BuildRiskText(RiskSummaryRow risk)
@@ -395,6 +450,22 @@ OUTPUT
                 var evidenceMatches = await _semantic.FindTopEvidenceAsync(riskText, 3, token);
                 var evidenceNote = FormatEvidenceMatches(evidenceMatches);
                 var prompt = BuildAdvancedLlmPrompt(risk, row, evidenceNote);
+
+                // Few-shot: inject approved golden examples
+                var approvedExamples = await connection.QueryAsync<ApprovedExample>(
+                    "ai.sp_Feedback_TopApproved",
+                    new { Top = 2 },
+                    commandType: CommandType.StoredProcedure);
+                var promptBuilder = new StringBuilder(prompt);
+                foreach (var ex in approvedExamples)
+                {
+                    if (!string.IsNullOrWhiteSpace(ex.ApprovedOutput))
+                    {
+                        promptBuilder.AppendLine($"\n--- Onaylanmis Ornek ---\n{ex.ApprovedOutput}\n");
+                    }
+                }
+                prompt = promptBuilder.ToString();
+
                 var call = await _llm.GenerateAsync(prompt, token);
                 if (!call.Success || call.Result is null)
                 {
@@ -595,6 +666,92 @@ WHEN NOT MATCHED THEN
             decision.FeatureJson,
             RuleSetVersion = "v1"
         });
+    }
+
+    private async Task ProcessSkillQueueAsync(CancellationToken token)
+    {
+        await using var connection = _db.CreateConnection();
+
+        var pending = (await connection.QueryAsync<SkillExecutionQueueRow>(
+            "ai.sp_SkillExecution_Pending",
+            new { Top = _options.BatchSize },
+            commandType: CommandType.StoredProcedure)).ToList();
+
+        if (pending.Count == 0) return;
+        _logger.LogInformation("Processing {Count} skill executions", pending.Count);
+
+        using var scope = _serviceProvider.CreateScope();
+        var skillExecutor = scope.ServiceProvider.GetRequiredService<SkillExecutor>();
+
+        foreach (var item in pending)
+        {
+            try
+            {
+                var variables = BuildSkillVariables(item);
+                var result = await skillExecutor.ExecuteAsync(item.SkillId, variables, token);
+
+                await connection.ExecuteAsync(
+                    "ai.sp_SkillExecution_Update",
+                    new
+                    {
+                        item.ExecutionId,
+                        Durum = result.Success ? "DONE" : "ERROR",
+                        CiktiJson = result.Output,
+                        ModelAdi = result.ModelName,
+                        GuvenSkoru = result.ConfidenceScore,
+                        HataMesaji = result.Error
+                    },
+                    commandType: CommandType.StoredProcedure);
+
+                await connection.ExecuteAsync(@"
+                    INSERT INTO log.Notifications (UserId, NotificationType, Title, Message, Link, IsRead, CreatedAt)
+                    VALUES (@UserId, @Type, @Title, @Message, @Link, 0, SYSDATETIME())",
+                    new
+                    {
+                        UserId = item.RequestedByUserId,
+                        Type = result.Success ? "AI_SKILL_DONE" : "AI_SKILL_ERROR",
+                        Title = result.Success ? "AI Analiz Tamamlandi" : "AI Analiz Hatasi",
+                        Message = result.Success
+                            ? $"{item.SkillId} basariyla tamamlandi"
+                            : $"{item.SkillId} hata: {result.Error}",
+                        Link = $"/Ai/SkillResult?id={item.ExecutionId}"
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Skill execution failed: {ExecutionId}", item.ExecutionId);
+                await connection.ExecuteAsync(
+                    "ai.sp_SkillExecution_Update",
+                    new
+                    {
+                        item.ExecutionId,
+                        Durum = "ERROR",
+                        CiktiJson = (string?)null,
+                        ModelAdi = (string?)null,
+                        GuvenSkoru = (int?)null,
+                        HataMesaji = TrimError(ex.Message)
+                    },
+                    commandType: CommandType.StoredProcedure);
+            }
+        }
+    }
+
+    private static Dictionary<string, string> BuildSkillVariables(SkillExecutionQueueRow item)
+    {
+        var variables = new Dictionary<string, string>();
+
+        if (!string.IsNullOrEmpty(item.InputJson))
+        {
+            try
+            {
+                var json = JsonSerializer.Deserialize<Dictionary<string, string>>(item.InputJson);
+                if (json != null)
+                    foreach (var kv in json) variables[kv.Key] = kv.Value;
+            }
+            catch { /* ignore malformed JSON */ }
+        }
+
+        return variables;
     }
 
     private static Task MarkErrorAsync(IDbConnection connection, long requestId, string error)

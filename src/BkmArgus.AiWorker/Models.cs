@@ -96,6 +96,7 @@ public sealed record SemanticVectorRow
     public string? SummaryText { get; init; }
     public bool IsCritical { get; init; }
     public string VectorJson { get; init; } = string.Empty;
+    public float Weight { get; init; } = 1.0f;
 }
 
 public sealed record SemanticMatch
@@ -117,3 +118,15 @@ public sealed record DofRecordRow
     public int RiskSeviyesi { get; init; }
     public string Durum { get; init; } = string.Empty;
 }
+
+public sealed record SkillExecutionQueueRow(int ExecutionId, string SkillId, int RequestedByUserId,
+    string EntityType, int EntityId, string? InputJson, DateTime CreatedAt);
+
+public record ApprovedExample(
+    int FeedbackId,
+    int? RequestId,
+    int? SkillExecutionId,
+    int? Rating,
+    string? ApprovedOutput,
+    string SkillId,
+    string? InputContext);

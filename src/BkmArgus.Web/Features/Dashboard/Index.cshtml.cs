@@ -36,6 +36,11 @@ public class DashboardModel : PageModel
     public IReadOnlyList<TopRiskFindingRow> TopRiskFindings { get; private set; } = Array.Empty<TopRiskFindingRow>();
     public IReadOnlyList<LocationScoreRow> LocationScores { get; private set; } = Array.Empty<LocationScoreRow>();
 
+    // AI Tab KPIs
+    public AiDashboardKpi? AiKpi { get; private set; }
+    public List<dynamic> ProactiveInsights { get; set; } = new();
+    public List<dynamic> AiSkillHistory { get; set; } = new();
+
     public DashboardModel(SqlDb db)
     {
         _db = db;
@@ -80,6 +85,14 @@ public class DashboardModel : PageModel
             RecentAudits = await _db.QueryAsync<RecentAuditRow>("audit.sp_Dashboard_RecentAudits", new { Ust = 5 });
             TopRiskFindings = await _db.QueryAsync<TopRiskFindingRow>("audit.sp_Dashboard_TopRiskFindings", new { Ust = 10 });
             LocationScores = await _db.QueryAsync<LocationScoreRow>("audit.sp_Dashboard_LocationScores", new { Ust = 10 });
+        }
+
+        // Load AI data when on ai tab
+        if (Tab == "ai")
+        {
+            AiKpi = await _db.QuerySingleAsync<AiDashboardKpi>("ai.sp_AiDashboard_Kpi");
+            ProactiveInsights = (await _db.QueryAsync<dynamic>("ai.sp_ProactiveInsight_List", new { Top = 5, SadeceAktif = 1 })).ToList();
+            AiSkillHistory = (await _db.QueryAsync<dynamic>("ai.sp_AiDashboard_SkillHistory", new { Top = 5 })).ToList();
         }
     }
 
@@ -257,5 +270,14 @@ public class DashboardModel : PageModel
         public decimal AvgComplianceRate { get; init; }
         public DateTime? LastAuditDate { get; init; }
         public int RepeatingFindingCount { get; init; }
+    }
+
+    // AI Dashboard record types
+    public sealed record AiDashboardKpi
+    {
+        public int ActiveInsights { get; init; }
+        public decimal ApprovalRate { get; init; }
+        public int WeeklyExecutions { get; init; }
+        public decimal AvgConfidence { get; init; }
     }
 }
