@@ -18,6 +18,10 @@ public sealed class AiWorkerOptions
     public string GeminiApiKey { get; set; } = string.Empty;
     public string GeminiModel { get; set; } = "gemini-2.0-flash";
     public string? GeminiModelFallback { get; set; } = "gemini-3.0-flash";
+    public string ClaudeBaseUrl { get; set; } = "https://api.anthropic.com";
+    public string ClaudeApiKey { get; set; } = string.Empty;
+    public string ClaudeModel { get; set; } = "claude-sonnet-4-20250514";
+    public string? ClaudeModelFallback { get; set; }
     public bool LlmEnabled { get; set; } = true;
     public bool DocsEnabled { get; set; } = true;
     public string DocsPath { get; set; } = "docs";

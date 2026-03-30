@@ -31,6 +31,11 @@ IHost host = Host.CreateDefaultBuilder(args)
             .Configure<IConfiguration>((options, config) =>
             {
                 options.ConnectionString = BkmDenetimConnection.Resolve(config);
+                var claudeKey = config["Claude:ApiKey"];
+                if (!string.IsNullOrWhiteSpace(claudeKey))
+                {
+                    options.ClaudeApiKey = claudeKey;
+                }
             });
         services.AddHttpClient("ollama", client =>
         {
@@ -38,6 +43,7 @@ IHost host = Host.CreateDefaultBuilder(args)
             client.BaseAddress = new Uri(!string.IsNullOrWhiteSpace(baseUrl) ? baseUrl : "http://localhost:11434");
         });
         services.AddHttpClient("gemini");
+        services.AddHttpClient("claude");
         services.AddHostedService<AiWorkerService>();
     })
     .Build();

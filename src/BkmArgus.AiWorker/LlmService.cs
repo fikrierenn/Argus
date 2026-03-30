@@ -15,8 +15,10 @@ public sealed class LlmService
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private const string ProviderOllama = "ollama";
     private const string ProviderGemini = "gemini";
+    private const string ProviderClaude = "claude";
     private readonly HttpClient _ollama;
     private readonly HttpClient _gemini;
+    private readonly HttpClient _claude;
     private readonly AiWorkerOptions _options;
     private readonly ILogger<LlmService> _logger;
 
@@ -27,6 +29,7 @@ public sealed class LlmService
     {
         _ollama = httpFactory.CreateClient("ollama");
         _gemini = httpFactory.CreateClient("gemini");
+        _claude = httpFactory.CreateClient("claude");
         _options = options.Value;
         _logger = logger;
     }
@@ -36,7 +39,9 @@ public sealed class LlmService
         var provider = NormalizeProvider(_options.LlmProvider);
         if (string.IsNullOrWhiteSpace(prompt))
         {
-            var model = provider == ProviderGemini ? _options.GeminiModel : _options.LlmModel;
+            var model = provider == ProviderGemini ? _options.GeminiModel
+                      : provider == ProviderClaude ? _options.ClaudeModel
+                      : _options.LlmModel;
             return new LlmCallResult
             {
                 Error = BuildError(provider, model, "Prompt bos.", null, null, 0, ResolveBaseUrl(provider))
@@ -51,6 +56,7 @@ public sealed class LlmService
             var result = currentProvider switch
             {
                 ProviderGemini => await CallGeminiWithRetryAsync(model, prompt, token),
+                ProviderClaude => await CallClaudeWithRetryAsync(model, prompt, token),
                 ProviderOllama => await CallOllamaWithRetryAsync(model, prompt, token),
                 _ => new LlmCallResult { Error = $"Unknown provider: {currentProvider}" }
             };
@@ -82,7 +88,7 @@ public sealed class LlmService
         if (primaryProvider == ProviderOllama)
         {
             yield return (ProviderOllama, _options.LlmModel);
-            if (!string.IsNullOrWhiteSpace(_options.LlmModelLowRam) && 
+            if (!string.IsNullOrWhiteSpace(_options.LlmModelLowRam) &&
                 !string.Equals(_options.LlmModelLowRam, _options.LlmModel, StringComparison.OrdinalIgnoreCase))
             {
                 yield return (ProviderOllama, _options.LlmModelLowRam!);
@@ -90,6 +96,10 @@ public sealed class LlmService
             if (!string.IsNullOrWhiteSpace(_options.GeminiApiKey))
             {
                 yield return (ProviderGemini, _options.GeminiModel);
+            }
+            if (!string.IsNullOrWhiteSpace(_options.ClaudeApiKey))
+            {
+                yield return (ProviderClaude, _options.ClaudeModel);
             }
         }
         else if (primaryProvider == ProviderGemini)
@@ -99,6 +109,24 @@ public sealed class LlmService
                 !string.Equals(_options.GeminiModelFallback, _options.GeminiModel, StringComparison.OrdinalIgnoreCase))
             {
                 yield return (ProviderGemini, _options.GeminiModelFallback!);
+            }
+            if (!string.IsNullOrWhiteSpace(_options.ClaudeApiKey))
+            {
+                yield return (ProviderClaude, _options.ClaudeModel);
+            }
+            yield return (ProviderOllama, _options.LlmModel);
+        }
+        else if (primaryProvider == ProviderClaude)
+        {
+            yield return (ProviderClaude, _options.ClaudeModel);
+            if (!string.IsNullOrWhiteSpace(_options.ClaudeModelFallback) &&
+                !string.Equals(_options.ClaudeModelFallback, _options.ClaudeModel, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return (ProviderClaude, _options.ClaudeModelFallback!);
+            }
+            if (!string.IsNullOrWhiteSpace(_options.GeminiApiKey))
+            {
+                yield return (ProviderGemini, _options.GeminiModel);
             }
             yield return (ProviderOllama, _options.LlmModel);
         }
@@ -415,6 +443,247 @@ public sealed class LlmService
         }
     }
 
+    private async Task<LlmCallResult> CallClaudeWithRetryAsync(string model, string prompt, CancellationToken token)
+    {
+        const int maxRetries = 2;
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                var result = await CallClaudeAsync(model, prompt, token);
+                if (result.Success)
+                {
+                    return result;
+                }
+
+                if (attempt < maxRetries)
+                {
+                    var delay = TimeSpan.FromSeconds(2 * attempt);
+                    _logger.LogWarning("Claude attempt {Attempt} failed. Retrying in {Delay}s. Error: {Error}",
+                        attempt, delay.TotalSeconds, result.Error);
+                    await Task.Delay(delay, token);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Claude attempt {Attempt} failed with exception", attempt);
+                if (attempt == maxRetries)
+                {
+                    return new LlmCallResult { Error = $"Claude failed after {maxRetries} attempts: {ex.Message}" };
+                }
+            }
+        }
+
+        return new LlmCallResult { Error = $"Claude failed after {maxRetries} attempts" };
+    }
+
+    private async Task<LlmCallResult> CallClaudeAsync(string model, string prompt, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(_options.ClaudeApiKey))
+        {
+            return new LlmCallResult
+            {
+                Error = BuildError(ProviderClaude, model, "Claude API key boş.", null, null, prompt.Length, ResolveBaseUrl(ProviderClaude))
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            return new LlmCallResult
+            {
+                Error = BuildError(ProviderClaude, "-", "Claude model boş.", null, null, prompt.Length, ResolveBaseUrl(ProviderClaude))
+            };
+        }
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        cts.CancelAfter(TimeSpan.FromSeconds(_options.LlmTimeoutSeconds));
+
+        try
+        {
+            // Extract system prompt if present in the prompt text
+            var (systemPrompt, userPrompt) = ExtractClaudeSystemPrompt(prompt);
+
+            var payload = new ClaudeGenerateRequest
+            {
+                Model = model,
+                MaxTokens = _options.MaxTokens > 0 ? _options.MaxTokens : 4096,
+                System = systemPrompt,
+                Messages =
+                {
+                    new ClaudeMessage
+                    {
+                        Role = "user",
+                        Content = userPrompt
+                    }
+                }
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.ClaudeBaseUrl.TrimEnd('/')}/v1/messages");
+            request.Headers.Add("x-api-key", _options.ClaudeApiKey);
+            request.Headers.Add("anthropic-version", "2023-06-01");
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(payload, JsonOptions),
+                Encoding.UTF8,
+                "application/json");
+
+            using var response = await _claude.SendAsync(request, cts.Token);
+            var body = await response.Content.ReadAsStringAsync(cts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Claude HTTP isteği başarısız. Model={Model} Status={Status}", model, response.StatusCode);
+                var detail = $"Status={(int)response.StatusCode} {response.ReasonPhrase}; BodyLen={body.Length}";
+                var apiError = ExtractClaudeError(body);
+                if (!string.IsNullOrWhiteSpace(apiError))
+                {
+                    detail = $"{detail}; ApiError={apiError}";
+                }
+
+                return new LlmCallResult
+                {
+                    Error = BuildError(ProviderClaude, model, "HTTP isteği başarısız.", detail, body, prompt.Length, ResolveBaseUrl(ProviderClaude))
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                return new LlmCallResult
+                {
+                    Error = BuildError(ProviderClaude, model, "HTTP yanıtı boş.", $"BodyLen={body.Length}", null, prompt.Length, ResolveBaseUrl(ProviderClaude))
+                };
+            }
+
+            ClaudeGenerateResponse? data;
+            try
+            {
+                data = JsonSerializer.Deserialize<ClaudeGenerateResponse>(body, JsonOptions);
+            }
+            catch (Exception ex)
+            {
+                var detail = $"ParseError={ex.GetType().Name}: {ex.Message}; BodyLen={body.Length}";
+                return new LlmCallResult
+                {
+                    Error = BuildError(ProviderClaude, model, "Claude response parse edilemedi.", detail, body, prompt.Length, ResolveBaseUrl(ProviderClaude))
+                };
+            }
+
+            var raw = ExtractClaudeText(data);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                var detail = $"BodyLen={body.Length}";
+                if (data?.Error is not null && !string.IsNullOrWhiteSpace(data.Error.Message))
+                {
+                    detail = $"{detail}; ApiError={data.Error.Message}";
+                }
+
+                return new LlmCallResult
+                {
+                    Error = BuildError(ProviderClaude, model, "Claude response boş.", detail, body, prompt.Length, ResolveBaseUrl(ProviderClaude))
+                };
+            }
+
+            var json = ExtractAndValidateJson(raw);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _logger.LogWarning("Claude için geçerli JSON çıkarılamadı. Raw={Raw}", raw[..Math.Min(200, raw.Length)]);
+                return new LlmCallResult
+                {
+                    Error = BuildError(ProviderClaude, model, "Geçerli JSON bulunamadı.", $"RawLen={raw.Length}", raw[..Math.Min(500, raw.Length)], prompt.Length, ResolveBaseUrl(ProviderClaude))
+                };
+            }
+
+            return new LlmCallResult
+            {
+                Result = ParseAndValidateResult(json, model)
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            var reason = token.IsCancellationRequested
+                ? "İstek iptal edildi."
+                : $"Zaman aşımı ({_options.LlmTimeoutSeconds}s).";
+            _logger.LogWarning("Claude isteği zaman aşımına uğradı. Model={Model}", model);
+            return new LlmCallResult
+            {
+                Error = BuildError(ProviderClaude, model, reason, null, null, prompt.Length, ResolveBaseUrl(ProviderClaude))
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Claude isteği hatası. Model={Model}", model);
+            var detail = $"{ex.GetType().Name}: {ex.Message}";
+            return new LlmCallResult
+            {
+                Error = BuildError(ProviderClaude, model, "Claude isteği hatası.", detail, null, prompt.Length, ResolveBaseUrl(ProviderClaude))
+            };
+        }
+    }
+
+    /// <summary>
+    /// Extracts system prompt from the prompt text if it uses &lt;|system|&gt; tags.
+    /// Returns (systemPrompt, userPrompt) tuple.
+    /// </summary>
+    private static (string? systemPrompt, string userPrompt) ExtractClaudeSystemPrompt(string prompt)
+    {
+        var systemMatch = Regex.Match(prompt, @"<\|system\|>([\s\S]*?)<\|/system\|>", RegexOptions.Multiline);
+        if (systemMatch.Success)
+        {
+            var system = systemMatch.Groups[1].Value.Trim();
+            var user = prompt.Replace(systemMatch.Value, "").Trim();
+            return (system, user);
+        }
+
+        return (null, prompt);
+    }
+
+    private static string? ExtractClaudeText(ClaudeGenerateResponse? data)
+    {
+        return data?.Content?.FirstOrDefault(c =>
+            string.Equals(c.Type, "text", StringComparison.OrdinalIgnoreCase))?.Text?.Trim();
+    }
+
+    private static string? ExtractClaudeError(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("error", out var error))
+            {
+                return null;
+            }
+
+            var parts = new List<string>();
+            if (error.TryGetProperty("type", out var type))
+            {
+                var typeValue = type.GetString();
+                if (!string.IsNullOrWhiteSpace(typeValue))
+                {
+                    parts.Add(typeValue);
+                }
+            }
+
+            if (error.TryGetProperty("message", out var message))
+            {
+                var messageValue = message.GetString();
+                if (!string.IsNullOrWhiteSpace(messageValue))
+                {
+                    parts.Add(messageValue);
+                }
+            }
+
+            return parts.Count > 0 ? string.Join(" ", parts) : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static LlmResultRow ParseAndValidateResult(string raw, string model)
     {
         try
@@ -570,6 +839,11 @@ public sealed class LlmService
         if (string.Equals(provider, ProviderGemini, StringComparison.OrdinalIgnoreCase))
         {
             return _gemini.BaseAddress?.ToString() ?? _options.GeminiBaseUrl;
+        }
+
+        if (string.Equals(provider, ProviderClaude, StringComparison.OrdinalIgnoreCase))
+        {
+            return _claude.BaseAddress?.ToString() ?? _options.ClaudeBaseUrl;
         }
 
         return _ollama.BaseAddress?.ToString() ?? _options.OllamaBaseUrl;
@@ -781,5 +1055,72 @@ public sealed class LlmService
         public bool IsValid { get; set; }
         public List<string> Issues { get; set; } = new();
         public int QualityScore { get; set; }
+    }
+
+    // --- Claude DTOs ---
+
+    private sealed class ClaudeGenerateRequest
+    {
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+        [JsonPropertyName("max_tokens")]
+        public int MaxTokens { get; set; } = 4096;
+        [JsonPropertyName("system")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? System { get; set; }
+        [JsonPropertyName("messages")]
+        public List<ClaudeMessage> Messages { get; set; } = new();
+    }
+
+    private sealed class ClaudeMessage
+    {
+        [JsonPropertyName("role")]
+        public string Role { get; set; } = string.Empty;
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = string.Empty;
+    }
+
+    private sealed class ClaudeGenerateResponse
+    {
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        [JsonPropertyName("type")]
+        public string? Type { get; set; }
+        [JsonPropertyName("role")]
+        public string? Role { get; set; }
+        [JsonPropertyName("content")]
+        public List<ClaudeContentBlock>? Content { get; set; }
+        [JsonPropertyName("model")]
+        public string? Model { get; set; }
+        [JsonPropertyName("stop_reason")]
+        public string? StopReason { get; set; }
+        [JsonPropertyName("usage")]
+        public ClaudeUsage? Usage { get; set; }
+        [JsonPropertyName("error")]
+        public ClaudeError? Error { get; set; }
+    }
+
+    private sealed class ClaudeContentBlock
+    {
+        [JsonPropertyName("type")]
+        public string Type { get; set; } = string.Empty;
+        [JsonPropertyName("text")]
+        public string? Text { get; set; }
+    }
+
+    private sealed class ClaudeUsage
+    {
+        [JsonPropertyName("input_tokens")]
+        public int InputTokens { get; set; }
+        [JsonPropertyName("output_tokens")]
+        public int OutputTokens { get; set; }
+    }
+
+    private sealed class ClaudeError
+    {
+        [JsonPropertyName("type")]
+        public string? Type { get; set; }
+        [JsonPropertyName("message")]
+        public string? Message { get; set; }
     }
 }
