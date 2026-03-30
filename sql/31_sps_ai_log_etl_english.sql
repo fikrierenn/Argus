@@ -103,8 +103,7 @@ BEGIN
             t.Title = @Baslik,
             t.SummaryText = @OzetMetin,
             t.IsCritical = @KritikMi,
-            t.VectorJson = @VektorJson,
-            t.UpdatedAt = SYSDATETIME()
+            t.VectorJson = @VektorJson
     WHEN NOT MATCHED THEN
         INSERT (SourceId, DofId, Title, SummaryText, IsCritical, VectorJson, CreatedAt)
         VALUES (@RiskId, @DofId, @Baslik, @OzetMetin, @KritikMi, @VektorJson, SYSDATETIME());
@@ -139,11 +138,7 @@ BEGIN
         i.Priority,
         i.Status,
         i.EvidencePlan,
-        i.EvidenceJson,
-        i.RuleNote,
-        i.ErrorMessage,
         i.RetryCount,
-        i.SonDenemeTarihi,
         i.CreatedAt,
         i.UpdatedAt
     FROM ai.AnalysisQueue i
@@ -194,10 +189,7 @@ BEGIN
         i.Priority,
         i.Status,
         i.EvidencePlan,
-        i.RuleNote,
-        i.ErrorMessage,
         i.RetryCount,
-        i.SonDenemeTarihi,
         i.CreatedAt,
         i.UpdatedAt
     FROM ai.AnalysisQueue i
@@ -244,8 +236,8 @@ BEGIN
     SELECT TOP (@Top)
         l.RequestId,
         l.ModelName,
-        l.PromptVersiyon,
-        l.YoneticiOzeti,
+        l.PromptText,
+        l.ResultText,
         l.ConfidenceScore,
         l.CreatedAt,
         i.PeriodCode,
@@ -291,7 +283,6 @@ BEGIN
     BEGIN TRY
         BEGIN TRAN;
         DELETE FROM ai.LlmResults;
-        DELETE FROM ai.AiLmSonuc;
         DELETE FROM ai.AnalysisQueue;
         IF @SilVektor = 1
             DELETE FROM ai.SemanticVectors;
@@ -379,17 +370,17 @@ BEGIN
     -- Simple moving average prediction (placeholder for more sophisticated models)
     WITH HistoricalData AS (
         SELECT
-            LocationId, ProductId, SnapshotDay, RiskScore,
+            LocationId, ProductId, CONVERT(date, SnapshotDate) AS SnapshotDay, RiskScore,
             AVG(CAST(RiskScore AS decimal(10,2))) OVER (
                 PARTITION BY LocationId, ProductId
-                ORDER BY SnapshotDay
+                ORDER BY CONVERT(date, SnapshotDate)
                 ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
             ) as MovingAvg7,
-            ROW_NUMBER() OVER (PARTITION BY LocationId, ProductId ORDER BY SnapshotDay DESC) as rn
+            ROW_NUMBER() OVER (PARTITION BY LocationId, ProductId ORDER BY CONVERT(date, SnapshotDate) DESC) as rn
         FROM rpt.DailyProductRisk
         WHERE LocationId = @MekanId
           AND (@StokId IS NULL OR ProductId = @StokId)
-          AND SnapshotDay >= DATEADD(day, -30, @PredictionDate)
+          AND CONVERT(date, SnapshotDate) >= DATEADD(day, -30, @PredictionDate)
     ),
     LatestData AS (
         SELECT LocationId, ProductId, MovingAvg7, RiskScore
@@ -437,7 +428,7 @@ BEGIN
     DECLARE @err nvarchar(4000);
     DECLARE @logId bigint;
 
-    INSERT INTO log.RiskEtlRuns (BaslamaZamani, Durum) VALUES (@t0, 'RUNNING');
+    INSERT INTO log.RiskEtlRuns (StartTime, Status) VALUES (@t0, 'RUNNING');
     SET @logId = SCOPE_IDENTITY();
 
     BEGIN TRY
@@ -449,19 +440,19 @@ BEGIN
         DECLARE @AyBasi_Bas date = DATEFROMPARTS(YEAR(@KesimGunu), MONTH(@KesimGunu), 1);
 
         -- parametreler
-        DECLARE @IadeOranEsik decimal(9,2) = COALESCE((SELECT DegerDec FROM ref.RiskParam WHERE ParamKodu='IadeOranEsik'), 20);
-        DECLARE @NetBirikimAdetEsik decimal(18,3)= COALESCE((SELECT DegerDec FROM ref.RiskParam WHERE ParamKodu='NetBirikimAdetEsik'), 10);
-        DECLARE @IcKullanimTutarEsik decimal(18,3)= COALESCE((SELECT DegerDec FROM ref.RiskParam WHERE ParamKodu='IcKullanimTutarEsik'), 1000);
-        DECLARE @BozukAdetEsik decimal(18,3)= COALESCE((SELECT DegerDec FROM ref.RiskParam WHERE ParamKodu='BozukAdetEsik'), 5);
-        DECLARE @SayimDuzeltmeAdetEsik decimal(18,3)= COALESCE((SELECT DegerDec FROM ref.RiskParam WHERE ParamKodu='SayimDuzeltmeAdetEsik'), 10);
-        DECLARE @HizliDevirOranEsik decimal(9,4)= COALESCE((SELECT DegerDec FROM ref.RiskParam WHERE ParamKodu='HizliDevirOranEsik'), 0.80);
-        DECLARE @SatisYaslanmaGunEsik int = COALESCE((SELECT DegerInt FROM ref.RiskParam WHERE ParamKodu='SatisYaslanmaGunEsik'), 90);
+        DECLARE @IadeOranEsik decimal(9,2) = COALESCE((SELECT DecValue FROM ref.RiskParameters WHERE ParamCode='IadeOranEsik'), 20);
+        DECLARE @NetBirikimAdetEsik decimal(18,3)= COALESCE((SELECT DecValue FROM ref.RiskParameters WHERE ParamCode='NetBirikimAdetEsik'), 10);
+        DECLARE @IcKullanimTutarEsik decimal(18,3)= COALESCE((SELECT DecValue FROM ref.RiskParameters WHERE ParamCode='IcKullanimTutarEsik'), 1000);
+        DECLARE @BozukAdetEsik decimal(18,3)= COALESCE((SELECT DecValue FROM ref.RiskParameters WHERE ParamCode='BozukAdetEsik'), 5);
+        DECLARE @SayimDuzeltmeAdetEsik decimal(18,3)= COALESCE((SELECT DecValue FROM ref.RiskParameters WHERE ParamCode='SayimDuzeltmeAdetEsik'), 10);
+        DECLARE @HizliDevirOranEsik decimal(9,4)= COALESCE((SELECT DecValue FROM ref.RiskParameters WHERE ParamCode='HizliDevirOranEsik'), 0.80);
+        DECLARE @SatisYaslanmaGunEsik int = COALESCE((SELECT IntValue FROM ref.RiskParameters WHERE ParamCode='SatisYaslanmaGunEsik'), 90);
 
         -- Ayni gun ayni donem ayni mekani sil (gunde tek snapshot)
         DELETE r
         FROM rpt.DailyProductRisk r
         JOIN log.tvf_MekanListesi(@MekanCSV) mk ON mk.MekanId=r.LocationId
-        WHERE r.SnapshotDay=@KesimGunu;
+        WHERE CONVERT(date, r.SnapshotDate)=@KesimGunu;
 
         -- Insert
         ;WITH Mekan AS (
@@ -479,9 +470,9 @@ BEGIN
         Mapli AS (
             SELECT
                 k.*,
-                COALESCE(g.GrupKodu,'DIGER') AS GrupKodu
+                COALESCE(g.GroupCode,'DIGER') AS GrupKodu
             FROM Kaynak k
-            LEFT JOIN ref.IrsTipGrupMap g ON g.TipId = k.TipId AND g.AktifMi=1
+            LEFT JOIN ref.TransactionTypeMap g ON g.TypeId = k.TipId AND g.IsActive=1
         ),
         Donem AS (
             SELECT DonemKodu='Son30Gun', Baslangic=@Son30_Bas
@@ -581,19 +572,19 @@ BEGIN
             SELECT
                 h.*,
                 RiskSkor = (
-                    SELECT SUM(w.Puan)
-                    FROM ref.RiskSkorAgirlik w
-                    WHERE w.AktifMi=1 AND (
-                        (w.FlagKodu='FlagVeriKalite'       AND h.FlagVeriKalite=1) OR
-                        (w.FlagKodu='FlagGirissizSatis'    AND h.FlagGirissizSatis=1) OR
-                        (w.FlagKodu='FlagOluStok'          AND h.FlagOluStok=1) OR
-                        (w.FlagKodu='FlagNetBirikim'       AND h.FlagNetBirikim=1) OR
-                        (w.FlagKodu='FlagIadeYuksek'       AND h.FlagIadeYuksek=1) OR
-                        (w.FlagKodu='FlagBozukIadeYuksek'  AND h.FlagBozukIadeYuksek=1) OR
-                        (w.FlagKodu='FlagSayimDuzeltmeYuk' AND h.FlagSayimDuzeltmeYuk=1) OR
-                        (w.FlagKodu='FlagSirketIciYuksek'  AND h.FlagSirketIciYuksek=1) OR
-                        (w.FlagKodu='FlagHizliDevir'       AND h.FlagHizliDevir=1) OR
-                        (w.FlagKodu='FlagSatisYaslanma'    AND h.FlagSatisYaslanma=1)
+                    SELECT SUM(w.Points)
+                    FROM ref.RiskScoreWeights w
+                    WHERE w.IsActive=1 AND (
+                        (w.FlagCode='FlagVeriKalite'       AND h.FlagVeriKalite=1) OR
+                        (w.FlagCode='FlagGirissizSatis'    AND h.FlagGirissizSatis=1) OR
+                        (w.FlagCode='FlagOluStok'          AND h.FlagOluStok=1) OR
+                        (w.FlagCode='FlagNetBirikim'       AND h.FlagNetBirikim=1) OR
+                        (w.FlagCode='FlagIadeYuksek'       AND h.FlagIadeYuksek=1) OR
+                        (w.FlagCode='FlagBozukIadeYuksek'  AND h.FlagBozukIadeYuksek=1) OR
+                        (w.FlagCode='FlagSayimDuzeltmeYuk' AND h.FlagSayimDuzeltmeYuk=1) OR
+                        (w.FlagCode='FlagSirketIciYuksek'  AND h.FlagSirketIciYuksek=1) OR
+                        (w.FlagCode='FlagHizliDevir'       AND h.FlagHizliDevir=1) OR
+                        (w.FlagCode='FlagSatisYaslanma'    AND h.FlagSatisYaslanma=1)
                     )
                 )
             FROM Hesap h
@@ -629,8 +620,8 @@ BEGIN
                 SELECT TOP (5)
                     ' | ' + t.Metin
                 FROM (
-                    SELECT w.Oncelik,
-                           Metin = CASE w.FlagKodu
+                    SELECT w.Priority,
+                           Metin = CASE w.FlagCode
                                 WHEN 'FlagVeriKalite'       THEN CONCAT(N'VeriKalite: satir=', s.AdetSifirTutarVarSatir)
                                 WHEN 'FlagGirissizSatis'    THEN CONCAT(N'GirissizSatis: satis=', s.SatisBrutAdet)
                                 WHEN 'FlagOluStok'          THEN CONCAT(N'OluStok: alis=', s.AlisBrutAdet)
@@ -642,31 +633,31 @@ BEGIN
                                 WHEN 'FlagHizliDevir'       THEN CONCAT(N'HizliDevir: satis/alis=', CAST(s.SatisBrutAdet/NULLIF(s.AlisBrutAdet,0) AS decimal(9,2)))
                                 WHEN 'FlagSatisYaslanma'    THEN CONCAT(N'SatisYaslanma: gun=', COALESCE(CONVERT(varchar(20),s.SatisYasiGun),'?'))
                            END
-                    FROM ref.RiskSkorAgirlik w
-                    WHERE w.AktifMi=1 AND (
-                        (w.FlagKodu='FlagVeriKalite'       AND s.FlagVeriKalite=1) OR
-                        (w.FlagKodu='FlagGirissizSatis'    AND s.FlagGirissizSatis=1) OR
-                        (w.FlagKodu='FlagOluStok'          AND s.FlagOluStok=1) OR
-                        (w.FlagKodu='FlagNetBirikim'       AND s.FlagNetBirikim=1) OR
-                        (w.FlagKodu='FlagIadeYuksek'       AND s.FlagIadeYuksek=1) OR
-                        (w.FlagKodu='FlagBozukIadeYuksek'  AND s.FlagBozukIadeYuksek=1) OR
-                        (w.FlagKodu='FlagSayimDuzeltmeYuk' AND s.FlagSayimDuzeltmeYuk=1) OR
-                        (w.FlagKodu='FlagSirketIciYuksek'  AND s.FlagSirketIciYuksek=1) OR
-                        (w.FlagKodu='FlagHizliDevir'       AND s.FlagHizliDevir=1) OR
-                        (w.FlagKodu='FlagSatisYaslanma'    AND s.FlagSatisYaslanma=1)
+                    FROM ref.RiskScoreWeights w
+                    WHERE w.IsActive=1 AND (
+                        (w.FlagCode='FlagVeriKalite'       AND s.FlagVeriKalite=1) OR
+                        (w.FlagCode='FlagGirissizSatis'    AND s.FlagGirissizSatis=1) OR
+                        (w.FlagCode='FlagOluStok'          AND s.FlagOluStok=1) OR
+                        (w.FlagCode='FlagNetBirikim'       AND s.FlagNetBirikim=1) OR
+                        (w.FlagCode='FlagIadeYuksek'       AND s.FlagIadeYuksek=1) OR
+                        (w.FlagCode='FlagBozukIadeYuksek'  AND s.FlagBozukIadeYuksek=1) OR
+                        (w.FlagCode='FlagSayimDuzeltmeYuk' AND s.FlagSayimDuzeltmeYuk=1) OR
+                        (w.FlagCode='FlagSirketIciYuksek'  AND s.FlagSirketIciYuksek=1) OR
+                        (w.FlagCode='FlagHizliDevir'       AND s.FlagHizliDevir=1) OR
+                        (w.FlagCode='FlagSatisYaslanma'    AND s.FlagSatisYaslanma=1)
                     )
                 ) t
-                ORDER BY t.Oncelik
+                ORDER BY t.Priority
                 FOR XML PATH(''), TYPE).value('.','nvarchar(max)'), 1, 3, ''), '')
         ) y
         OPTION (RECOMPILE);
 
         SET @t1 = SYSDATETIME();
         UPDATE log.RiskEtlRuns
-        SET BitisZamani=@t1,
-            Durum='SUCCESS',
-            SureMs=DATEDIFF(millisecond,@t0,@t1),
-            Hata=NULL
+        SET EndTime=@t1,
+            Status='SUCCESS',
+            DurationMs=DATEDIFF(millisecond,@t0,@t1),
+            ErrorMessage=NULL
         WHERE LogId=@logId;
 
     END TRY
@@ -674,10 +665,10 @@ BEGIN
         SET @err = ERROR_MESSAGE();
         SET @t1 = SYSDATETIME();
         UPDATE log.RiskEtlRuns
-        SET BitisZamani=@t1,
-            Durum='FAIL',
-            SureMs=DATEDIFF(millisecond,@t0,@t1),
-            Hata=@err
+        SET EndTime=@t1,
+            Status='FAIL',
+            DurationMs=DATEDIFF(millisecond,@t0,@t1),
+            ErrorMessage=@err
         WHERE LogId=@logId;
         THROW;
     END CATCH
@@ -706,7 +697,7 @@ BEGIN
     DECLARE @err nvarchar(4000);
     DECLARE @logId bigint;
 
-    INSERT INTO log.StockEtlRuns (BaslamaZamani, Durum) VALUES (@t0, 'RUNNING');
+    INSERT INTO log.StockEtlRuns (StartTime, Status) VALUES (@t0, 'RUNNING');
     SET @logId = SCOPE_IDENTITY();
 
     BEGIN TRY
@@ -775,21 +766,21 @@ BEGIN
 
         SET @t1 = SYSDATETIME();
         UPDATE log.StockEtlRuns
-        SET BitisZamani=@t1,
-            Durum='SUCCESS',
-            SureMs=DATEDIFF(millisecond,@t0,@t1),
-            HedefBaslangic=@Baslangic,
-            HedefBitis=@Bitis
+        SET EndTime=@t1,
+            Status='SUCCESS',
+            DurationMs=DATEDIFF(millisecond,@t0,@t1),
+            TargetStartDate=@Baslangic,
+            TargetEndDate=@Bitis
         WHERE LogId=@logId;
     END TRY
     BEGIN CATCH
         SET @err = ERROR_MESSAGE();
         SET @t1 = SYSDATETIME();
         UPDATE log.StockEtlRuns
-        SET BitisZamani=@t1,
-            Durum='FAIL',
-            SureMs=DATEDIFF(millisecond,@t0,@t1),
-            Hata=@err
+        SET EndTime=@t1,
+            Status='FAIL',
+            DurationMs=DATEDIFF(millisecond,@t0,@t1),
+            ErrorMessage=@err
         WHERE LogId=@logId;
         THROW;
     END CATCH
@@ -824,32 +815,32 @@ BEGIN
     ;WITH r AS (
         SELECT *
         FROM rpt.DailyProductRisk
-        WHERE YEAR(SnapshotDay)*100 + MONTH(SnapshotDay) = @DonemAy
+        WHERE YEAR(CONVERT(date, SnapshotDate))*100 + MONTH(CONVERT(date, SnapshotDate)) = @DonemAy
     ),
     son AS (
-        SELECT MAX(SnapshotDay) AS SonGun FROM r
+        SELECT MAX(CONVERT(date, SnapshotDate)) AS SonGun FROM r
     )
-    INSERT INTO rpt.RiskUrunOzet_Aylik
+    INSERT INTO rpt.MonthlyProductRisk
     (
-        DonemAy, DonemKodu, MekanId, StokId, KesimTarihi,
-        NetAdet, BrutAdet, NetTutar, BrutTutar, RiskSkor,
+        PeriodMonth, PeriodCode, LocationId, ProductId, SnapshotDate,
+        NetAdet, BrutAdet, NetTutar, BrutTutar, RiskScore,
         FlagVeriKalite, FlagGirissizSatis, FlagOluStok, FlagNetBirikim, FlagIadeYuksek,
         FlagBozukIadeYuksek, FlagSayimDuzeltmeYuk, FlagSirketIciYuksek, FlagHizliDevir, FlagSatisYaslanma,
         RiskYorum
     )
     SELECT
-        DonemAy=@DonemAy,
-        r.PeriodCode, r.LocationId, r.ProductId, KesimTarihi=@KesimTarihi,
+        PeriodMonth=@DonemAy,
+        r.PeriodCode, r.LocationId, r.ProductId, SnapshotDate=@KesimTarihi,
         r.NetQty, r.GrossQty, r.NetAmount, r.GrossAmount, r.RiskScore,
         r.FlagDataQuality, r.FlagSalesWithoutEntry, r.FlagDeadStock, r.FlagNetAccumulation, r.FlagHighReturn,
         r.FlagHighDamagedReturn, r.FlagHighCountAdjustment, r.FlagHighInternalUse, r.FlagFastTurnover, r.FlagSalesAging,
         r.RiskComment
     FROM r
     CROSS JOIN son
-    WHERE r.SnapshotDay = son.SonGun
+    WHERE CONVERT(date, r.SnapshotDate) = son.SonGun
     AND NOT EXISTS (
-        SELECT 1 FROM rpt.RiskUrunOzet_Aylik a
-        WHERE a.DonemAy=@DonemAy AND a.DonemKodu=r.PeriodCode AND a.MekanId=r.LocationId AND a.StokId=r.ProductId
+        SELECT 1 FROM rpt.MonthlyProductRisk a
+        WHERE a.PeriodMonth=@DonemAy AND a.PeriodCode=r.PeriodCode AND a.LocationId=r.LocationId AND a.ProductId=r.ProductId
     );
 END
 GO
@@ -886,14 +877,14 @@ BEGIN
     SELECT
         'RISK_JOB_SON',
         1,
-        Durum = CASE WHEN x.Durum='SUCCESS' AND x.BitisZamani >= DATEADD(hour,-24,SYSDATETIME()) THEN 'PASS'
-                     WHEN x.Durum='SUCCESS' THEN 'WARN'
+        Durum = CASE WHEN x.Status='SUCCESS' AND x.EndTime >= DATEADD(hour,-24,SYSDATETIME()) THEN 'PASS'
+                     WHEN x.Status='SUCCESS' THEN 'WARN'
                      ELSE 'FAIL' END,
-        Detay = CONCAT('Durum=',x.Durum,'; Hata=',COALESCE(x.Hata,'')),
-        SayisalDeger = x.SureMs,
-        TarihDeger = x.BitisZamani
+        Detay = CONCAT('Durum=',x.Status,'; Hata=',COALESCE(x.ErrorMessage,'')),
+        SayisalDeger = x.DurationMs,
+        TarihDeger = x.EndTime
     FROM (
-        SELECT TOP 1 Durum, BitisZamani, SureMs, Hata
+        SELECT TOP 1 Status, EndTime, DurationMs, ErrorMessage
         FROM log.RiskEtlRuns
         ORDER BY LogId DESC
     ) x;
@@ -903,14 +894,14 @@ BEGIN
     SELECT
         'STOK_JOB_SON',
         1,
-        Durum = CASE WHEN x.Durum='SUCCESS' AND x.BitisZamani >= DATEADD(hour,-24,SYSDATETIME()) THEN 'PASS'
-                     WHEN x.Durum='SUCCESS' THEN 'WARN'
+        Durum = CASE WHEN x.Status='SUCCESS' AND x.EndTime >= DATEADD(hour,-24,SYSDATETIME()) THEN 'PASS'
+                     WHEN x.Status='SUCCESS' THEN 'WARN'
                      ELSE 'FAIL' END,
-        Detay = CONCAT('Durum=',x.Durum,'; Pencere=',COALESCE(CONVERT(varchar(10),x.HedefBaslangic,120),''),'..',COALESCE(CONVERT(varchar(10),x.HedefBitis,120),''),' ; Hata=',COALESCE(x.Hata,'')),
-        SayisalDeger = x.SureMs,
-        TarihDeger = x.BitisZamani
+        Detay = CONCAT('Durum=',x.Status,'; Pencere=',COALESCE(CONVERT(varchar(10),x.TargetStartDate,120),''),'..',COALESCE(CONVERT(varchar(10),x.TargetEndDate,120),''),' ; Hata=',COALESCE(x.ErrorMessage,'')),
+        SayisalDeger = x.DurationMs,
+        TarihDeger = x.EndTime
     FROM (
-        SELECT TOP 1 Durum, BitisZamani, SureMs, HedefBaslangic, HedefBitis, Hata
+        SELECT TOP 1 Status, EndTime, DurationMs, TargetStartDate, TargetEndDate, ErrorMessage
         FROM log.StockEtlRuns
         ORDER BY LogId DESC
     ) x;
@@ -924,7 +915,7 @@ BEGIN
         Detay = CONCAT('SnapshotDay=',CONVERT(varchar(10),@Bugun,120),' ; satir=',c.cnt),
         SayisalDeger = c.cnt,
         TarihDeger = NULL
-    FROM (SELECT cnt=COUNT(*) FROM rpt.DailyProductRisk WHERE SnapshotDay=@Bugun AND PeriodCode='Son30Gun') c;
+    FROM (SELECT cnt=COUNT(*) FROM rpt.DailyProductRisk WHERE CONVERT(date, SnapshotDate)=@Bugun AND PeriodCode='Son30Gun') c;
 
     /* 4) Dun stok bakiyesi var mi? */
     INSERT INTO @t
@@ -965,9 +956,9 @@ BEGIN
     FROM (
         SELECT cnt=COUNT(DISTINCT h.TipId)
         FROM src.vw_StokHareket h
-        LEFT JOIN ref.IrsTipGrupMap m ON m.TipId=h.TipId AND m.AktifMi=1
+        LEFT JOIN ref.TransactionTypeMap m ON m.TypeId=h.TipId AND m.IsActive=1
         WHERE h.HareketTarihi >= DATEADD(day,-30,CONVERT(date,SYSDATETIME()))
-          AND m.TipId IS NULL
+          AND m.TypeId IS NULL
     ) c;
 
     /* 7) Unique index ihlali var mi? */
@@ -982,10 +973,10 @@ BEGIN
     FROM (
         SELECT cnt=COUNT(*)
         FROM (
-            SELECT SnapshotDay, PeriodCode, LocationId, ProductId, n=COUNT(*)
+            SELECT CONVERT(date, SnapshotDate) AS SnapshotDay, PeriodCode, LocationId, ProductId, n=COUNT(*)
             FROM rpt.DailyProductRisk
-            WHERE SnapshotDay=@Bugun
-            GROUP BY SnapshotDay, PeriodCode, LocationId, ProductId
+            WHERE CONVERT(date, SnapshotDate)=@Bugun
+            GROUP BY CONVERT(date, SnapshotDate), PeriodCode, LocationId, ProductId
             HAVING COUNT(*)>1
         ) d
     ) c;

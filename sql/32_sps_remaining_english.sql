@@ -76,7 +76,7 @@ BEGIN
 
     BEGIN TRY
         DECLARE @Kesim date = COALESCE(@KesimGunu,
-            (SELECT MAX(SnapshotDay) FROM rpt.DailyProductRisk));
+            (SELECT MAX(CONVERT(date, SnapshotDate)) FROM rpt.DailyProductRisk));
         IF @Kesim IS NULL
             SET @Kesim = CONVERT(date, SYSDATETIME());
 
@@ -86,19 +86,19 @@ BEGIN
         DECLARE @RiskSatir int = (
             SELECT COUNT(*)
             FROM rpt.DailyProductRisk
-            WHERE SnapshotDay = @Kesim AND PeriodCode = 'Son30Gun'
+            WHERE CONVERT(date, SnapshotDate) = @Kesim AND PeriodCode = 'Son30Gun'
         );
 
         DECLARE @KritikSkor int = (
             SELECT COUNT(*)
             FROM rpt.DailyProductRisk
-            WHERE SnapshotDay = @Kesim AND PeriodCode = 'Son30Gun'
+            WHERE CONVERT(date, SnapshotDate) = @Kesim AND PeriodCode = 'Son30Gun'
               AND RiskScore >= @KritikSkorEsik
         );
 
         DECLARE @DofAcik int = (
-            SELECT COUNT(*) FROM dof.DofKayit
-            WHERE Durum <> 'KAPANDI'
+            SELECT COUNT(*) FROM dof.Findings
+            WHERE Status <> 'KAPANDI'
         );
 
         DECLARE @StokSapma int = (
@@ -155,11 +155,11 @@ BEGIN
         DECLARE @RiskZaman datetime2(0) = NULL;
         SELECT TOP 1
             @RiskDurum = CASE
-                WHEN Durum = 'SUCCESS' AND BitisZamani >= DATEADD(hour, -24, SYSDATETIME()) THEN 'PASS'
-                WHEN Durum = 'SUCCESS' THEN 'WARN'
+                WHEN Status = 'SUCCESS' AND EndTime >= DATEADD(hour, -24, SYSDATETIME()) THEN 'PASS'
+                WHEN Status = 'SUCCESS' THEN 'WARN'
                 ELSE 'FAIL'
             END,
-            @RiskZaman = BitisZamani
+            @RiskZaman = EndTime
         FROM log.RiskEtlRuns
         ORDER BY LogId DESC;
 
@@ -167,11 +167,11 @@ BEGIN
         DECLARE @StokZaman datetime2(0) = NULL;
         SELECT TOP 1
             @StokDurum = CASE
-                WHEN Durum = 'SUCCESS' AND BitisZamani >= DATEADD(hour, -24, SYSDATETIME()) THEN 'PASS'
-                WHEN Durum = 'SUCCESS' THEN 'WARN'
+                WHEN Status = 'SUCCESS' AND EndTime >= DATEADD(hour, -24, SYSDATETIME()) THEN 'PASS'
+                WHEN Status = 'SUCCESS' THEN 'WARN'
                 ELSE 'FAIL'
             END,
-            @StokZaman = BitisZamani
+            @StokZaman = EndTime
         FROM log.StockEtlRuns
         ORDER BY LogId DESC;
 
@@ -213,7 +213,7 @@ BEGIN
 
     BEGIN TRY
         DECLARE @Kesim date = COALESCE(@KesimGunu,
-            (SELECT MAX(SnapshotDay) FROM rpt.DailyProductRisk));
+            (SELECT MAX(CONVERT(date, SnapshotDate)) FROM rpt.DailyProductRisk));
         IF @Kesim IS NULL
             SET @Kesim = CONVERT(date, SYSDATETIME());
 
@@ -223,19 +223,19 @@ BEGIN
         DECLARE @KritikRisk int = (
             SELECT COUNT(*)
             FROM rpt.DailyProductRisk
-            WHERE SnapshotDay = @Kesim AND PeriodCode = 'Son30Gun'
+            WHERE CONVERT(date, SnapshotDate) = @Kesim AND PeriodCode = 'Son30Gun'
               AND RiskScore >= @KritikSkorEsik
         );
 
         DECLARE @BekleyenDof int = (
-            SELECT COUNT(*) FROM dof.DofKayit
-            WHERE Durum <> 'KAPANDI'
+            SELECT COUNT(*) FROM dof.Findings
+            WHERE Status <> 'KAPANDI'
         );
 
         DECLARE @TarananStok int = (
             SELECT COUNT(*)
             FROM rpt.DailyProductRisk
-            WHERE SnapshotDay = @Kesim AND PeriodCode = 'Son30Gun'
+            WHERE CONVERT(date, SnapshotDate) = @Kesim AND PeriodCode = 'Son30Gun'
         );
 
         SELECT Sira, Kodu, Deger, NotAciklama
@@ -270,20 +270,20 @@ BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-        DECLARE @Kesim date = (SELECT MAX(SnapshotDay) FROM rpt.DailyProductRisk);
+        DECLARE @Kesim date = (SELECT MAX(CONVERT(date, SnapshotDate)) FROM rpt.DailyProductRisk);
         IF @Kesim IS NULL
             RETURN;
 
         DECLARE @Baslangic date = DATEADD(day, -ABS(@Gun) + 1, @Kesim);
 
         SELECT
-            Tarih        = r.SnapshotDay,
+            Tarih        = CONVERT(date, r.SnapshotDate),
             OrtalamaSkor = CAST(AVG(CAST(r.RiskScore AS decimal(9,2))) AS decimal(9,2))
         FROM rpt.DailyProductRisk r
-        WHERE r.SnapshotDay BETWEEN @Baslangic AND @Kesim
+        WHERE CONVERT(date, r.SnapshotDate) BETWEEN @Baslangic AND @Kesim
           AND r.PeriodCode = 'Son30Gun'
-        GROUP BY r.SnapshotDay
-        ORDER BY r.SnapshotDay;
+        GROUP BY CONVERT(date, r.SnapshotDate)
+        ORDER BY CONVERT(date, r.SnapshotDate);
     END TRY
     BEGIN CATCH
         THROW;
@@ -306,7 +306,7 @@ BEGIN
 
     BEGIN TRY
         DECLARE @Kesim date = COALESCE(@KesimGunu,
-            (SELECT MAX(SnapshotDay) FROM rpt.DailyProductRisk));
+            (SELECT MAX(CONVERT(date, SnapshotDate)) FROM rpt.DailyProductRisk));
         IF @Kesim IS NULL
             RETURN;
 
@@ -325,7 +325,7 @@ BEGIN
         FROM rpt.DailyProductRisk r
         LEFT JOIN src.vw_Mekan m ON m.MekanId = r.LocationId
         LEFT JOIN src.vw_Urun u ON u.StokId = r.ProductId
-        WHERE r.SnapshotDay = @Kesim
+        WHERE CONVERT(date, r.SnapshotDate) = @Kesim
           AND r.PeriodCode = 'Son30Gun'
         ORDER BY r.RiskScore DESC, r.LocationId, r.ProductId;
     END TRY
@@ -338,7 +338,7 @@ GO
 
 -- ===========================================================================
 -- 6) dof.sp_Dashboard_Dof_List  (was: dof.sp_Dashboard_Dof_Liste)
---    Table: dof.DofKayit stays as-is (not yet renamed)
+--    Table: dof.Findings stays as-is (not yet renamed)
 -- ===========================================================================
 CREATE PROCEDURE dof.sp_Dashboard_Dof_List
     @Top int = 5
@@ -348,16 +348,16 @@ BEGIN
 
     BEGIN TRY
         SELECT TOP (@Top)
-            Baslik,
-            Sorumlu = COALESCE(NULLIF(LTRIM(RTRIM(Sorumlu)), ''), 'Atanmadi'),
+            Title,
+            Sorumlu = COALESCE(NULLIF(LTRIM(RTRIM(AssignedTo)), ''), 'Atanmadi'),
             SLA = CASE
-                WHEN SLA_HedefTarih IS NULL THEN 'Suresiz'
-                ELSE CONCAT(DATEDIFF(day, CONVERT(date, SYSDATETIME()), SLA_HedefTarih), ' gun')
+                WHEN SlaDueDate IS NULL THEN 'Suresiz'
+                ELSE CONCAT(DATEDIFF(day, CONVERT(date, SYSDATETIME()), SlaDueDate), ' gun')
             END,
-            Durum
-        FROM dof.DofKayit
-        WHERE Durum <> 'KAPANDI'
-        ORDER BY RiskSeviyesi DESC, SLA_HedefTarih;
+            Status
+        FROM dof.Findings
+        WHERE Status <> 'KAPANDI'
+        ORDER BY RiskLevel DESC, SlaDueDate;
     END TRY
     BEGIN CATCH
         THROW;
@@ -428,7 +428,7 @@ BEGIN
             THROW 50000, 'StokId zorunludur', 1;
 
         DECLARE @Kesim date = COALESCE(@KesimGunu,
-            (SELECT MAX(SnapshotDay) FROM rpt.DailyProductRisk));
+            (SELECT MAX(CONVERT(date, SnapshotDate)) FROM rpt.DailyProductRisk));
         IF @Kesim IS NULL
             RETURN;
 
@@ -493,7 +493,7 @@ BEGIN
             THROW 50000, 'StokId zorunludur', 1;
 
         DECLARE @Kesim date = COALESCE(@KesimGunu,
-            (SELECT MAX(SnapshotDay) FROM rpt.DailyProductRisk));
+            (SELECT MAX(CONVERT(date, SnapshotDate)) FROM rpt.DailyProductRisk));
         IF @Kesim IS NULL
             RETURN;
 
@@ -611,12 +611,10 @@ BEGIN
         SELECT TOP 1
             l.RequestId,
             l.ModelName,
-            l.PromptVersion,
-            l.RootCauseHypotheses,
-            l.VerificationSteps,
-            l.RecommendedActions,
-            l.FindingDraftJson,
-            l.ExecutiveSummary,
+            l.PromptText,
+            l.ResultText,
+            l.TokenCount,
+            l.DurationMs,
             l.ConfidenceScore,
             l.CreatedAt,
             i.PeriodCode,
@@ -651,12 +649,10 @@ BEGIN
         SELECT TOP 1
             l.RequestId,
             l.ModelName,
-            l.PromptVersion,
-            l.RootCauseHypotheses,
-            l.VerificationSteps,
-            l.RecommendedActions,
-            l.FindingDraftJson,
-            l.ExecutiveSummary,
+            l.PromptText,
+            l.ResultText,
+            l.TokenCount,
+            l.DurationMs,
             l.ConfidenceScore,
             l.CreatedAt
         FROM ai.LlmResults l
@@ -680,17 +676,17 @@ BEGIN
 
     BEGIN TRY
         SELECT TOP 1
-            KaynakSistem,
-            SonCalisma    = COALESCE(BitisZamani, BaslamaZamani),
+            SourceSystem,
+            SonCalisma    = COALESCE(EndTime, StartTime),
             SonrakiCalisma = CASE
-                WHEN COALESCE(BitisZamani, BaslamaZamani) IS NULL THEN NULL
-                ELSE DATEADD(day, 1, COALESCE(BitisZamani, BaslamaZamani))
+                WHEN COALESCE(EndTime, StartTime) IS NULL THEN NULL
+                ELSE DATEADD(day, 1, COALESCE(EndTime, StartTime))
             END,
-            Toplam,
-            Eklenen,
-            Guncellenen,
-            PasifEdilen
-        FROM log.PersonelEntegrasyonLog
+            TotalRecords,
+            InsertedCount,
+            UpdatedCount,
+            DeactivatedCount
+        FROM log.PersonnelIntegrationLog
         ORDER BY LogId DESC;
     END TRY
     BEGIN CATCH
@@ -712,11 +708,11 @@ BEGIN
 
     BEGIN TRY
         SELECT TOP (@Top)
-            Tarih        = COALESCE(BitisZamani, BaslamaZamani),
-            Durum,
-            Toplam,
-            NotAciklama  = Hata
-        FROM log.PersonelEntegrasyonLog
+            Tarih        = COALESCE(EndTime, StartTime),
+            Status,
+            TotalRecords,
+            NotAciklama  = ErrorMessage
+        FROM log.PersonnelIntegrationLog
         ORDER BY LogId DESC;
     END TRY
     BEGIN CATCH
@@ -738,16 +734,16 @@ BEGIN
 
     BEGIN TRY
         SELECT
-            kp.BaglantiId,
-            k.KullaniciAdi,
-            PersonelAd = CONCAT(p.Ad, ' ', p.Soyad),
-            k.RolKodu,
-            kp.BaslangicTarihi,
-            kp.AktifMi
-        FROM ref.KullaniciPersonel kp
-        INNER JOIN ref.Kullanici k ON k.KullaniciId = kp.KullaniciId
-        INNER JOIN ref.Personel p ON p.PersonelId = kp.PersonelId
-        ORDER BY kp.AktifMi DESC, kp.BaslangicTarihi DESC;
+            kp.LinkId,
+            k.Username,
+            PersonelAd = CONCAT(p.FirstName, ' ', p.LastName),
+            k.RoleCode,
+            kp.StartDate,
+            kp.IsActive
+        FROM ref.UserPersonnelMap kp
+        INNER JOIN ref.Users k ON k.UserId = kp.UserId
+        INNER JOIN ref.Personnel p ON p.PersonnelId = kp.PersonnelId
+        ORDER BY kp.IsActive DESC, kp.StartDate DESC;
     END TRY
     BEGIN CATCH
         THROW;
@@ -772,15 +768,15 @@ BEGIN
         IF @BaglantiId IS NULL OR @BaglantiId <= 0
             THROW 50000, 'BaglantiId zorunludur', 1;
 
-        UPDATE ref.KullaniciPersonel
+        UPDATE ref.UserPersonnelMap
         SET
-            AktifMi = 0,
-            BitisTarihi = COALESCE(BitisTarihi, SYSDATETIME()),
-            Aciklama = COALESCE(@Aciklama, Aciklama),
-            GuncelleyenKullaniciId = @KullaniciId,
-            GuncellemeTarihi = SYSDATETIME()
-        WHERE BaglantiId = @BaglantiId
-          AND AktifMi = 1;
+            IsActive = 0,
+            EndDate = COALESCE(EndDate, SYSDATETIME()),
+            Description = COALESCE(@Aciklama, Description),
+            UpdatedByUserId = @KullaniciId,
+            UpdatedAt = SYSDATETIME()
+        WHERE LinkId = @BaglantiId
+          AND IsActive = 1;
     END TRY
     BEGIN CATCH
         THROW;
@@ -801,14 +797,14 @@ BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-        UPDATE ref.KullaniciPersonel
+        UPDATE ref.UserPersonnelMap
         SET
-            AktifMi = 0,
-            BitisTarihi = COALESCE(BitisTarihi, SYSDATETIME()),
-            Aciklama = COALESCE(@Aciklama, Aciklama),
-            GuncelleyenKullaniciId = @KullaniciId,
-            GuncellemeTarihi = SYSDATETIME()
-        WHERE AktifMi = 1;
+            IsActive = 0,
+            EndDate = COALESCE(EndDate, SYSDATETIME()),
+            Description = COALESCE(@Aciklama, Description),
+            UpdatedByUserId = @KullaniciId,
+            UpdatedAt = SYSDATETIME()
+        WHERE IsActive = 1;
     END TRY
     BEGIN CATCH
         THROW;

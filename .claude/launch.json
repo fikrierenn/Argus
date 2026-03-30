@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "D:\\Dev\\BkmArgus\\src\\BkmArgus.Web\\BkmArgus.Web.csproj", "--urls", "http://0.0.0.0:5169"],
+      "port": 5169
+    }
+  ]
+}
