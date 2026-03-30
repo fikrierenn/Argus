@@ -1,5 +1,6 @@
 using System.Globalization;
 using BkmArgus.Web.Data;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace BkmArgus.Web.Features;
@@ -9,6 +10,10 @@ public class DashboardModel : PageModel
     private static readonly CultureInfo TrCulture = CultureInfo.GetCultureInfo("tr-TR");
     private readonly SqlDb _db;
 
+    // Tab support
+    [BindProperty(SupportsGet = true)] public string? Tab { get; set; }
+
+    // ERP Risk KPIs (existing)
     public string KritikRiskDeger { get; private set; } = "0";
     public string KritikRiskNot { get; private set; } = "Esik 80+";
     public string BekleyenDofDeger { get; private set; } = "0";
@@ -25,6 +30,12 @@ public class DashboardModel : PageModel
     public IReadOnlyList<HealthRow> HealthChecks { get; private set; } = Array.Empty<HealthRow>();
     public IReadOnlyList<RefSummary> RefNotes { get; private set; } = Array.Empty<RefSummary>();
 
+    // Field Audit KPIs
+    public FieldAuditKpi? AuditKpi { get; private set; }
+    public IReadOnlyList<RecentAuditRow> RecentAudits { get; private set; } = Array.Empty<RecentAuditRow>();
+    public IReadOnlyList<TopRiskFindingRow> TopRiskFindings { get; private set; } = Array.Empty<TopRiskFindingRow>();
+    public IReadOnlyList<LocationScoreRow> LocationScores { get; private set; } = Array.Empty<LocationScoreRow>();
+
     public DashboardModel(SqlDb db)
     {
         _db = db;
@@ -32,6 +43,9 @@ public class DashboardModel : PageModel
 
     public async Task OnGetAsync()
     {
+        Tab = string.IsNullOrWhiteSpace(Tab) ? "risk" : Tab.ToLowerInvariant();
+
+        // Always load ERP risk data
         var kpis = await _db.QueryAsync<KpiRow>("rpt.sp_Dashboard_Kpi");
         ApplyKpis(kpis);
 
@@ -58,6 +72,15 @@ public class DashboardModel : PageModel
 
         var refRows = await _db.QueryAsync<RefSummaryRow>("ref.sp_Dashboard_Ref_Summary");
         RefNotes = refRows.Select(r => new RefSummary(r.Baslik, r.Deger, r.NotAciklama)).ToList();
+
+        // Load field audit data when on audit tab
+        if (Tab == "audit")
+        {
+            AuditKpi = await _db.QuerySingleAsync<FieldAuditKpi>("audit.sp_Dashboard_FieldAudit_Kpi");
+            RecentAudits = await _db.QueryAsync<RecentAuditRow>("audit.sp_Dashboard_RecentAudits", new { Ust = 5 });
+            TopRiskFindings = await _db.QueryAsync<TopRiskFindingRow>("audit.sp_Dashboard_TopRiskFindings", new { Ust = 10 });
+            LocationScores = await _db.QueryAsync<LocationScoreRow>("audit.sp_Dashboard_LocationScores", new { Ust = 10 });
+        }
     }
 
     private void ApplyKpis(IEnumerable<KpiRow> rows)
@@ -196,5 +219,43 @@ public class DashboardModel : PageModel
         public string Baslik { get; init; } = string.Empty;
         public string Deger { get; init; } = string.Empty;
         public string NotAciklama { get; init; } = string.Empty;
+    }
+
+    // Field Audit record types
+    public sealed record FieldAuditKpi
+    {
+        public int TotalAudits { get; init; }
+        public int ThisMonthAudits { get; init; }
+        public decimal AvgComplianceRate { get; init; }
+        public int RepeatingFindingCount { get; init; }
+        public int SystemicCount { get; init; }
+        public int PendingDofCount { get; init; }
+    }
+
+    public sealed record RecentAuditRow
+    {
+        public int Id { get; init; }
+        public string LocationName { get; init; } = "";
+        public DateTime AuditDate { get; init; }
+        public decimal ComplianceRate { get; init; }
+        public bool IsFinalized { get; init; }
+    }
+
+    public sealed record TopRiskFindingRow
+    {
+        public string ItemText { get; init; } = "";
+        public int FailureCount { get; init; }
+        public int DistinctLocations { get; init; }
+        public decimal AvgRiskScore { get; init; }
+        public bool IsSystemic { get; init; }
+    }
+
+    public sealed record LocationScoreRow
+    {
+        public string LocationName { get; init; } = "";
+        public int AuditCount { get; init; }
+        public decimal AvgComplianceRate { get; init; }
+        public DateTime? LastAuditDate { get; init; }
+        public int RepeatingFindingCount { get; init; }
     }
 }

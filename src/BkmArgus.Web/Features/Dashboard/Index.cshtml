@@ -4,6 +4,10 @@
     ViewData["Title"] = "Dashboard";
     ViewData["Subtitle"] = "Sabah kahvesi ekrani";
 
+    string TabClass(string tab) => string.Equals(Model.Tab, tab, StringComparison.OrdinalIgnoreCase)
+        ? "rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
+        : "rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600";
+
     string DofBadge(string status) => status switch
     {
         "Aksiyon" => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
@@ -17,8 +21,28 @@
         "WARN" => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
         _ => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red"
     };
+
+    string ComplianceBadgeClass(decimal rate) => rate >= 90m
+        ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+        : rate >= 70m
+            ? "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+            : "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red";
+
+    string ComplianceTextClass(decimal rate) => rate >= 90m
+        ? "text-emerald-600"
+        : rate >= 70m
+            ? "text-amber-600"
+            : "text-bkm-red";
 }
 
+<!-- Tab Navigation -->
+<div class="mb-6 flex gap-2">
+    <a class="@TabClass("risk")" asp-page="/Dashboard/Index" asp-route-tab="risk">ERP Risk</a>
+    <a class="@TabClass("audit")" asp-page="/Dashboard/Index" asp-route-tab="audit">Saha Denetim</a>
+</div>
+
+@if (Model.Tab == "risk")
+{
 <div class="grid gap-4 lg:grid-cols-4">
     <div class="rounded-xl border border-slate-200 bg-white p-4">
         <div class="text-xs uppercase tracking-wide text-slate-400">Kritik risk</div>
@@ -163,3 +187,169 @@
         </div>
     </div>
 </div>
+}
+
+@if (Model.Tab == "audit")
+{
+var kpi = Model.AuditKpi;
+
+<!-- Field Audit KPI Cards -->
+<div class="grid gap-4 lg:grid-cols-6">
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Toplam Denetim</div>
+        <div class="mt-2 text-2xl font-semibold text-slate-900">@(kpi?.TotalAudits ?? 0)</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Bu Ay</div>
+        <div class="mt-2 text-2xl font-semibold text-slate-900">@(kpi?.ThisMonthAudits ?? 0)</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Uyum Orani</div>
+        <div class="mt-2 text-2xl font-semibold @ComplianceTextClass(kpi?.AvgComplianceRate ?? 0)">
+            %@((kpi?.AvgComplianceRate ?? 0).ToString("0.0"))
+        </div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Tekrar Eden</div>
+        <div class="mt-2 text-2xl font-semibold text-amber-600">@(kpi?.RepeatingFindingCount ?? 0)</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Sistemik</div>
+        <div class="mt-2 text-2xl font-semibold text-bkm-red">@(kpi?.SystemicCount ?? 0)</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-400">Bekleyen DOF</div>
+        <div class="mt-2 text-2xl font-semibold text-slate-900">@(kpi?.PendingDofCount ?? 0)</div>
+    </div>
+</div>
+
+<!-- Son Denetimler -->
+<div class="rounded-xl border border-slate-200 bg-white p-5">
+    <div class="text-sm font-semibold">Son Denetimler</div>
+    <div class="text-xs text-slate-500">En son yapilan 5 saha denetimi</div>
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-400">
+                <tr>
+                    <th class="pb-2">Lokasyon</th>
+                    <th class="pb-2">Tarih</th>
+                    <th class="pb-2">Uyum</th>
+                    <th class="pb-2">Durum</th>
+                    <th class="pb-2">Aksiyon</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                @foreach (var row in Model.RecentAudits)
+                {
+                    <tr class="text-slate-700">
+                        <td class="py-3">@row.LocationName</td>
+                        <td class="py-3">@row.AuditDate.ToString("dd.MM.yyyy")</td>
+                        <td class="py-3">
+                            <span class="@ComplianceBadgeClass(row.ComplianceRate)">%@row.ComplianceRate.ToString("0.0")</span>
+                        </td>
+                        <td class="py-3">
+                            @if (row.IsFinalized)
+                            {
+                                <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Kesin</span>
+                            }
+                            else
+                            {
+                                <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Taslak</span>
+                            }
+                        </td>
+                        <td class="py-3">
+                            <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" asp-page="/Denetimler/Detay" asp-route-id="@row.Id">Detay</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- En Riskli Bulgular -->
+<div class="rounded-xl border border-slate-200 bg-white p-5">
+    <div class="text-sm font-semibold">En Riskli Bulgular</div>
+    <div class="text-xs text-slate-500">En cok basarisiz olan denetim maddeleri</div>
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-400">
+                <tr>
+                    <th class="pb-2">Madde</th>
+                    <th class="pb-2">Basarisiz</th>
+                    <th class="pb-2">Lokasyon</th>
+                    <th class="pb-2">Ort. Risk</th>
+                    <th class="pb-2">Sistemik</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                @foreach (var row in Model.TopRiskFindings)
+                {
+                    <tr class="text-slate-700">
+                        <td class="py-3 max-w-xs truncate" title="@row.ItemText">@row.ItemText</td>
+                        <td class="py-3">
+                            <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red">@row.FailureCount</span>
+                        </td>
+                        <td class="py-3">@row.DistinctLocations</td>
+                        <td class="py-3">
+                            <span class="@ComplianceBadgeClass(100m - row.AvgRiskScore)">@row.AvgRiskScore.ToString("0.0")</span>
+                        </td>
+                        <td class="py-3">
+                            @if (row.IsSystemic)
+                            {
+                                <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red">Evet</span>
+                            }
+                            else
+                            {
+                                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Hayir</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Magaza Skorlari -->
+<div class="rounded-xl border border-slate-200 bg-white p-5">
+    <div class="text-sm font-semibold">Magaza Skorlari</div>
+    <div class="text-xs text-slate-500">Lokasyon bazli denetim performansi</div>
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-400">
+                <tr>
+                    <th class="pb-2">Lokasyon</th>
+                    <th class="pb-2">Denetim</th>
+                    <th class="pb-2">Ort. Uyum</th>
+                    <th class="pb-2">Son Denetim</th>
+                    <th class="pb-2">Tekrar Eden</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                @foreach (var row in Model.LocationScores)
+                {
+                    <tr class="text-slate-700">
+                        <td class="py-3">@row.LocationName</td>
+                        <td class="py-3">@row.AuditCount</td>
+                        <td class="py-3">
+                            <span class="@ComplianceBadgeClass(row.AvgComplianceRate)">%@row.AvgComplianceRate.ToString("0.0")</span>
+                        </td>
+                        <td class="py-3">@(row.LastAuditDate?.ToString("dd.MM.yyyy") ?? "-")</td>
+                        <td class="py-3">
+                            @if (row.RepeatingFindingCount > 0)
+                            {
+                                <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">@row.RepeatingFindingCount</span>
+                            }
+                            else
+                            {
+                                <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">0</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+}
