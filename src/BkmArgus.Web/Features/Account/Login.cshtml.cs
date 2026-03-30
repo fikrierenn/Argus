@@ -9,7 +9,7 @@ public class LoginModel : PageModel
     private readonly AuthService _auth;
     public LoginModel(AuthService auth) => _auth = auth;
 
-    [BindProperty] public string Username { get; set; } = "";
+    [BindProperty] public string Username { get; set; } = "admin";
     [BindProperty] public string Password { get; set; } = "";
     public string? Error { get; private set; }
     [BindProperty(SupportsGet = true)] public string? ReturnUrl { get; set; }
