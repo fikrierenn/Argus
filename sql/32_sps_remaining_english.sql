@@ -676,16 +676,16 @@ BEGIN
 
     BEGIN TRY
         SELECT TOP 1
-            SourceSystem,
-            SonCalisma    = COALESCE(EndTime, StartTime),
+            KaynakSistem   = SourceSystem,
+            SonCalisma     = COALESCE(EndTime, StartTime),
             SonrakiCalisma = CASE
                 WHEN COALESCE(EndTime, StartTime) IS NULL THEN NULL
                 ELSE DATEADD(day, 1, COALESCE(EndTime, StartTime))
             END,
-            TotalRecords,
-            InsertedCount,
-            UpdatedCount,
-            DeactivatedCount
+            Toplam         = TotalRecords,
+            Eklenen        = InsertedCount,
+            Guncellenen    = UpdatedCount,
+            PasifEdilen    = DeactivatedCount
         FROM log.PersonnelIntegrationLog
         ORDER BY LogId DESC;
     END TRY
@@ -709,8 +709,8 @@ BEGIN
     BEGIN TRY
         SELECT TOP (@Top)
             Tarih        = COALESCE(EndTime, StartTime),
-            Status,
-            TotalRecords,
+            Durum        = Status,
+            Toplam       = TotalRecords,
             NotAciklama  = ErrorMessage
         FROM log.PersonnelIntegrationLog
         ORDER BY LogId DESC;
@@ -734,12 +734,12 @@ BEGIN
 
     BEGIN TRY
         SELECT
-            kp.LinkId,
-            k.Username,
-            PersonelAd = CONCAT(p.FirstName, ' ', p.LastName),
-            k.RoleCode,
-            kp.StartDate,
-            kp.IsActive
+            BaglantiId       = kp.LinkId,
+            KullaniciAdi     = k.Username,
+            PersonelAd       = CONCAT(p.FirstName, ' ', p.LastName),
+            RolKodu          = k.RoleCode,
+            BaslangicTarihi  = kp.StartDate,
+            AktifMi          = kp.IsActive
         FROM ref.UserPersonnelMap kp
         INNER JOIN ref.Users k ON k.UserId = kp.UserId
         INNER JOIN ref.Personnel p ON p.PersonnelId = kp.PersonnelId

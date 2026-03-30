@@ -27,11 +27,10 @@ BEGIN
             a.Id,
             a.LocationName,
             a.LocationType,
-            a.LocationId,
             a.AuditDate,
             a.ReportDate,
             a.ReportNo,
-            a.AuditorUserId,
+            a.AuditorId,
             a.Manager,
             a.Directorate,
             a.IsFinalized,
@@ -76,19 +75,15 @@ BEGIN
             a.Id,
             a.LocationName,
             a.LocationType,
-            a.LocationId,
             a.AuditDate,
             a.ReportDate,
             a.ReportNo,
-            a.AuditorUserId,
+            a.AuditorId,
             a.Manager,
             a.Directorate,
             a.IsFinalized,
             a.FinalizedAt,
-            a.CreatedByUserId,
-            a.UpdatedByUserId,
             a.CreatedAt,
-            a.UpdatedAt,
             TotalItems     = (SELECT COUNT(*) FROM audit.AuditResults r WHERE r.AuditId = a.Id),
             PassedItems    = (SELECT COUNT(*) FROM audit.AuditResults r WHERE r.AuditId = a.Id AND r.IsPassed = 1),
             FailedItems    = (SELECT COUNT(*) FROM audit.AuditResults r WHERE r.AuditId = a.Id AND r.IsPassed = 0),
@@ -116,13 +111,11 @@ GO
 CREATE PROCEDURE audit.sp_Audit_Insert
     @LocationName       nvarchar(100),
     @LocationType       varchar(20)   = 'Store',
-    @LocationId         int           = NULL,
     @AuditDate          datetime2(0),
     @ReportDate         datetime2(0),
-    @AuditorUserId      int           = NULL,
+    @AuditorId          int           = NULL,
     @Manager            nvarchar(100) = NULL,
-    @Directorate        nvarchar(100) = NULL,
-    @CreatedByUserId    int           = NULL
+    @Directorate        nvarchar(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -137,19 +130,19 @@ BEGIN
 
         INSERT INTO audit.Audits
         (
-            LocationName, LocationType, LocationId,
+            LocationName, LocationType,
             AuditDate, ReportDate, ReportNo,
-            AuditorUserId, Manager, Directorate,
-            IsFinalized, CreatedByUserId, UpdatedByUserId,
-            CreatedAt, UpdatedAt
+            AuditorId, Manager, Directorate,
+            IsFinalized,
+            CreatedAt
         )
         VALUES
         (
-            @LocationName, @LocationType, @LocationId,
+            @LocationName, @LocationType,
             @AuditDate, @ReportDate, @ReportNo,
-            @AuditorUserId, @Manager, @Directorate,
-            0, @CreatedByUserId, @CreatedByUserId,
-            SYSDATETIME(), SYSDATETIME()
+            @AuditorId, @Manager, @Directorate,
+            0,
+            SYSDATETIME()
         );
 
         SELECT SCOPE_IDENTITY() AS Id;
@@ -171,13 +164,11 @@ CREATE PROCEDURE audit.sp_Audit_Update
     @AuditId            int,
     @LocationName       nvarchar(100) = NULL,
     @LocationType       varchar(20)   = NULL,
-    @LocationId         int           = NULL,
     @AuditDate          datetime2(0)  = NULL,
     @ReportDate         datetime2(0)  = NULL,
-    @AuditorUserId      int           = NULL,
+    @AuditorId          int           = NULL,
     @Manager            nvarchar(100) = NULL,
-    @Directorate        nvarchar(100) = NULL,
-    @UpdatedByUserId    int           = NULL
+    @Directorate        nvarchar(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -198,14 +189,11 @@ BEGIN
         UPDATE audit.Audits
         SET LocationName    = COALESCE(@LocationName,    LocationName),
             LocationType    = COALESCE(@LocationType,    LocationType),
-            LocationId      = COALESCE(@LocationId,      LocationId),
             AuditDate       = COALESCE(@AuditDate,       AuditDate),
             ReportDate      = COALESCE(@ReportDate,      ReportDate),
-            AuditorUserId   = COALESCE(@AuditorUserId,   AuditorUserId),
+            AuditorId       = COALESCE(@AuditorId,       AuditorId),
             Manager         = COALESCE(@Manager,         Manager),
-            Directorate     = COALESCE(@Directorate,     Directorate),
-            UpdatedByUserId = COALESCE(@UpdatedByUserId, UpdatedByUserId),
-            UpdatedAt       = SYSDATETIME()
+            Directorate     = COALESCE(@Directorate,     Directorate)
         WHERE Id = @AuditId;
     END TRY
     BEGIN CATCH
@@ -242,8 +230,7 @@ BEGIN
 
         UPDATE audit.Audits
         SET IsFinalized = 1,
-            FinalizedAt = SYSDATETIME(),
-            UpdatedAt   = SYSDATETIME()
+            FinalizedAt = SYSDATETIME()
         WHERE Id = @AuditId;
     END TRY
     BEGIN CATCH
@@ -297,7 +284,7 @@ GO
 CREATE PROCEDURE audit.sp_Item_List
     @LocationType   varchar(20)   = NULL,
     @AuditGroup     nvarchar(100) = NULL,
-    @IsActive       bit           = 1
+    @IsActive       bit           = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -316,12 +303,9 @@ BEGIN
             i.Impact,
             RiskScore = CAST(i.Probability AS int) * CAST(i.Impact AS int),
             i.SkillId,
-            i.IsActive,
-            i.CreatedAt,
-            i.UpdatedAt
+            i.CreatedAt
         FROM audit.AuditItems i
-        WHERE (@IsActive     IS NULL OR i.IsActive = @IsActive)
-          AND (@LocationType IS NULL OR i.LocationType = @LocationType OR i.LocationType = 'Both')
+        WHERE (@LocationType IS NULL OR i.LocationType = @LocationType OR i.LocationType = 'Both')
           AND (@AuditGroup   IS NULL OR i.AuditGroup = @AuditGroup)
         ORDER BY i.AuditGroup, i.SortOrder, i.Id;
     END TRY
@@ -364,11 +348,7 @@ BEGIN
             i.Impact,
             RiskScore = CAST(i.Probability AS int) * CAST(i.Impact AS int),
             i.SkillId,
-            i.IsActive,
-            i.CreatedByUserId,
-            i.UpdatedByUserId,
-            i.CreatedAt,
-            i.UpdatedAt
+            i.CreatedAt
         FROM audit.AuditItems i
         WHERE i.Id = @ItemId;
     END TRY
@@ -395,9 +375,7 @@ CREATE PROCEDURE audit.sp_Item_Insert
     @FindingType        char(1)       = NULL,
     @Probability        tinyint       = 3,
     @Impact             tinyint       = 3,
-    @SkillId            int           = NULL,
-    @IsActive           bit           = 1,
-    @CreatedByUserId    int           = NULL
+    @SkillId            int           = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -407,17 +385,15 @@ BEGIN
         (
             LocationType, AuditGroup, Area, RiskType, ItemText,
             SortOrder, FindingType, Probability, Impact,
-            SkillId, IsActive,
-            CreatedByUserId, UpdatedByUserId,
-            CreatedAt, UpdatedAt
+            SkillId,
+            CreatedAt
         )
         VALUES
         (
             @LocationType, @AuditGroup, @Area, @RiskType, @ItemText,
             @SortOrder, @FindingType, @Probability, @Impact,
-            @SkillId, @IsActive,
-            @CreatedByUserId, @CreatedByUserId,
-            SYSDATETIME(), SYSDATETIME()
+            @SkillId,
+            SYSDATETIME()
         );
 
         SELECT SCOPE_IDENTITY() AS Id;
@@ -446,9 +422,7 @@ CREATE PROCEDURE audit.sp_Item_Update
     @FindingType        char(1)       = NULL,
     @Probability        tinyint       = NULL,
     @Impact             tinyint       = NULL,
-    @SkillId            int           = NULL,
-    @IsActive           bit           = NULL,
-    @UpdatedByUserId    int           = NULL
+    @SkillId            int           = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -470,10 +444,7 @@ BEGIN
             FindingType     = COALESCE(@FindingType,     FindingType),
             Probability     = COALESCE(@Probability,     Probability),
             Impact          = COALESCE(@Impact,          Impact),
-            SkillId         = COALESCE(@SkillId,         SkillId),
-            IsActive        = COALESCE(@IsActive,        IsActive),
-            UpdatedByUserId = COALESCE(@UpdatedByUserId, UpdatedByUserId),
-            UpdatedAt       = SYSDATETIME()
+            SkillId         = COALESCE(@SkillId,         SkillId)
         WHERE Id = @ItemId;
     END TRY
     BEGIN CATCH
@@ -576,8 +547,7 @@ BEGIN
             0,  -- RepeatCount
             0   -- IsSystemic
         FROM audit.AuditItems i
-        WHERE i.IsActive = 1
-          AND (i.LocationType = @LocationType OR i.LocationType = 'Both')
+        WHERE (i.LocationType = @LocationType OR i.LocationType = 'Both')
         ORDER BY i.AuditGroup, i.SortOrder;
 
         -- Kac madde eklendi
@@ -815,8 +785,8 @@ BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-        -- dof.DofKayit tablosu yoksa cik
-        IF OBJECT_ID(N'dof.DofKayit', N'U') IS NULL
+        -- dof.Findings tablosu yoksa cik
+        IF OBJECT_ID(N'dof.Findings', N'U') IS NULL
             RETURN;
 
         DECLARE @LocationName nvarchar(100);
@@ -841,12 +811,12 @@ BEGIN
                 FailCount = COUNT(DISTINCT r.AuditId)
             FROM audit.AuditResults r
             INNER JOIN audit.Audits a ON a.Id = r.AuditId
-            INNER JOIN dof.DofKayit d ON d.KaynakSistemKodu = 'SAHA_DENETIM'
-                AND d.Durum = 'KAPANDI'
-                -- KaynakAnahtar formatinda item+location eslestir
-                AND d.KaynakAnahtar LIKE CONCAT('%ItemId:', CAST(r.AuditItemId AS varchar(20)), '%')
-                AND d.KaynakAnahtar LIKE CONCAT('%Loc:', @LocationName, '%')
-                AND d.GuncellemeTarihi < @AuditDate
+            INNER JOIN dof.Findings d ON d.SourceSystemCode = 'SAHA_DENETIM'
+                AND d.Status = 'KAPANDI'
+                -- SourceKey formatinda item+location eslestir
+                AND d.SourceKey LIKE CONCAT('%ItemId:', CAST(r.AuditItemId AS varchar(20)), '%')
+                AND d.SourceKey LIKE CONCAT('%Loc:', @LocationName, '%')
+                AND d.UpdatedAt < @AuditDate
             WHERE r.AuditId = @AuditId
               AND r.IsPassed = 0
             GROUP BY d.DofId
@@ -862,8 +832,8 @@ BEGIN
                 N', Lokasyon: ', @LocationName,
                 N', Tarih: ', CONVERT(varchar(10), @AuditDate, 120)
             ),
-            d.GuncellemeTarihi   = SYSDATETIME()
-        FROM dof.DofKayit d
+            d.UpdatedAt          = SYSDATETIME()
+        FROM dof.Findings d
         INNER JOIN FailedWithClosedDof fcd ON fcd.DofId = d.DofId;
 
         SELECT @@ROWCOUNT AS UpdatedCount;
@@ -908,12 +878,10 @@ BEGIN
         BEGIN
             DECLARE @AuditDate datetime2(0);
             DECLARE @LocationName nvarchar(100);
-            DECLARE @LocationId int;
 
             SELECT
                 @AuditDate    = AuditDate,
-                @LocationName = LocationName,
-                @LocationId   = ISNULL(LocationId, 0)
+                @LocationName = LocationName
             FROM audit.Audits
             WHERE Id = @AuditId;
 
@@ -927,7 +895,7 @@ BEGIN
             (
                 @AuditDate,
                 FORMAT(@AuditDate, 'yyyyMM'),
-                @LocationId,
+                0,  -- LocationId column removed from Audits
                 0,  -- StokId: saha denetimde yok, 0 varsayilan
                 'SAHA_DENETIM',
                 CONCAT('AuditId:', @AuditId, '|Loc:', @LocationName),
