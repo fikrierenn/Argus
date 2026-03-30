@@ -1,0 +1,197 @@
+@page "{id:int}"
+@model DetailModel
+@{
+    ViewData["Title"] = "Denetim Detay";
+    ViewData["Subtitle"] = Model.Audit?.LocationName ?? "";
+
+    var pct = Model.Audit?.ComplianceRate ?? 0;
+
+    string RiskBadge(string? level) => level switch
+    {
+        "Yuksek" => "rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-bkm-red",
+        "Orta" => "rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700",
+        _ => "rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+    };
+}
+
+<!-- Header -->
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+        <a asp-page="Index" class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M15 19l-7-7 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <div>
+            <div class="flex items-center gap-2">
+                <h2 class="text-lg font-semibold">@Model.Audit!.LocationName</h2>
+                @if (Model.Audit.LocationType is not null)
+                {
+                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">@Model.Audit.LocationType</span>
+                }
+                @if (Model.Audit.IsFinalized)
+                {
+                    <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Kesinlesmis</span>
+                }
+                else
+                {
+                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Taslak</span>
+                }
+            </div>
+            <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                <span>@Model.Audit.AuditDate.ToString("dd.MM.yyyy")</span>
+                @if (Model.Audit.ReportNo is not null)
+                {
+                    <span>Rapor: @Model.Audit.ReportNo</span>
+                }
+                @if (Model.Audit.Manager is not null)
+                {
+                    <span>Mudur: @Model.Audit.Manager</span>
+                }
+                @if (Model.Audit.FinalizedAt is not null)
+                {
+                    <span>Kesinlesme: @Model.Audit.FinalizedAt.Value.ToString("dd.MM.yyyy HH:mm")</span>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="flex items-center gap-3">
+        @if (!Model.Audit.IsFinalized)
+        {
+            <a asp-page="Edit" asp-route-id="@Model.Id"
+               class="rounded-full bg-bkm-red px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors">
+                Duzenlemeye Don
+            </a>
+        }
+    </div>
+</div>
+
+<!-- Summary Cards (finalized only) -->
+@if (Model.Audit.IsFinalized && Model.Summary is not null)
+{
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <!-- Compliance Score -->
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="text-xs text-slate-500">Uyum Orani</div>
+            <div class="mt-1 text-2xl font-bold @(Model.Summary.ComplianceRate >= 80 ? "text-emerald-600" : Model.Summary.ComplianceRate >= 50 ? "text-amber-600" : "text-bkm-red")">
+                %@Model.Summary.ComplianceRate.ToString("0")
+            </div>
+            <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                <div class="h-full rounded-full @(Model.Summary.ComplianceRate >= 80 ? "bg-emerald-500" : Model.Summary.ComplianceRate >= 50 ? "bg-amber-400" : "bg-bkm-red")"
+                     style="width: @(Model.Summary.ComplianceRate)%"></div>
+            </div>
+        </div>
+        <!-- Total Items -->
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="text-xs text-slate-500">Toplam Madde</div>
+            <div class="mt-1 text-2xl font-bold text-slate-800">@Model.Summary.TotalItems</div>
+        </div>
+        <!-- Passed -->
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="text-xs text-slate-500">Uygun</div>
+            <div class="mt-1 text-2xl font-bold text-emerald-600">@Model.Summary.PassedItems</div>
+        </div>
+        <!-- Failed -->
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="text-xs text-slate-500">Uygunsuz</div>
+            <div class="mt-1 text-2xl font-bold text-bkm-red">@Model.Summary.FailedItems</div>
+        </div>
+        <!-- Avg Risk -->
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="text-xs text-slate-500">Ort. Risk Skoru</div>
+            <div class="mt-1 text-2xl font-bold text-slate-800">@Model.Summary.AvgRiskScore.ToString("0.0")</div>
+        </div>
+        <!-- High Risk -->
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="text-xs text-slate-500">Yuksek Risk</div>
+            <div class="mt-1 text-2xl font-bold text-bkm-red">@Model.Summary.HighRiskCount</div>
+        </div>
+    </div>
+}
+
+<!-- Grouped Results (read-only) -->
+<div class="space-y-4">
+    @foreach (var group in Model.GroupedResults)
+    {
+        var groupPassed = group.Count(r => r.IsPassed);
+        var groupTotal = group.Count();
+        var groupFailed = groupTotal - groupPassed;
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <span class="text-sm font-semibold text-slate-800">@group.Key</span>
+                <div class="flex items-center gap-2">
+                    <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">@groupPassed uygun</span>
+                    @if (groupFailed > 0)
+                    {
+                        <span class="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-bkm-red">@groupFailed uygunsuz</span>
+                    }
+                </div>
+            </div>
+            <div class="divide-y divide-slate-100">
+                @foreach (var result in group.OrderBy(r => r.SortOrder))
+                {
+                    <div class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between @(!result.IsPassed ? "border-l-4 border-bkm-red bg-red-50/30" : "")">
+                        <!-- Item info -->
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm text-slate-800">@result.ItemText</div>
+                            <div class="mt-1 flex flex-wrap items-center gap-2">
+                                <span class="@RiskBadge(result.RiskLevel)">
+                                    @result.Probability x @result.Impact = @result.RiskScore
+                                </span>
+                                @if (result.Area is not null)
+                                {
+                                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">@result.Area</span>
+                                }
+                                @if (result.RepeatCount > 0)
+                                {
+                                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">@(result.RepeatCount)x tekrar</span>
+                                }
+                                @if (result.IsSystemic)
+                                {
+                                    <span class="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-bkm-red">Sistemik</span>
+                                }
+                                @if (result.PhotoCount > 0)
+                                {
+                                    <span class="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                                        <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="1.5"/></svg>
+                                        @result.PhotoCount
+                                    </span>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Pass/Fail badge -->
+                        <div class="shrink-0">
+                            @if (result.IsPassed)
+                            {
+                                <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white">
+                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    EVET
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="inline-flex items-center gap-1 rounded-lg bg-bkm-red px-4 py-2 text-sm font-semibold text-white">
+                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    HAYIR
+                                </span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Bottom nav -->
+<div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+    <a asp-page="Index" class="rounded-full border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+        Listeye Don
+    </a>
+    @if (!Model.Audit!.IsFinalized)
+    {
+        <a asp-page="Edit" asp-route-id="@Model.Id"
+           class="rounded-full bg-bkm-red px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors">
+            Duzenlemeye Don
+        </a>
+    }
+</div>

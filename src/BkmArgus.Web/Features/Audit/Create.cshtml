@@ -1,0 +1,60 @@
+@page
+@model BkmArgus.Web.Features.Audit.CreateModel
+@{
+    ViewData["Title"] = "Yeni Denetim";
+    ViewData["Subtitle"] = "Yeni saha denetimi olustur";
+}
+
+<div class="mx-auto max-w-2xl">
+    <div class="rounded-xl border border-slate-200 bg-white p-6">
+        <div class="mb-6">
+            <div class="text-lg font-semibold">Denetim Bilgileri</div>
+            <div class="text-xs text-slate-500">Denetim baslatmak icin asagidaki alanlari doldurun</div>
+        </div>
+
+        <form method="post" class="space-y-5">
+            <div asp-validation-summary="ModelOnly" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-bkm-red empty:hidden"></div>
+
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="LocationName">Magaza Adi <span class="text-bkm-red">*</span></label>
+                <input class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm focus:border-bkm-red focus:outline-none focus:ring-1 focus:ring-bkm-red"
+                       type="text" id="LocationName" asp-for="Input.LocationName" placeholder="Ornek: BKMKitap Ankara Kizilay" required />
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="AuditDate">Denetim Tarihi</label>
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm focus:border-bkm-red focus:outline-none focus:ring-1 focus:ring-bkm-red"
+                           type="date" id="AuditDate" asp-for="Input.AuditDate" />
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="ReportDate">Rapor Tarihi</label>
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm focus:border-bkm-red focus:outline-none focus:ring-1 focus:ring-bkm-red"
+                           type="date" id="ReportDate" asp-for="Input.ReportDate" />
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="Manager">Mudur</label>
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm focus:border-bkm-red focus:outline-none focus:ring-1 focus:ring-bkm-red"
+                           type="text" id="Manager" asp-for="Input.Manager" placeholder="Magaza muduru" />
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="Directorate">Mudurluk</label>
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm focus:border-bkm-red focus:outline-none focus:ring-1 focus:ring-bkm-red"
+                           type="text" id="Directorate" asp-for="Input.Directorate" placeholder="Bagli mudurluk" />
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-5">
+                <a class="rounded-full border border-slate-200 px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-50"
+                   asp-page="/Audit/Index">Iptal</a>
+                <button class="rounded-full bg-bkm-red px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+                        type="submit">
+                    Denetim Baslat
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

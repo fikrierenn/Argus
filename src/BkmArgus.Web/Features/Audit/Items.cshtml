@@ -1,0 +1,256 @@
+@page
+@model BkmArgus.Web.Features.Audit.ItemsModel
+@{
+    ViewData["Title"] = "Denetim Maddeleri";
+    ViewData["Subtitle"] = "Master madde yonetimi";
+
+    string RiskBadge(int score) => score switch
+    {
+        >= 15 => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
+        >= 9  => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
+        _     => "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+    };
+
+    string ActiveBadge(bool active) => active
+        ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+        : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500";
+
+    string Truncate(string? text, int max = 60)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "-";
+        return text.Length <= max ? text : $"{text[..max]}...";
+    }
+
+    var isEditing = Model.EditId.HasValue;
+    var formTitle = isEditing ? "Madde Duzenle" : "Yeni Madde";
+}
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        @msg
+    </div>
+}
+
+<div class="space-y-4">
+    <!-- Filter bar -->
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <form class="flex flex-wrap items-end gap-3" method="get">
+            <div>
+                <label class="text-xs text-slate-500">Grup</label>
+                <select class="mt-1 w-48 rounded-full border border-slate-200 px-4 py-2 text-sm" name="Group">
+                    <option value="">Tumu</option>
+                    @foreach (var g in Model.Groups)
+                    {
+                        <option value="@g" selected="@(Model.Group == g ? "selected" : null)">@g</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="text-xs text-slate-500">Durum</label>
+                <select class="mt-1 rounded-full border border-slate-200 px-3 py-2 text-sm" name="IsActive">
+                    <option value="">Tumu</option>
+                    <option value="true" selected="@(Model.IsActive == true ? "selected" : null)">Aktif</option>
+                    <option value="false" selected="@(Model.IsActive == false ? "selected" : null)">Pasif</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2">
+                <button class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" type="submit">Filtrele</button>
+                <a class="text-xs text-slate-500" asp-page="/Audit/Items">Temizle</a>
+            </div>
+            <div class="ml-auto">
+                <a class="inline-flex items-center gap-2 rounded-full bg-bkm-red px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+                   asp-page="/Audit/Items">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                    Yeni Madde
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <div class="grid gap-4 xl:grid-cols-[1fr_380px]">
+        <!-- Table -->
+        <div class="rounded-xl border border-slate-200 bg-white p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold">Madde listesi</div>
+                    <div class="text-xs text-slate-500">@Model.Items.Count kayit</div>
+                </div>
+            </div>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="pb-2">Sira</th>
+                            <th class="pb-2">Grup</th>
+                            <th class="pb-2">Alan</th>
+                            <th class="pb-2">Madde Metni</th>
+                            <th class="pb-2">Risk</th>
+                            <th class="pb-2">Durum</th>
+                            <th class="pb-2">Aksiyon</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @if (Model.Items.Count == 0)
+                        {
+                            <tr>
+                                <td class="py-8 text-center text-sm text-slate-400" colspan="7">Henuz madde bulunmuyor.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var row in Model.Items)
+                            {
+                                var score = row.Probability * row.Impact;
+                                <tr class="text-slate-700 hover:bg-slate-50 @(Model.EditId == row.Id ? "bg-amber-50" : "")">
+                                    <td class="py-3 text-xs text-slate-500">@row.SortOrder</td>
+                                    <td class="py-3 text-xs">@(row.AuditGroup ?? "-")</td>
+                                    <td class="py-3 text-xs">@(row.Area ?? "-")</td>
+                                    <td class="py-3 text-sm" title="@row.ItemText">@Truncate(row.ItemText)</td>
+                                    <td class="py-3">
+                                        <span class="@RiskBadge(score)">@row.Probability x @row.Impact = @score</span>
+                                    </td>
+                                    <td class="py-3">
+                                        <span class="@ActiveBadge(row.IsActive)">@(row.IsActive ? "Aktif" : "Pasif")</span>
+                                    </td>
+                                    <td class="py-3">
+                                        <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:border-slate-300"
+                                           asp-page="/Audit/Items" asp-route-editId="@row.Id">Duzenle</a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Add / Edit form -->
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="text-sm font-semibold">@formTitle</div>
+            <div class="text-xs text-slate-500 mt-1">
+                @if (isEditing)
+                {
+                    <span>Madde #@Model.EditId duzenleniyor</span>
+                }
+                else
+                {
+                    <span>Yeni madde ekle</span>
+                }
+            </div>
+
+            <form method="post"
+                  asp-page-handler="@(isEditing ? "Update" : "Create")"
+                  asp-route-itemId="@Model.EditId"
+                  class="mt-4 space-y-3">
+
+                <div>
+                    <label class="text-xs text-slate-500">Denetim Grubu</label>
+                    <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                           type="text" asp-for="Input.AuditGroup" placeholder="Orn: Genel Gorunum" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-slate-500">Alan</label>
+                        <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                               type="text" asp-for="Input.Area" placeholder="Orn: Kasa" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-500">Risk Tipi</label>
+                        <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                               type="text" asp-for="Input.RiskType" placeholder="Orn: Operasyonel" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs text-slate-500">Madde Metni</label>
+                    <textarea class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                              asp-for="Input.ItemText" rows="3" placeholder="Denetim maddesi aciklamasi..."></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-slate-500">Sira No</label>
+                        <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                               type="number" asp-for="Input.SortOrder" min="1" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-500">Bulgu Tipi</label>
+                        <select class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                                asp-for="Input.FindingType">
+                            <option value="">Seciniz</option>
+                            <option value="Uygunsuzluk">Uygunsuzluk</option>
+                            <option value="Gozlem">Gozlem</option>
+                            <option value="Iyilestirme">Iyilestirme</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-slate-500">Olasilik (1-5)</label>
+                        <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                               type="number" asp-for="Input.Probability" min="1" max="5"
+                               id="inputProbability" oninput="updateRiskPreview()" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-500">Etki (1-5)</label>
+                        <input class="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                               type="number" asp-for="Input.Impact" min="1" max="5"
+                               id="inputImpact" oninput="updateRiskPreview()" />
+                    </div>
+                </div>
+
+                <!-- Risk preview -->
+                <div class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                    <span class="text-xs text-slate-500">Risk Skoru:</span>
+                    <span id="riskPreview" class="ml-1 font-semibold"></span>
+                </div>
+
+                <label class="flex items-center gap-2 text-sm text-slate-600">
+                    <input type="checkbox" asp-for="Input.IsActive" />
+                    Aktif
+                </label>
+
+                <div class="flex items-center gap-2 pt-2">
+                    <button class="rounded-full bg-bkm-red px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+                            type="submit">
+                        @(isEditing ? "Guncelle" : "Ekle")
+                    </button>
+                    @if (isEditing)
+                    {
+                        <a class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600"
+                           asp-page="/Audit/Items">Iptal</a>
+                    }
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function updateRiskPreview() {
+        var p = parseInt(document.getElementById('inputProbability').value) || 0;
+        var i = parseInt(document.getElementById('inputImpact').value) || 0;
+        var score = p * i;
+        var el = document.getElementById('riskPreview');
+        el.textContent = p + ' x ' + i + ' = ' + score;
+
+        el.className = 'ml-1 font-semibold ';
+        if (score >= 15) {
+            el.className += 'text-bkm-red';
+        } else if (score >= 9) {
+            el.className += 'text-amber-700';
+        } else {
+            el.className += 'text-emerald-700';
+        }
+    }
+    // Init on page load
+    updateRiskPreview();
+</script>
+}
