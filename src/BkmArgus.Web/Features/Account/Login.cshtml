@@ -1,0 +1,128 @@
+@page
+@model BkmArgus.Web.Features.Account.LoginModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Giris - BKMKitap Denetim</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bkm-red': '#E30613',
+                        'bkm-dark': '#2D2D2D',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-sans bg-gradient-to-br from-bkm-dark via-slate-900 to-slate-800 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <!-- Logo & Title -->
+        <div class="text-center mb-8">
+            <img class="h-10 mx-auto mb-4" src="~/assets/bkmkitap-logo.png" alt="bkmkitap" />
+            <h1 class="text-2xl font-bold text-white">Denetim Platformu</h1>
+            <p class="text-sm text-slate-400 mt-1">BKM Argus - Ic Denetim Sistemi</p>
+        </div>
+
+        <!-- Login Card -->
+        <div class="bg-white rounded-2xl shadow-2xl p-8">
+            @if (!string.IsNullOrEmpty(Model.Error))
+            {
+                <div class="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+                    <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 8v4m0 4h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>@Model.Error</span>
+                </div>
+            }
+
+            <form method="post" class="space-y-5">
+                <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5" for="username">Kullanici Adi</label>
+                    <input
+                        id="username"
+                        name="Username"
+                        type="text"
+                        value="@Model.Username"
+                        autocomplete="username"
+                        required
+                        autofocus
+                        class="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-bkm-red focus:ring-2 focus:ring-bkm-red/20 focus:outline-none transition"
+                        placeholder="ornek: fikri.eren" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5" for="password">Sifre</label>
+                    <div class="relative">
+                        <input
+                            id="password"
+                            name="Password"
+                            type="password"
+                            autocomplete="current-password"
+                            required
+                            class="w-full rounded-lg border border-slate-300 px-4 py-2.5 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-bkm-red focus:ring-2 focus:ring-bkm-red/20 focus:outline-none transition"
+                            placeholder="Sifrenizi girin" />
+                        <button
+                            type="button"
+                            onclick="togglePassword()"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
+                            <svg id="eye-icon" class="h-4 w-4" viewBox="0 0 24 24" fill="none">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                            <svg id="eye-off-icon" class="h-4 w-4 hidden" viewBox="0 0 24 24" fill="none">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full rounded-lg bg-bkm-red px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 focus:ring-2 focus:ring-bkm-red/40 focus:outline-none transition shadow-sm">
+                    Giris Yap
+                </button>
+            </form>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-6 text-xs text-slate-500">
+            BKMKitap Denetim Platformu &copy; @DateTime.Now.Year
+        </div>
+    </div>
+
+    <script>
+        function togglePassword() {
+            const input = document.getElementById('password');
+            const eyeIcon = document.getElementById('eye-icon');
+            const eyeOffIcon = document.getElementById('eye-off-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                eyeIcon.classList.add('hidden');
+                eyeOffIcon.classList.remove('hidden');
+            } else {
+                input.type = 'password';
+                eyeIcon.classList.remove('hidden');
+                eyeOffIcon.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

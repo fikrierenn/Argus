@@ -1,5 +1,6 @@
 @page "{id:int}"
 @model EditModel
+@attribute [Authorize]
 @{
     ViewData["Title"] = "Denetim Duzenle";
     ViewData["Subtitle"] = Model.Audit?.LocationName ?? "";
