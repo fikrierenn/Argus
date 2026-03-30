@@ -35,7 +35,7 @@ public class DashboardModel : PageModel
         var kpis = await _db.QueryAsync<KpiRow>("rpt.sp_Dashboard_Kpi");
         ApplyKpis(kpis);
 
-        var healthRows = await _db.QueryAsync<HealthRowRaw>("log.sp_SaglikKontrol_Calistir");
+        var healthRows = await _db.QueryAsync<HealthRowRaw>("log.sp_HealthCheck_Run");
         ApplyHealth(healthRows);
 
         var trendRows = await _db.QueryAsync<TrendRow>("rpt.sp_Dashboard_RiskTrend");
@@ -53,10 +53,10 @@ public class DashboardModel : PageModel
                 string.Empty))
             .ToList();
 
-        var dofRows = await _db.QueryAsync<DofRow>("dof.sp_Dashboard_Dof_Liste", new { Top = 5 });
+        var dofRows = await _db.QueryAsync<DofRow>("dof.sp_Dashboard_Dof_List", new { Top = 5 });
         DofList = dofRows.ToList();
 
-        var refRows = await _db.QueryAsync<RefSummaryRow>("ref.sp_Dashboard_Ref_Ozet");
+        var refRows = await _db.QueryAsync<RefSummaryRow>("ref.sp_Dashboard_Ref_Summary");
         RefNotes = refRows.Select(r => new RefSummary(r.Baslik, r.Deger, r.NotAciklama)).ToList();
     }
 

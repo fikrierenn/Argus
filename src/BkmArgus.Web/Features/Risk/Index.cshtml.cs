@@ -81,7 +81,7 @@ public class RiskModel : PageModel
 
         PageSize = NormalizePageSize(pageSize);
 
-        var mekanRows = await _db.QueryAsync<MekanRow>("rpt.sp_RiskMekan_Liste");
+        var mekanRows = await _db.QueryAsync<MekanRow>("rpt.sp_RiskByLocation_List");
         MekanOptions = mekanRows
             .Select(row => new OptionItem(
                 row.MekanId.ToString(),
@@ -92,7 +92,7 @@ public class RiskModel : PageModel
         var tipCsv = SelectedTip.Count > 0 ? string.Join(",", SelectedTip) : null;
 
         var data = await _db.QueryAsync<RiskRowRaw>(
-            "rpt.sp_RiskListe",
+            "rpt.sp_RiskList",
             new
             {
                 Top = 500,

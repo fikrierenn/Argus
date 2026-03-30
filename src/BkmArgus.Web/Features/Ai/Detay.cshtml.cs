@@ -33,7 +33,7 @@ public sealed class DetayModel : PageModel
         }
 
         Istek = await _db.QuerySingleAsync<IstekRow>(
-            "ai.sp_Ai_Istek_Getir",
+            "ai.sp_AnalysisQueue_Get",
             new { IstekId = id.Value });
 
         if (Istek is null)
@@ -42,7 +42,7 @@ public sealed class DetayModel : PageModel
         }
 
         Llm = await _db.QuerySingleAsync<LlmDetayRow>(
-            "ai.sp_Ai_LlmSonuc_Getir",
+            "ai.sp_LlmResults_Get",
             new { IstekId = id.Value });
 
         if (Llm is not null)

@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace BkmArgus.AiWorker.Jobs;
 
 /// <summary>
-/// Risk Tahmin İşi - Gelecekteki risk seviyelerini tahmin eder
+/// Risk Prediction Job - Predicts future risk levels
 /// </summary>
 public class RiskPredictionJob : BaseAiJob
 {
@@ -18,76 +18,75 @@ public class RiskPredictionJob : BaseAiJob
 
     public override async Task<JobResult> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        var result = new JobResult { Success = true, Message = "Risk tahmini başarıyla tamamlandı" };
-        
+        var result = new JobResult { Success = true, Message = "Risk prediction completed successfully" };
+
         try
         {
-            // Varsayılan parametreler - normalde configuration'dan gelecek
             var predictionHorizons = new int[] { 7, 14, 30 };
             var timeoutMinutes = 30;
-            
-            _logger.LogInformation("Risk tahmin işi başlatılıyor. Ufuklar: {Horizons}", string.Join(", ", predictionHorizons));
-            
+
+            _logger.LogInformation("Risk prediction job starting. Horizons: {Horizons}", string.Join(", ", predictionHorizons));
+
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
-            
+
             var totalPredictions = 0;
-            
-            // Aktif tahmin modellerini al
+
+            // Get active prediction models
             var models = await GetActivePredictionModelsAsync(connection);
-            
+
             foreach (var model in models)
             {
                 foreach (var horizon in predictionHorizons)
                 {
-                    // Tahmin gerektiren aktif mekan/stok kombinasyonlarını al
+                    // Get active location/product combinations requiring prediction
                     var targets = await GetPredictionTargetsAsync(connection, horizon);
-                    
+
                     foreach (var target in targets)
                     {
                         try
                         {
-                            var predictions = await GeneratePredictionsAsync(connection, model.ModelId, target.MekanId, target.StokId, horizon);
+                            var predictions = await GeneratePredictionsAsync(connection, model.ModelId, target.LocationId, target.ProductId, horizon);
                             totalPredictions += predictions;
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogWarning(ex, "Mekan {MekanId}, Stok {StokId}, Ufuk {Horizon} için tahmin oluşturulamadı", 
-                                target.MekanId, target.StokId, horizon);
+                            _logger.LogWarning(ex, "Prediction failed for Location {LocationId}, Product {ProductId}, Horizon {Horizon}",
+                                target.LocationId, target.ProductId, horizon);
                         }
                     }
                 }
             }
-            
+
             result.Data = new Dictionary<string, object>
             {
                 ["TotalPredictions"] = totalPredictions,
                 ["ModelsUsed"] = models.Count,
                 ["Horizons"] = predictionHorizons
             };
-            _logger.LogInformation("Risk tahmin işi tamamlandı. {TotalPredictions} tahmin oluşturuldu", totalPredictions);
+            _logger.LogInformation("Risk prediction job completed. {TotalPredictions} predictions generated", totalPredictions);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Risk tahmin işi başarısız oldu");
+            _logger.LogError(ex, "Risk prediction job failed");
             result.Success = false;
-            result.Message = $"Risk tahmin işi başarısız: {ex.Message}";
+            result.Message = $"Risk prediction job failed: {ex.Message}";
             result.Exception = ex;
         }
-        
+
         return result;
     }
 
     private async Task<List<PredictionModel>> GetActivePredictionModelsAsync(SqlConnection connection)
     {
         var models = new List<PredictionModel>();
-        
+
         using var command = new SqlCommand(@"
             SELECT ModelId, ModelName, ModelType, PredictionHorizon, ModelParameters
-            FROM ai.AiPredictionModel 
+            FROM ai.PredictionModels
             WHERE Status = 'AKTIF' AND IsActive = 1
             ORDER BY ModelId", connection);
-        
+
         using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
@@ -100,57 +99,57 @@ public class RiskPredictionJob : BaseAiJob
                 ModelParameters = reader.IsDBNull("ModelParameters") ? null : reader.GetString("ModelParameters")
             });
         }
-        
+
         return models;
     }
 
     private async Task<List<PredictionTarget>> GetPredictionTargetsAsync(SqlConnection connection, int horizon)
     {
         var targets = new List<PredictionTarget>();
-        
-        // Son 7 günden tahmin gerektiren yüksek riskli öğeleri al
+
+        // Get high-risk items from last 7 days that need prediction
         using var command = new SqlCommand(@"
-            SELECT DISTINCT TOP 100 MekanId, StokId
-            FROM rpt.RiskUrunOzet_Gunluk r
-            WHERE KesimGunu >= DATEADD(day, -7, CAST(SYSDATETIME() AS date))
-              AND RiskSkor >= 70
+            SELECT DISTINCT TOP 100 LocationId, ProductId
+            FROM rpt.DailyProductRisk r
+            WHERE SnapshotDay >= DATEADD(day, -7, CAST(SYSDATETIME() AS date))
+              AND RiskScore >= 70
               AND NOT EXISTS (
-                  SELECT 1 FROM ai.AiRiskPrediction p
-                  WHERE p.MekanId = r.MekanId 
-                    AND p.StokId = r.StokId
+                  SELECT 1 FROM ai.RiskPredictions p
+                  WHERE p.LocationId = r.LocationId
+                    AND p.ProductId = r.ProductId
                     AND p.PredictionDate = CAST(SYSDATETIME() AS date)
                     AND DATEDIFF(day, p.PredictionDate, p.TargetDate) = @Horizon
               )
-            ORDER BY MAX(r.RiskSkor) DESC", connection);
-        
+            ORDER BY MAX(r.RiskScore) DESC", connection);
+
         command.Parameters.AddWithValue("@Horizon", horizon);
-        
+
         using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             targets.Add(new PredictionTarget
             {
-                MekanId = reader.GetInt32("MekanId"),
-                StokId = reader.GetInt32("StokId")
+                LocationId = reader.GetInt32("LocationId"),
+                ProductId = reader.GetInt32("ProductId")
             });
         }
-        
+
         return targets;
     }
 
-    private async Task<int> GeneratePredictionsAsync(SqlConnection connection, int modelId, int mekanId, int stokId, int horizon)
+    private async Task<int> GeneratePredictionsAsync(SqlConnection connection, int modelId, int locationId, int productId, int horizon)
     {
-        using var command = new SqlCommand("ai.sp_AiRisk_Predict", connection)
+        using var command = new SqlCommand("ai.sp_RiskPrediction_Run", connection)
         {
             CommandType = CommandType.StoredProcedure,
-            CommandTimeout = 300 // 5 dakika
+            CommandTimeout = 300 // 5 minutes
         };
-        
+
         command.Parameters.AddWithValue("@ModelId", modelId);
-        command.Parameters.AddWithValue("@MekanId", mekanId);
-        command.Parameters.AddWithValue("@StokId", stokId);
+        command.Parameters.AddWithValue("@MekanId", locationId);
+        command.Parameters.AddWithValue("@StokId", productId);
         command.Parameters.AddWithValue("@PredictionHorizon", horizon);
-        
+
         var result = await command.ExecuteScalarAsync();
         return Convert.ToInt32(result ?? 0);
     }
@@ -166,7 +165,7 @@ public class RiskPredictionJob : BaseAiJob
 
     private class PredictionTarget
     {
-        public int MekanId { get; set; }
-        public int StokId { get; set; }
+        public int LocationId { get; set; }
+        public int ProductId { get; set; }
     }
 }

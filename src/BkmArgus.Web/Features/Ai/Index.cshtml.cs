@@ -58,13 +58,13 @@ public class AiModel : PageModel
         if (ActiveTab == "sonuc")
         {
             Sonuclar = await _db.QueryAsync<LlmRow>(
-                "ai.sp_Ai_LlmSonuc_Liste",
+                "ai.sp_LlmResults_List",
                 new { Top, Search });
             return;
         }
 
         Istekler = await _db.QueryAsync<IstekRow>(
-            "ai.sp_Ai_Istek_Liste",
+            "ai.sp_AnalysisQueue_List",
             new
             {
                 Top,
@@ -82,7 +82,7 @@ public class AiModel : PageModel
         var deleteVectors = silVektor.GetValueOrDefault(false);
 
         await _db.ExecuteAsync(
-            "ai.sp_Ai_Reset_ve_Tetikle",
+            "ai.sp_AnalysisQueue_ResetAndTrigger",
             new
             {
                 Top = safeTop,

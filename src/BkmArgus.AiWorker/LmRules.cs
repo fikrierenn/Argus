@@ -4,59 +4,59 @@ namespace BkmArgus.AiWorker;
 
 public sealed class LmRules
 {
-    public LmDecision Decide(RiskOzetRow risk)
+    public RuleDecision Decide(RiskSummaryRow risk)
     {
         var root = ResolveRootCause(risk);
         var plan = ResolveEvidencePlan(risk);
-        var llm = risk.RiskSkor >= 90 || risk.FlagVeriKalite || risk.FlagSayimDuzeltmeYuk;
+        var llm = risk.RiskScore >= 90 || risk.FlagDataQuality || risk.FlagHighCountAdjustment;
 
         var features = new
         {
-            risk.RiskSkor,
-            risk.FlagVeriKalite,
-            risk.FlagGirissizSatis,
-            risk.FlagOluStok,
-            risk.FlagNetBirikim,
-            risk.FlagIadeYuksek,
-            risk.FlagBozukIadeYuksek,
-            risk.FlagSayimDuzeltmeYuk,
-            risk.FlagSirketIciYuksek,
-            risk.FlagHizliDevir,
-            risk.FlagSatisYaslanma
+            risk.RiskScore,
+            risk.FlagDataQuality,
+            risk.FlagSalesWithoutEntry,
+            risk.FlagDeadStock,
+            risk.FlagNetAccumulation,
+            risk.FlagHighReturn,
+            risk.FlagHighDamagedReturn,
+            risk.FlagHighCountAdjustment,
+            risk.FlagHighInternalUse,
+            risk.FlagFastTurnover,
+            risk.FlagSalesAging
         };
 
-        return new LmDecision
+        return new RuleDecision
         {
             RootCauseClass = root,
             EvidencePlan = plan,
-            LlmGerekliMi = llm,
-            OncelikPuan = Math.Clamp(risk.RiskSkor, 0, 100),
-            KisaOzet = risk.RiskYorum,
-            OzellikJson = JsonSerializer.Serialize(features)
+            LlmRequired = llm,
+            PriorityScore = Math.Clamp(risk.RiskScore, 0, 100),
+            BriefSummary = risk.RiskComment,
+            FeatureJson = JsonSerializer.Serialize(features)
         };
     }
 
-    private static string ResolveRootCause(RiskOzetRow risk)
+    private static string ResolveRootCause(RiskSummaryRow risk)
     {
-        if (risk.FlagVeriKalite) return "VERI_KALITE";
-        if (risk.FlagGirissizSatis) return "GIRISSIZ_SATIS";
-        if (risk.FlagSayimDuzeltmeYuk) return "SAYIM_DUZELTME";
-        if (risk.FlagIadeYuksek) return "IADE_SICRAMA";
-        if (risk.FlagHizliDevir) return "HIZLI_DEVIR";
-        if (risk.FlagSatisYaslanma) return "SATIS_YASLANMA";
-        if (risk.FlagOluStok) return "OLU_STOK";
-        if (risk.FlagNetBirikim) return "NET_BIRIKIM";
+        if (risk.FlagDataQuality) return "VERI_KALITE";
+        if (risk.FlagSalesWithoutEntry) return "GIRISSIZ_SATIS";
+        if (risk.FlagHighCountAdjustment) return "SAYIM_DUZELTME";
+        if (risk.FlagHighReturn) return "IADE_SICRAMA";
+        if (risk.FlagFastTurnover) return "HIZLI_DEVIR";
+        if (risk.FlagSalesAging) return "SATIS_YASLANMA";
+        if (risk.FlagDeadStock) return "OLU_STOK";
+        if (risk.FlagNetAccumulation) return "NET_BIRIKIM";
         return "DIGER";
     }
 
-    private static string ResolveEvidencePlan(RiskOzetRow risk)
+    private static string ResolveEvidencePlan(RiskSummaryRow risk)
     {
-        if (risk.RiskSkor >= 90)
+        if (risk.RiskScore >= 90)
         {
             return "FULL";
         }
 
-        if (risk.FlagVeriKalite || risk.FlagGirissizSatis || risk.FlagSayimDuzeltmeYuk)
+        if (risk.FlagDataQuality || risk.FlagSalesWithoutEntry || risk.FlagHighCountAdjustment)
         {
             return "MOVE50";
         }
