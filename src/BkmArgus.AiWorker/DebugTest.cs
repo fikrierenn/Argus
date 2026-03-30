@@ -51,7 +51,7 @@ public static class DebugTest
             }
 
             // Now try with the strongly typed model
-            var typedResult = await connection.QuerySingleOrDefaultAsync<RiskOzetRow>(testQuery);
+            var typedResult = await connection.QuerySingleOrDefaultAsync<RiskSummaryRow>(testQuery);
             Console.WriteLine($"Typed query successful: {typedResult != null}");
         }
         catch (Exception ex)

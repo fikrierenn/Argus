@@ -415,7 +415,7 @@ public sealed class LlmService
         }
     }
 
-    private static LlmResult ParseAndValidateResult(string raw, string model)
+    private static LlmResultRow ParseAndValidateResult(string raw, string model)
     {
         try
         {
@@ -433,25 +433,25 @@ public sealed class LlmService
                 conf = Math.Clamp(value, 0, 100); // Clamp to valid range
             }
 
-            return new LlmResult
+            return new LlmResultRow
             {
-                Model = model,
-                KokNedenHipotezleri = rootCause,
-                DogrulamaAdimlari = validation,
-                OnerilenAksiyonlar = actions,
-                DofTaslakJson = dof,
-                YoneticiOzeti = exec,
-                GuvenSkoru = conf,
+                ModelName = model,
+                RootCauseHypotheses = rootCause,
+                VerificationSteps = validation,
+                RecommendedActions = actions,
+                DofDraftJson = dof,
+                ExecutiveSummary = exec,
+                ConfidenceScore = conf,
                 RawJson = raw
             };
         }
         catch (Exception ex)
         {
-            return new LlmResult { Model = model, RawJson = raw, ParseError = ex.Message };
+            return new LlmResultRow { ModelName = model, RawJson = raw, ParseError = ex.Message };
         }
     }
 
-    private static ValidationResult ValidateResult(LlmResult? result)
+    private static ValidationResult ValidateResult(LlmResultRow? result)
     {
         if (result is null)
         {
@@ -462,10 +462,10 @@ public sealed class LlmService
         var score = 0;
 
         // Check confidence score
-        if (result.GuvenSkoru.HasValue)
+        if (result.ConfidenceScore.HasValue)
         {
-            if (result.GuvenSkoru.Value >= 70) score += 20;
-            else if (result.GuvenSkoru.Value < 50) issues.Add("Low confidence score");
+            if (result.ConfidenceScore.Value >= 70) score += 20;
+            else if (result.ConfidenceScore.Value < 50) issues.Add("Low confidence score");
         }
         else
         {
@@ -473,7 +473,7 @@ public sealed class LlmService
         }
 
         // Check root causes
-        if (!string.IsNullOrWhiteSpace(result.KokNedenHipotezleri))
+        if (!string.IsNullOrWhiteSpace(result.RootCauseHypotheses))
         {
             score += 25;
         }
@@ -483,7 +483,7 @@ public sealed class LlmService
         }
 
         // Check validation steps
-        if (!string.IsNullOrWhiteSpace(result.DogrulamaAdimlari))
+        if (!string.IsNullOrWhiteSpace(result.VerificationSteps))
         {
             score += 25;
         }
@@ -493,7 +493,7 @@ public sealed class LlmService
         }
 
         // Check actions
-        if (!string.IsNullOrWhiteSpace(result.OnerilenAksiyonlar))
+        if (!string.IsNullOrWhiteSpace(result.RecommendedActions))
         {
             score += 30;
         }

@@ -33,7 +33,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_KullaniciPersonel_Kapat",
+            "ref.sp_UserPersonnelLink_Close",
             new
             {
                 BaglantiId = baglantiId,
@@ -48,7 +48,7 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostGunSonuKapatAsync()
     {
         await _db.ExecuteAsync(
-            "ref.sp_KullaniciPersonel_GunSonuKapat",
+            "ref.sp_UserPersonnelLink_CloseAll",
             new
             {
                 KullaniciId = CurrentUserId,
@@ -61,7 +61,7 @@ public class IndexModel : PageModel
 
     private async Task LoadAsync()
     {
-        var durumRow = await _db.QuerySingleAsync<EntegrasyonDurumRaw>("log.sp_PersonelEntegrasyon_Ozet");
+        var durumRow = await _db.QuerySingleAsync<EntegrasyonDurumRaw>("log.sp_PersonnelSync_Summary");
         Durum = durumRow is null
             ? new EntegrasyonDurum
             {
@@ -85,7 +85,7 @@ public class IndexModel : PageModel
             };
 
         var logRows = await _db.QueryAsync<EntegrasyonLogRaw>(
-            "log.sp_PersonelEntegrasyon_Log_Liste",
+            "log.sp_PersonnelSync_Log_List",
             new { Top = 10 });
 
         Loglar = logRows
@@ -96,7 +96,7 @@ public class IndexModel : PageModel
                 row.NotAciklama))
             .ToList();
 
-        var eslemeRows = await _db.QueryAsync<EslemeRaw>("ref.sp_KullaniciPersonel_Liste");
+        var eslemeRows = await _db.QueryAsync<EslemeRaw>("ref.sp_UserPersonnelLink_List");
 
         Eslemeler = eslemeRows
             .Select(row => new EslemeRow(

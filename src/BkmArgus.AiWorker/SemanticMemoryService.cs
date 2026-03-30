@@ -39,17 +39,17 @@ public sealed class SemanticMemoryService
         }
 
         await using var connection = _db.CreateConnection();
-        var rows = await connection.QueryAsync<VectorRow>(
-            "ai.sp_Ai_GecmisVektor_Liste",
+        var rows = await connection.QueryAsync<SemanticVectorRow>(
+            "ai.sp_SemanticVector_List",
             new { Top = _options.SemanticTop, KritikMi = true },
             commandType: CommandType.StoredProcedure);
 
         double best = 0;
-        VectorRow? bestRow = null;
+        SemanticVectorRow? bestRow = null;
 
         foreach (var row in rows)
         {
-            if (string.IsNullOrWhiteSpace(row.VektorJson))
+            if (string.IsNullOrWhiteSpace(row.VectorJson))
             {
                 continue;
             }
@@ -57,11 +57,11 @@ public sealed class SemanticMemoryService
             float[]? other;
             try
             {
-                other = JsonSerializer.Deserialize<float[]>(row.VektorJson);
+                other = JsonSerializer.Deserialize<float[]>(row.VectorJson);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Vektor json parse edilemedi. RiskId={RiskId}", row.RiskId);
+                _logger.LogWarning(ex, "Vektor json parse edilemedi. SourceId={SourceId}", row.SourceId);
                 continue;
             }
 
@@ -85,11 +85,11 @@ public sealed class SemanticMemoryService
 
         return new SemanticMatch
         {
-            RiskId = bestRow.RiskId,
+            SourceId = bestRow.SourceId,
             DofId = bestRow.DofId,
-            Baslik = string.IsNullOrWhiteSpace(bestRow.Baslik) ? "Gecmis kayit" : bestRow.Baslik,
+            Title = string.IsNullOrWhiteSpace(bestRow.Title) ? "Gecmis kayit" : bestRow.Title,
             Similarity = best,
-            KritikMi = bestRow.KritikMi
+            IsCritical = bestRow.IsCritical
         };
     }
 
@@ -107,8 +107,8 @@ public sealed class SemanticMemoryService
         }
 
         await using var connection = _db.CreateConnection();
-        var rows = await connection.QueryAsync<VectorRow>(
-            "ai.sp_Ai_GecmisVektor_Liste",
+        var rows = await connection.QueryAsync<SemanticVectorRow>(
+            "ai.sp_SemanticVector_List",
             new { Top = _options.SemanticTop, KritikMi = (bool?)null },
             commandType: CommandType.StoredProcedure);
 
@@ -116,7 +116,7 @@ public sealed class SemanticMemoryService
 
         foreach (var row in rows)
         {
-            if (string.IsNullOrWhiteSpace(row.VektorJson))
+            if (string.IsNullOrWhiteSpace(row.VectorJson))
             {
                 continue;
             }
@@ -124,11 +124,11 @@ public sealed class SemanticMemoryService
             float[]? other;
             try
             {
-                other = JsonSerializer.Deserialize<float[]>(row.VektorJson);
+                other = JsonSerializer.Deserialize<float[]>(row.VectorJson);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Vektor json parse edilemedi. RiskId={RiskId}", row.RiskId);
+                _logger.LogWarning(ex, "Vektor json parse edilemedi. SourceId={SourceId}", row.SourceId);
                 continue;
             }
 
@@ -145,11 +145,11 @@ public sealed class SemanticMemoryService
 
             matches.Add(new SemanticMatch
             {
-                RiskId = row.RiskId,
+                SourceId = row.SourceId,
                 DofId = row.DofId,
-                Baslik = string.IsNullOrWhiteSpace(row.Baslik) ? "Gecmis kayit" : row.Baslik,
+                Title = string.IsNullOrWhiteSpace(row.Title) ? "Gecmis kayit" : row.Title,
                 Similarity = sim,
-                KritikMi = row.KritikMi
+                IsCritical = row.IsCritical
             });
         }
 

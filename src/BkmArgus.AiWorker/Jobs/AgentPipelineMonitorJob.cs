@@ -6,7 +6,7 @@ using Microsoft.Data.SqlClient;
 namespace BkmArgus.AiWorker.Jobs;
 
 /// <summary>
-/// Agent Pipeline İzleme İşi - Çalışan agent pipeline'larını izler ve takılı olanları temizler
+/// Agent Pipeline Monitor Job - Monitors running agent pipelines and cleans up stuck ones
 /// </summary>
 public class AgentPipelineMonitorJob : BaseAiJob
 {
@@ -17,19 +17,18 @@ public class AgentPipelineMonitorJob : BaseAiJob
 
     public override async Task<JobResult> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        var result = new JobResult { Success = true, Message = "Agent pipeline izleme tamamlandı" };
-        
+        var result = new JobResult { Success = true, Message = "Agent pipeline monitoring completed" };
+
         try
         {
-            // Varsayılan parametreler - normalde configuration'dan gelecek
             var maxRunningPipelines = 5;
             var timeoutMinutes = 30;
-            
-            _logger.LogInformation("Agent pipeline izleme işi başlatılıyor");
-            
+
+            _logger.LogInformation("Agent pipeline monitor job starting");
+
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
-            
+
             var monitoringResults = new Dictionary<string, object>
             {
                 ["StuckPipelines"] = await HandleStuckPipelinesAsync(connection),
@@ -37,151 +36,151 @@ public class AgentPipelineMonitorJob : BaseAiJob
                 ["QueuedRequests"] = await ProcessQueuedRequestsAsync(connection, maxRunningPipelines),
                 ["RunningPipelines"] = await GetRunningPipelineCountAsync(connection)
             };
-            
+
             result.Data = monitoringResults;
-            
+
             if ((int)monitoringResults["StuckPipelines"] > 0)
             {
-                result.Message += $" {monitoringResults["StuckPipelines"]} takılı pipeline bulundu.";
-                _logger.LogWarning("{StuckPipelines} takılı pipeline bulundu", monitoringResults["StuckPipelines"]);
+                result.Message += $" {monitoringResults["StuckPipelines"]} stuck pipelines found.";
+                _logger.LogWarning("{StuckPipelines} stuck pipelines found", monitoringResults["StuckPipelines"]);
             }
-            
-            _logger.LogInformation("Agent pipeline izleme tamamlandı. Çalışan: {Running}, Sırada: {Queued}", 
+
+            _logger.LogInformation("Agent pipeline monitoring completed. Running: {Running}, Queued: {Queued}",
                 monitoringResults["RunningPipelines"], monitoringResults["QueuedRequests"]);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Agent pipeline izleme işi başarısız");
+            _logger.LogError(ex, "Agent pipeline monitor job failed");
             result.Success = false;
-            result.Message = $"Agent pipeline izleme başarısız: {ex.Message}";
+            result.Message = $"Agent pipeline monitoring failed: {ex.Message}";
             result.Exception = ex;
         }
-        
+
         return result;
     }
 
     private async Task<int> HandleStuckPipelinesAsync(SqlConnection connection)
     {
-        // 30 dakikadan fazla çalışan pipeline'ları bul
+        // Find pipelines running for more than 30 minutes
         using var command = new SqlCommand(@"
-            UPDATE ai.AiAgentPipeline 
+            UPDATE ai.AgentPipelines
             SET Status = 'FAILED',
                 EndTime = SYSDATETIME(),
-                FinalOutput = '{""error"":""Pipeline timeout - maksimum çalışma süresini aştı""}'
-            WHERE Status = 'RUNNING' 
+                FinalOutput = '{""error"":""Pipeline timeout - exceeded maximum run time""}'
+            WHERE Status = 'RUNNING'
               AND DATEDIFF(minute, StartTime, SYSDATETIME()) > 30
               AND EndTime IS NULL", connection);
-        
+
         var stuckCount = await command.ExecuteNonQueryAsync();
-        
+
         if (stuckCount > 0)
         {
-            // İlgili istekleri de güncelle
+            // Update related requests too
             using var updateRequests = new SqlCommand(@"
-                UPDATE ai.AiAnalizIstegi 
-                SET Durum = 'ERROR',
-                    HataMesaji = 'Agent pipeline timeout',
-                    GuncellemeTarihi = SYSDATETIME()
-                WHERE IstekId IN (
-                    SELECT RequestId FROM ai.AiAgentPipeline 
-                    WHERE Status = 'FAILED' 
+                UPDATE ai.AnalysisQueue
+                SET Status = 'ERROR',
+                    ErrorMessage = 'Agent pipeline timeout',
+                    UpdatedAt = SYSDATETIME()
+                WHERE RequestId IN (
+                    SELECT RequestId FROM ai.AgentPipelines
+                    WHERE Status = 'FAILED'
                       AND DATEDIFF(minute, COALESCE(EndTime, StartTime), SYSDATETIME()) < 1
                 )", connection);
-            
+
             await updateRequests.ExecuteNonQueryAsync();
         }
-        
+
         return stuckCount;
     }
 
     private async Task<int> HandleFailedExecutionsAsync(SqlConnection connection)
     {
-        // Başarısız agent yürütmelerini bul ve pipeline'larını başarısız olarak işaretle
+        // Find failed agent executions and mark their pipelines as failed
         using var command = new SqlCommand(@"
             WITH FailedPipelines AS (
                 SELECT DISTINCT p.PipelineId
-                FROM ai.AiAgentPipeline p
-                INNER JOIN ai.AiAgentExecution e ON e.RequestId = p.RequestId
+                FROM ai.AgentPipelines p
+                INNER JOIN ai.AgentExecutions e ON e.RequestId = p.RequestId
                 WHERE p.Status = 'RUNNING'
                   AND e.Status = 'FAILED'
                   AND e.EndTime IS NOT NULL
                   AND NOT EXISTS (
-                      SELECT 1 FROM ai.AiAgentExecution e2 
-                      WHERE e2.RequestId = p.RequestId 
+                      SELECT 1 FROM ai.AgentExecutions e2
+                      WHERE e2.RequestId = p.RequestId
                         AND e2.Status IN ('RUNNING', 'COMPLETED')
                   )
             )
-            UPDATE p SET 
+            UPDATE p SET
                 Status = 'FAILED',
                 EndTime = SYSDATETIME(),
-                FinalOutput = '{""error"":""Bir veya daha fazla agent başarısız""}'
-            FROM ai.AiAgentPipeline p
+                FinalOutput = '{""error"":""One or more agents failed""}'
+            FROM ai.AgentPipelines p
             INNER JOIN FailedPipelines fp ON p.PipelineId = fp.PipelineId", connection);
-        
+
         return await command.ExecuteNonQueryAsync();
     }
 
     private async Task<int> ProcessQueuedRequestsAsync(SqlConnection connection, int maxRunningPipelines)
     {
-        // Mevcut çalışan pipeline'ları kontrol et
+        // Check current running pipelines
         var runningCount = await GetRunningPipelineCountAsync(connection);
-        
+
         if (runningCount >= maxRunningPipelines)
         {
-            return 0; // Yeni pipeline'lar için kapasite yok
+            return 0; // No capacity for new pipelines
         }
-        
+
         var availableSlots = maxRunningPipelines - runningCount;
-        
-        // Sıradaki istekler için yeni pipeline'lar başlat
+
+        // Start new pipelines for queued requests
         using var command = new SqlCommand($@"
             WITH QueuedRequests AS (
-                SELECT TOP ({availableSlots}) IstekId
-                FROM ai.AiAnalizIstegi
-                WHERE Durum IN ('NEW', 'BEKLEMEDE')
+                SELECT TOP ({availableSlots}) RequestId
+                FROM ai.AnalysisQueue
+                WHERE Status IN ('NEW', 'BEKLEMEDE')
                   AND NOT EXISTS (
-                      SELECT 1 FROM ai.AiAgentPipeline p 
-                      WHERE p.RequestId = ai.AiAnalizIstegi.IstekId 
+                      SELECT 1 FROM ai.AgentPipelines p
+                      WHERE p.RequestId = ai.AnalysisQueue.RequestId
                         AND p.Status IN ('PENDING', 'RUNNING')
                   )
-                ORDER BY Oncelik DESC, OlusturmaTarihi
+                ORDER BY Priority DESC, CreatedAt
             )
-            INSERT INTO ai.AiAgentPipeline (RequestId, Status, AgentSequence)
-            SELECT 
-                q.IstekId,
+            INSERT INTO ai.AgentPipelines (RequestId, Status, AgentSequence)
+            SELECT
+                q.RequestId,
                 'PENDING',
                 (SELECT STRING_AGG(CAST(AgentId AS varchar(10)), ',') WITHIN GROUP (ORDER BY ExecutionOrder)
-                 FROM ai.AiAgentConfig WHERE IsActive = 1)
+                 FROM ai.AgentConfig WHERE IsActive = 1)
             FROM QueuedRequests q", connection);
-        
+
         var queuedCount = await command.ExecuteNonQueryAsync();
-        
+
         if (queuedCount > 0)
         {
-            // İstek durumunu güncelle
+            // Update request status
             using var updateCommand = new SqlCommand(@"
-                UPDATE ai.AiAnalizIstegi 
-                SET Durum = 'AGENT_PIPELINE_QUEUED',
-                    GuncellemeTarihi = SYSDATETIME()
-                WHERE IstekId IN (
-                    SELECT RequestId FROM ai.AiAgentPipeline 
-                    WHERE Status = 'PENDING' 
+                UPDATE ai.AnalysisQueue
+                SET Status = 'AGENT_PIPELINE_QUEUED',
+                    UpdatedAt = SYSDATETIME()
+                WHERE RequestId IN (
+                    SELECT RequestId FROM ai.AgentPipelines
+                    WHERE Status = 'PENDING'
                       AND DATEDIFF(second, StartTime, SYSDATETIME()) < 10
                 )", connection);
-            
+
             await updateCommand.ExecuteNonQueryAsync();
         }
-        
+
         return queuedCount;
     }
 
     private async Task<int> GetRunningPipelineCountAsync(SqlConnection connection)
     {
         using var command = new SqlCommand(@"
-            SELECT COUNT(*) 
-            FROM ai.AiAgentPipeline 
+            SELECT COUNT(*)
+            FROM ai.AgentPipelines
             WHERE Status IN ('RUNNING', 'PENDING')", connection);
-        
+
         var result = await command.ExecuteScalarAsync();
         return Convert.ToInt32(result ?? 0);
     }

@@ -53,7 +53,7 @@ public class UrunModel : PageModel
         }
 
         var detay = await _db.QuerySingleAsync<UrunDetayRow>(
-            "rpt.sp_UrunDetay_Getir",
+            "rpt.sp_ProductDetail_Get",
             new { StokId = UrunId, MekanId = mekanId });
 
         if (detay is not null)
@@ -96,7 +96,7 @@ public class UrunModel : PageModel
         }
 
         var aiSonuc = await _db.QuerySingleAsync<AiSonucRow>(
-            "ai.sp_Ai_LlmSonuc_Son",
+            "ai.sp_LlmResults_Latest",
             new { StokId = UrunId, MekanId = MekanId, DonemKodu = Donem });
 
         if (aiSonuc is not null)
@@ -112,10 +112,10 @@ public class UrunModel : PageModel
             }
         }
 
-        var flags = await _db.QueryAsync<FlagRow>("rpt.sp_UrunRiskFlag_Liste", new { StokId = UrunId, MekanId = MekanId });
+        var flags = await _db.QueryAsync<FlagRow>("rpt.sp_ProductRiskFlag_List", new { StokId = UrunId, MekanId = MekanId });
         Flaglar = flags.ToList();
 
-        var hareket = await _db.QueryAsync<HareketRow>("rpt.sp_UrunHareket_Liste", new { StokId = UrunId, MekanId = MekanId, Top = 30 });
+        var hareket = await _db.QueryAsync<HareketRow>("rpt.sp_ProductMovement_List", new { StokId = UrunId, MekanId = MekanId, Top = 30 });
         Hareketler = hareket.ToList();
 
         if (Hareketler.Count > 0)

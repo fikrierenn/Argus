@@ -19,7 +19,7 @@ public class IndexModel : PageModel
 
     public async Task OnGetAsync()
     {
-        var kpis = await _db.QueryAsync<KpiRow>("rpt.sp_GenelBakis_Kpi");
+        var kpis = await _db.QueryAsync<KpiRow>("rpt.sp_DashboardOverview_Kpi");
         StatusCards = kpis
             .Select(kpi => new QuickStatus(
                 kpi.Baslik,
@@ -28,7 +28,7 @@ public class IndexModel : PageModel
                 kpi.Tone))
             .ToList();
 
-        var notes = await _db.QueryAsync<NoteRow>("rpt.sp_GenelBakis_Not");
+        var notes = await _db.QueryAsync<NoteRow>("rpt.sp_DashboardOverview_Notes");
         QuickNotes = notes.Select(n => n.Metin).ToList();
     }
 

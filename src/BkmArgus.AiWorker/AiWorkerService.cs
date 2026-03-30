@@ -46,7 +46,7 @@ public sealed class AiWorkerService : BackgroundService
             await SyncVectorsIfNeededAsync(stoppingToken);
             await ProcessQueueAsync(stoppingToken);
             await ProcessLlmQueueAsync(stoppingToken);
-            _logger.LogInformation("AI Worker döngü tamamlandı.");
+            _logger.LogInformation("AI Worker cycle completed.");
             await Task.Delay(TimeSpan.FromSeconds(_options.PollSeconds), stoppingToken);
         }
     }
@@ -54,92 +54,92 @@ public sealed class AiWorkerService : BackgroundService
     private async Task ProcessQueueAsync(CancellationToken token)
     {
         await using var connection = _db.CreateConnection();
-        
+
         const string sql = @"
 ;WITH cte AS (
     SELECT TOP (@Top) *
-    FROM ai.AiAnalizIstegi WITH (UPDLOCK, READPAST, ROWLOCK)
-    WHERE Durum IN ('NEW', 'BEKLEMEDE')
-    ORDER BY Oncelik DESC, OlusturmaTarihi
+    FROM ai.AnalysisQueue WITH (UPDLOCK, READPAST, ROWLOCK)
+    WHERE Status IN ('NEW', 'BEKLEMEDE')
+    ORDER BY Priority DESC, CreatedAt
 )
 UPDATE cte
-SET Durum = 'LM_RUNNING',
-    DenemeSayisi = DenemeSayisi + 1,
-    SonDenemeTarihi = SYSDATETIME(),
-    GuncellemeTarihi = SYSDATETIME()
+SET Status = 'LM_RUNNING',
+    RetryCount = RetryCount + 1,
+    LastRetryAt = SYSDATETIME(),
+    UpdatedAt = SYSDATETIME()
 OUTPUT
-    inserted.IstekId,
-    inserted.KesimTarihi,
-    inserted.DonemKodu,
-    inserted.MekanId,
-    inserted.StokId,
-    inserted.KaynakTip,
-    inserted.KaynakAnahtar,
-    inserted.Oncelik,
-    inserted.Durum,
-    inserted.OlusturmaTarihi;";
+    inserted.RequestId,
+    inserted.SnapshotDate,
+    inserted.PeriodCode,
+    inserted.LocationId,
+    inserted.ProductId,
+    inserted.SourceType,
+    inserted.SourceKey,
+    inserted.Priority,
+    inserted.Status,
+    inserted.CreatedAt;";
 
-        var istekler = (await connection.QueryAsync<AiIstekRow>(sql, new { Top = _options.BatchSize })).ToList();
-        
-        if (istekler.Count == 0)
+        var requests = (await connection.QueryAsync<AnalysisQueueRow>(sql, new { Top = _options.BatchSize })).ToList();
+
+        if (requests.Count == 0)
         {
-            _logger.LogInformation("İşlenecek yeni AI isteği bulunamadı.");
+            _logger.LogInformation("No new AI requests to process.");
             return;
         }
 
-        foreach (var istek in istekler)
+        foreach (var row in requests)
         {
             try
             {
-                var risk = await connection.QuerySingleOrDefaultAsync<RiskOzetRow>(
-                    "ai.sp_Ai_RiskOzet_Getir",
+                var risk = await connection.QuerySingleOrDefaultAsync<RiskSummaryRow>(
+                    "ai.sp_RiskSummary_Get",
                     new
                     {
-                        KesimTarihi = istek.KesimTarihi ?? (object)DBNull.Value,
-                        DonemKodu = istek.DonemKodu,
-                        MekanId = istek.MekanId,
-                        StokId = istek.StokId
+                        KesimTarihi = row.SnapshotDate ?? (object)DBNull.Value,
+                        DonemKodu = row.PeriodCode,
+                        MekanId = row.LocationId,
+                        StokId = row.ProductId
                     },
                     commandType: CommandType.StoredProcedure);
 
                 if (risk is null)
                 {
-                    await MarkErrorAsync(connection, istek.IstekId ?? 0, "Risk kaydı bulunamadı.");
+                    await MarkErrorAsync(connection, row.RequestId ?? 0, "Risk record not found.");
                     continue;
                 }
 
                 var decision = _rules.Decide(risk);
                 var riskText = BuildRiskText(risk);
                 var match = await _semantic.FindBestMatchAsync(riskText, token);
-                if (match is not null && match.KritikMi)
+                if (match is not null && match.IsCritical)
                 {
                     var percent = Math.Round(match.Similarity * 100);
-                    var note = $"Bu risk, geçmişteki ID:{match.RiskId} nolu '{match.Baslik}' olayına %{percent} benziyor.";
+                    var note = $"Bu risk, geçmişteki ID:{match.SourceId} nolu '{match.Title}' olayına %{percent} benziyor.";
                     decision = decision with
                     {
-                        OncelikPuan = 100,
-                        LlmGerekliMi = true,
-                        SemanticNot = note
+                        PriorityScore = 100,
+                        LlmRequired = true,
+                        SemanticNote = note
                     };
                 }
 
-                await UpsertLmSonucAsync(connection, istek.IstekId ?? 0, decision);
+                await UpsertRuleResultAsync(connection, row.RequestId ?? 0, decision);
 
-                var yeniDurum = decision.LlmGerekliMi ? "LLM_QUEUED" : "LM_DONE";
+                var newStatus = decision.LlmRequired ? "LLM_QUEUED" : "LM_DONE";
                 await connection.ExecuteAsync(
-                    "UPDATE ai.AiAnalizIstegi SET Durum = @Durum, EvidencePlan = @EvidencePlan, LmNot = @LmNot, GuncellemeTarihi = GETDATE() WHERE IstekId = @IstekId",
+                    "UPDATE ai.AnalysisQueue SET Status = @Status, EvidencePlan = @EvidencePlan, RuleNote = @RuleNote, UpdatedAt = SYSDATETIME() WHERE RequestId = @RequestId",
                     new
                     {
-                        IstekId = istek.IstekId ?? 0,
-                        Durum = yeniDurum,
+                        RequestId = row.RequestId ?? 0,
+                        Status = newStatus,
                         EvidencePlan = decision.EvidencePlan,
-                        LmNot = decision.SemanticNot
+                        RuleNote = decision.SemanticNote
                     });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "AI istek işlenemedi. IstekId={IstekId}", istek.IstekId);
-                await MarkErrorAsync(connection, istek.IstekId ?? 0, FormatException("LM istek işlenemedi", ex));
+                _logger.LogError(ex, "AI request processing failed. RequestId={RequestId}", row.RequestId);
+                await MarkErrorAsync(connection, row.RequestId ?? 0, FormatException("LM request processing failed", ex));
             }
         }
     }
@@ -159,41 +159,41 @@ OUTPUT
 
         _lastVectorSyncUtc = now;
         await using var connection = _db.CreateConnection();
-        var kaynaklar = await connection.QueryAsync<DofKayitRow>(
-            "ai.sp_Ai_GecmisVektor_KaynakListe",
+        var sources = await connection.QueryAsync<DofRecordRow>(
+            "ai.sp_SemanticVector_SourceList",
             new { Top = 200 },
             commandType: CommandType.StoredProcedure);
 
-        foreach (var kaynak in kaynaklar)
+        foreach (var source in sources)
         {
             if (token.IsCancellationRequested)
             {
                 break;
             }
 
-            var text = BuildDofText(kaynak);
+            var text = BuildDofText(source);
             var vector = await _embedding.TryEmbedAsync(text, token);
             if (vector is null || vector.Length == 0)
             {
                 continue;
             }
 
-            var kritik = kaynak.RiskSeviyesi >= 3;
-            var ozet = string.IsNullOrWhiteSpace(kaynak.Aciklama) ? kaynak.Baslik : $"{kaynak.Baslik}. {kaynak.Aciklama}";
-            if (ozet.Length > 500)
+            var critical = source.RiskSeviyesi >= 3;
+            var summary = string.IsNullOrWhiteSpace(source.Aciklama) ? source.Baslik : $"{source.Baslik}. {source.Aciklama}";
+            if (summary.Length > 500)
             {
-                ozet = ozet[..500];
+                summary = summary[..500];
             }
 
             await connection.ExecuteAsync(
-                "ai.sp_Ai_GecmisVektor_Upsert",
+                "ai.sp_SemanticVector_Upsert",
                 new
                 {
-                    RiskId = kaynak.DofId,
-                    DofId = kaynak.DofId,
-                    Baslik = kaynak.Baslik,
-                    OzetMetin = ozet,
-                    KritikMi = kritik,
+                    RiskId = source.DofId,
+                    DofId = source.DofId,
+                    Baslik = source.Baslik,
+                    OzetMetin = summary,
+                    KritikMi = critical,
                     VektorJson = JsonSerializer.Serialize(vector)
                 },
                 commandType: CommandType.StoredProcedure);
@@ -202,12 +202,12 @@ OUTPUT
         await SyncDocVectorsAsync(connection, token);
     }
 
-    private static string BuildRiskText(RiskOzetRow risk)
+    private static string BuildRiskText(RiskSummaryRow risk)
     {
-        return $"Mekan:{risk.MekanAd}; Ürün:{risk.UrunAd}; Skor:{risk.RiskSkor}; Yorum:{risk.RiskYorum}";
+        return $"Mekan:{risk.MekanAd}; Ürün:{risk.UrunAd}; Skor:{risk.RiskScore}; Yorum:{risk.RiskComment}";
     }
 
-    private static string BuildDofText(DofKayitRow dof)
+    private static string BuildDofText(DofRecordRow dof)
     {
         return $"DÖF:{dof.Baslik}; Açıklama:{dof.Aciklama}; Kaynak:{dof.KaynakAnahtar}";
     }
@@ -239,7 +239,7 @@ OUTPUT
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Doküman okunamadı. Dosya={File}", file);
+                _logger.LogWarning(ex, "Document could not be read. File={File}", file);
                 continue;
             }
 
@@ -256,17 +256,17 @@ OUTPUT
             }
 
             var riskId = ComputeDocRiskId(docsRoot, file);
-            var baslik = $"DOC:{Path.GetFileName(file)}";
-            var ozet = TrimTo(clean, _options.DocsSnippetChars);
+            var title = $"DOC:{Path.GetFileName(file)}";
+            var snippet = TrimTo(clean, _options.DocsSnippetChars);
 
             await connection.ExecuteAsync(
-                "ai.sp_Ai_GecmisVektor_Upsert",
+                "ai.sp_SemanticVector_Upsert",
                 new
                 {
                     RiskId = riskId,
                     DofId = (long?)null,
-                    Baslik = baslik,
-                    OzetMetin = ozet,
+                    Baslik = title,
+                    OzetMetin = snippet,
                     KritikMi = false,
                     VektorJson = JsonSerializer.Serialize(vector)
                 },
@@ -350,86 +350,86 @@ OUTPUT
         const string sql = @"
 ;WITH cte AS (
     SELECT TOP (@Top) *
-    FROM ai.AiAnalizIstegi WITH (UPDLOCK, READPAST, ROWLOCK)
-    WHERE Durum = 'LLM_QUEUED'
-    ORDER BY Oncelik DESC, OlusturmaTarihi
+    FROM ai.AnalysisQueue WITH (UPDLOCK, READPAST, ROWLOCK)
+    WHERE Status = 'LLM_QUEUED'
+    ORDER BY Priority DESC, CreatedAt
 )
 UPDATE cte
-SET Durum = 'LLM_RUNNING',
-    GuncellemeTarihi = SYSDATETIME()
+SET Status = 'LLM_RUNNING',
+    UpdatedAt = SYSDATETIME()
 OUTPUT
-    inserted.IstekId,
-    inserted.KesimTarihi,
-    inserted.DonemKodu,
-    inserted.MekanId,
-    inserted.StokId,
+    inserted.RequestId,
+    inserted.SnapshotDate,
+    inserted.PeriodCode,
+    inserted.LocationId,
+    inserted.ProductId,
     inserted.EvidencePlan,
     inserted.EvidenceJson,
-    inserted.LmNot;";
+    inserted.RuleNote;";
 
         await using var connection = _db.CreateConnection();
-        var istekler = await connection.QueryAsync<AiLlmIstekRow>(sql, new { Top = _options.BatchSize });
+        var requests = await connection.QueryAsync<AnalysisQueueLlmRow>(sql, new { Top = _options.BatchSize });
 
-        foreach (var istek in istekler)
+        foreach (var row in requests)
         {
             try
             {
-                var risk = await connection.QuerySingleOrDefaultAsync<RiskOzetRow>(
-                    "ai.sp_Ai_RiskOzet_Getir",
+                var risk = await connection.QuerySingleOrDefaultAsync<RiskSummaryRow>(
+                    "ai.sp_RiskSummary_Get",
                     new
                     {
-                        KesimTarihi = istek.KesimTarihi ?? (object)DBNull.Value,
-                        DonemKodu = istek.DonemKodu,
-                        MekanId = istek.MekanId,
-                        StokId = istek.StokId
+                        KesimTarihi = row.SnapshotDate ?? (object)DBNull.Value,
+                        DonemKodu = row.PeriodCode,
+                        MekanId = row.LocationId,
+                        StokId = row.ProductId
                     },
                     commandType: CommandType.StoredProcedure);
 
                 if (risk is null)
                 {
-                    await MarkErrorAsync(connection, istek.IstekId, "Risk kaydı bulunamadı (LLM).");
+                    await MarkErrorAsync(connection, row.RequestId, "Risk record not found (LLM).");
                     continue;
                 }
 
                 var riskText = BuildRiskText(risk);
                 var evidenceMatches = await _semantic.FindTopEvidenceAsync(riskText, 3, token);
                 var evidenceNote = FormatEvidenceMatches(evidenceMatches);
-                var prompt = BuildAdvancedLlmPrompt(risk, istek, evidenceNote);
+                var prompt = BuildAdvancedLlmPrompt(risk, row, evidenceNote);
                 var call = await _llm.GenerateAsync(prompt, token);
                 if (!call.Success || call.Result is null)
                 {
-                    var error = string.IsNullOrWhiteSpace(call.Error) ? "LLM yanıtı alınamadı." : call.Error;
-                    await MarkErrorAsync(connection, istek.IstekId, error);
+                    var error = string.IsNullOrWhiteSpace(call.Error) ? "LLM response could not be obtained." : call.Error;
+                    await MarkErrorAsync(connection, row.RequestId, error);
                     continue;
                 }
 
-                await UpsertLlmSonucAsync(connection, istek.IstekId, call.Result);
+                await UpsertLlmResultAsync(connection, row.RequestId, call.Result);
 
                 await connection.ExecuteAsync(
-                    "UPDATE ai.AiAnalizIstegi SET Durum = @Durum, GuncellemeTarihi = GETDATE() WHERE IstekId = @IstekId",
-                    new { IstekId = istek.IstekId, Durum = "LLM_DONE" });
+                    "UPDATE ai.AnalysisQueue SET Status = @Status, UpdatedAt = SYSDATETIME() WHERE RequestId = @RequestId",
+                    new { RequestId = row.RequestId, Status = "LLM_DONE" });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "LLM istek işlenemedi. IstekId={IstekId}", istek.IstekId);
-                await MarkErrorAsync(connection, istek.IstekId, FormatException("LLM istek işlenemedi", ex));
+                _logger.LogError(ex, "LLM request processing failed. RequestId={RequestId}", row.RequestId);
+                await MarkErrorAsync(connection, row.RequestId, FormatException("LLM request processing failed", ex));
             }
         }
     }
 
-    private static string BuildAdvancedLlmPrompt(RiskOzetRow risk, AiLlmIstekRow istek, string evidenceNote)
+    private static string BuildAdvancedLlmPrompt(RiskSummaryRow risk, AnalysisQueueLlmRow row, string evidenceNote)
     {
-        var flags = $"VeriKalite={risk.FlagVeriKalite}; GirişsizSatış={risk.FlagGirissizSatis}; ÖlüStok={risk.FlagOluStok}; " +
-                    $"NetBirikim={risk.FlagNetBirikim}; İadeYüksek={risk.FlagIadeYuksek}; BozukİadeYüksek={risk.FlagBozukIadeYuksek}; " +
-                    $"SayımDüzeltme={risk.FlagSayimDuzeltmeYuk}; ŞirketİçiYüksek={risk.FlagSirketIciYuksek}; HızlıDevir={risk.FlagHizliDevir}; " +
-                    $"SatışYaşlanma={risk.FlagSatisYaslanma}";
+        var flags = $"VeriKalite={risk.FlagDataQuality}; GirişsizSatış={risk.FlagSalesWithoutEntry}; ÖlüStok={risk.FlagDeadStock}; " +
+                    $"NetBirikim={risk.FlagNetAccumulation}; İadeYüksek={risk.FlagHighReturn}; BozukİadeYüksek={risk.FlagHighDamagedReturn}; " +
+                    $"SayımDüzeltme={risk.FlagHighCountAdjustment}; ŞirketİçiYüksek={risk.FlagHighInternalUse}; HızlıDevir={risk.FlagFastTurnover}; " +
+                    $"SatışYaşlanma={risk.FlagSalesAging}";
 
-        var lmNot = string.IsNullOrWhiteSpace(istek.LmNot) ? "-" : istek.LmNot;
-        var evidence = string.IsNullOrWhiteSpace(istek.EvidenceJson) ? "-" : istek.EvidenceJson;
+        var ruleNote = string.IsNullOrWhiteSpace(row.RuleNote) ? "-" : row.RuleNote;
+        var evidence = string.IsNullOrWhiteSpace(row.EvidenceJson) ? "-" : row.EvidenceJson;
 
         var sb = new StringBuilder();
-        
-        // System prompt - çok daha detaylı
+
+        // System prompt
         sb.AppendLine("<|system|>");
         sb.AppendLine("Sen BKM (Bankalararası Kart Merkezi) denetim uzmanısın.");
         sb.AppendLine("15+ yıllık denetim tecrüben var ve özellikle stok manipülasyonu, sahtekarlık ve iç kontrol zafiyetleri konusunda uzmansın.");
@@ -441,7 +441,7 @@ OUTPUT
         sb.AppendLine("5. Türkçe olarak yanıt ver ama teknik terimleri koru");
         sb.AppendLine("<|/system|>");
         sb.AppendLine();
-        
+
         // Examples - Few-shot learning
         sb.AppendLine("<|examples|>");
         sb.AppendLine("Example 1:");
@@ -454,40 +454,40 @@ OUTPUT
 }");
         sb.AppendLine("<|/examples|>");
         sb.AppendLine();
-        
+
         // Current Task
         sb.AppendLine("<|task|>");
         sb.AppendLine("Aşağıdaki risk durumunu analiz et:");
         sb.AppendLine($"Risk Context: {BuildDetailedRiskContext(risk)}");
         sb.AppendLine($"Evidence: {evidenceNote}");
-        sb.AppendLine($"Historical Similarities: {lmNot}");
+        sb.AppendLine($"Historical Similarities: {ruleNote}");
         sb.AppendLine();
         sb.AppendLine("Output format (SADECE JSON):");
         sb.AppendLine(GetJsonSchema());
         sb.AppendLine("<|/task|>");
-        
+
         return sb.ToString();
     }
 
-    private static string BuildDetailedRiskContext(RiskOzetRow risk)
+    private static string BuildDetailedRiskContext(RiskSummaryRow risk)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Tarih: {risk.KesimTarihi?.ToString("yyyy-MM-dd") ?? "Belirsiz"}");
-        sb.AppendLine($"Dönem: {risk.DonemKodu}");
-        sb.AppendLine($"Mekan: {risk.MekanAd} (ID: {risk.MekanId})");
-        sb.AppendLine($"Ürün: {risk.UrunAd} ({risk.UrunKod}) - ID: {risk.StokId}");
-        sb.AppendLine($"Risk Skoru: {risk.RiskSkor}/100");
-        sb.AppendLine($"Yorum: {risk.RiskYorum ?? "Yok"}");
-        sb.AppendLine($"Veri Kalite Sorunu: {(risk.FlagVeriKalite ? "Evet" : "Hayır")}");
-        sb.AppendLine($"Girişsiz Satış: {(risk.FlagGirissizSatis ? "Evet" : "Hayır")}");
-        sb.AppendLine($"Ölü Stok: {(risk.FlagOluStok ? "Evet" : "Hayır")}");
-        sb.AppendLine($"Net Birikim: {(risk.FlagNetBirikim ? "Evet" : "Hayır")}");
-        sb.AppendLine($"Yüksek İade: {(risk.FlagIadeYuksek ? "Evet" : "Hayır")}");
-        sb.AppendLine($"Bozuk İade: {(risk.FlagBozukIadeYuksek ? "Evet" : "Hayır")}");
-        sb.AppendLine($"Sayım Düzeltme: {(risk.FlagSayimDuzeltmeYuk ? "Evet" : "Hayır")}");
-        sb.AppendLine($"Şirket İçi Kullanım: {(risk.FlagSirketIciYuksek ? "Evet" : "Hayır")}");
-        sb.AppendLine($"Hızlı Devir: {(risk.FlagHizliDevir ? "Evet" : "Hayır")}");
-        sb.AppendLine($"Satış Yaşlanma: {(risk.FlagSatisYaslanma ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Tarih: {risk.SnapshotDate?.ToString("yyyy-MM-dd") ?? "Belirsiz"}");
+        sb.AppendLine($"Dönem: {risk.PeriodCode}");
+        sb.AppendLine($"Mekan: {risk.MekanAd} (ID: {risk.LocationId})");
+        sb.AppendLine($"Ürün: {risk.UrunAd} ({risk.UrunKod}) - ID: {risk.ProductId}");
+        sb.AppendLine($"Risk Skoru: {risk.RiskScore}/100");
+        sb.AppendLine($"Yorum: {risk.RiskComment ?? "Yok"}");
+        sb.AppendLine($"Veri Kalite Sorunu: {(risk.FlagDataQuality ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Girişsiz Satış: {(risk.FlagSalesWithoutEntry ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Ölü Stok: {(risk.FlagDeadStock ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Net Birikim: {(risk.FlagNetAccumulation ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Yüksek İade: {(risk.FlagHighReturn ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Bozuk İade: {(risk.FlagHighDamagedReturn ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Sayım Düzeltme: {(risk.FlagHighCountAdjustment ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Şirket İçi Kullanım: {(risk.FlagHighInternalUse ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Hızlı Devir: {(risk.FlagFastTurnover ? "Evet" : "Hayır")}");
+        sb.AppendLine($"Satış Yaşlanma: {(risk.FlagSalesAging ? "Evet" : "Hayır")}");
         return sb.ToString();
     }
 
@@ -525,91 +525,91 @@ OUTPUT
         return string.Join("; ", matches.Select(m =>
         {
             var percent = Math.Round(m.Similarity * 100);
-            return $"{m.Baslik} (%{percent})";
+            return $"{m.Title} (%{percent})";
         }));
     }
 
-    private static Task UpsertLlmSonucAsync(IDbConnection connection, long istekId, LlmResult result)
+    private static Task UpsertLlmResultAsync(IDbConnection connection, long requestId, LlmResultRow result)
     {
         const string sql = @"
-MERGE ai.AiLlmSonuc AS t
-USING (SELECT @IstekId AS IstekId) AS s
-ON t.IstekId = s.IstekId
+MERGE ai.LlmResults AS t
+USING (SELECT @RequestId AS RequestId) AS s
+ON t.RequestId = s.RequestId
 WHEN MATCHED THEN
     UPDATE SET
-        Model = @Model,
-        PromptVersiyon = @PromptVersiyon,
-        KokNedenHipotezleri = @KokNedenHipotezleri,
-        DogrulamaAdimlari = @DogrulamaAdimlari,
-        OnerilenAksiyonlar = @OnerilenAksiyonlar,
-        DofTaslakJson = @DofTaslakJson,
-        YoneticiOzeti = @YoneticiOzeti,
-        GuvenSkoru = @GuvenSkoru,
-        OlusturmaTarihi = SYSDATETIME()
+        ModelName = @ModelName,
+        PromptVersion = @PromptVersion,
+        RootCauseHypotheses = @RootCauseHypotheses,
+        VerificationSteps = @VerificationSteps,
+        RecommendedActions = @RecommendedActions,
+        DofDraftJson = @DofDraftJson,
+        ExecutiveSummary = @ExecutiveSummary,
+        ConfidenceScore = @ConfidenceScore,
+        CreatedAt = SYSDATETIME()
 WHEN NOT MATCHED THEN
-    INSERT (IstekId, Model, PromptVersiyon, KokNedenHipotezleri, DogrulamaAdimlari, OnerilenAksiyonlar, DofTaslakJson, YoneticiOzeti, GuvenSkoru, OlusturmaTarihi)
-    VALUES (@IstekId, @Model, @PromptVersiyon, @KokNedenHipotezleri, @DogrulamaAdimlari, @OnerilenAksiyonlar, @DofTaslakJson, @YoneticiOzeti, @GuvenSkoru, SYSDATETIME());";
+    INSERT (RequestId, ModelName, PromptVersion, RootCauseHypotheses, VerificationSteps, RecommendedActions, DofDraftJson, ExecutiveSummary, ConfidenceScore, CreatedAt)
+    VALUES (@RequestId, @ModelName, @PromptVersion, @RootCauseHypotheses, @VerificationSteps, @RecommendedActions, @DofDraftJson, @ExecutiveSummary, @ConfidenceScore, SYSDATETIME());";
 
         return connection.ExecuteAsync(sql, new
         {
-            IstekId = istekId,
-            result.Model,
-            result.PromptVersiyon,
-            result.KokNedenHipotezleri,
-            result.DogrulamaAdimlari,
-            result.OnerilenAksiyonlar,
-            result.DofTaslakJson,
-            YoneticiOzeti = result.YoneticiOzeti ?? result.RawJson,
-            result.GuvenSkoru
+            RequestId = requestId,
+            result.ModelName,
+            result.PromptVersion,
+            result.RootCauseHypotheses,
+            result.VerificationSteps,
+            result.RecommendedActions,
+            result.DofDraftJson,
+            ExecutiveSummary = result.ExecutiveSummary ?? result.RawJson,
+            result.ConfidenceScore
         });
     }
 
-    private static Task UpsertLmSonucAsync(IDbConnection connection, long istekId, LmDecision decision)
+    private static Task UpsertRuleResultAsync(IDbConnection connection, long requestId, RuleDecision decision)
     {
         const string sql = @"
-MERGE ai.AiLmSonuc AS t
-USING (SELECT @IstekId AS IstekId) AS s
-ON t.IstekId = s.IstekId
+MERGE ai.RuleResults AS t
+USING (SELECT @RequestId AS RequestId) AS s
+ON t.RequestId = s.RequestId
 WHEN MATCHED THEN
     UPDATE SET
         RootCauseClass = @RootCauseClass,
         EvidencePlan = @EvidencePlan,
-        LlmGerekliMi = @LlmGerekliMi,
-        OncelikPuan = @OncelikPuan,
-        KisaOzet = @KisaOzet,
-        OzellikJson = @OzellikJson,
-        RuleSetVersiyon = @RuleSetVersiyon,
-        OlusturmaTarihi = SYSDATETIME()
+        LlmRequired = @LlmRequired,
+        PriorityScore = @PriorityScore,
+        BriefSummary = @BriefSummary,
+        FeatureJson = @FeatureJson,
+        RuleSetVersion = @RuleSetVersion,
+        CreatedAt = SYSDATETIME()
 WHEN NOT MATCHED THEN
-    INSERT (IstekId, RootCauseClass, EvidencePlan, LlmGerekliMi, OncelikPuan, KisaOzet, OzellikJson, RuleSetVersiyon, OlusturmaTarihi)
-    VALUES (@IstekId, @RootCauseClass, @EvidencePlan, @LlmGerekliMi, @OncelikPuan, @KisaOzet, @OzellikJson, @RuleSetVersiyon, SYSDATETIME());";
+    INSERT (RequestId, RootCauseClass, EvidencePlan, LlmRequired, PriorityScore, BriefSummary, FeatureJson, RuleSetVersion, CreatedAt)
+    VALUES (@RequestId, @RootCauseClass, @EvidencePlan, @LlmRequired, @PriorityScore, @BriefSummary, @FeatureJson, @RuleSetVersion, SYSDATETIME());";
 
         return connection.ExecuteAsync(sql, new
         {
-            IstekId = istekId,
+            RequestId = requestId,
             decision.RootCauseClass,
             decision.EvidencePlan,
-            decision.LlmGerekliMi,
-            decision.OncelikPuan,
-            decision.KisaOzet,
-            decision.OzellikJson,
-            RuleSetVersiyon = "v1"
+            decision.LlmRequired,
+            decision.PriorityScore,
+            decision.BriefSummary,
+            decision.FeatureJson,
+            RuleSetVersion = "v1"
         });
     }
 
-    private static Task MarkErrorAsync(IDbConnection connection, long istekId, string hata)
+    private static Task MarkErrorAsync(IDbConnection connection, long requestId, string error)
     {
-        var safe = TrimError(hata);
+        var safe = TrimError(error);
         return connection.ExecuteAsync(
-            "UPDATE ai.AiAnalizIstegi SET Durum = @Durum, HataMesaji = @HataMesaji, GuncellemeTarihi = GETDATE() WHERE IstekId = @IstekId",
-            new { IstekId = istekId, Durum = "ERROR", HataMesaji = safe });
+            "UPDATE ai.AnalysisQueue SET Status = @Status, ErrorMessage = @ErrorMessage, UpdatedAt = SYSDATETIME() WHERE RequestId = @RequestId",
+            new { RequestId = requestId, Status = "ERROR", ErrorMessage = safe });
     }
 
     private static string TrimError(string? message)
     {
         if (string.IsNullOrWhiteSpace(message))
         {
-            return "Bilinmeyen hata.";
+            return "Unknown error.";
         }
 
         var clean = message.Replace("\r", " ").Replace("\n", " ").Trim();

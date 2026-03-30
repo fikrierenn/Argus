@@ -166,7 +166,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_MekanKapsam_Kaydet",
+            "ref.sp_LocationSettings_Save",
             new
             {
                 MekanId = NewMekan.MekanId,
@@ -203,7 +203,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_IrsTipMap_Kaydet",
+            "ref.sp_TransactionTypeMap_Save",
             new
             {
                 TipId = NewTipMap.TipId,
@@ -232,7 +232,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_RiskParam_Kaydet",
+            "ref.sp_RiskParameters_Save",
             new
             {
                 ParamKodu = NormalizeText(NewRiskParam.ParamKodu),
@@ -272,7 +272,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_RiskSkorAgirlik_Kaydet",
+            "ref.sp_RiskScoreWeights_Save",
             new
             {
                 FlagKodu = NormalizeText(NewSkor.FlagKodu),
@@ -306,7 +306,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_KaynakSistem_Kaydet",
+            "ref.sp_SourceSystems_Save",
             new
             {
                 SistemKodu = NormalizeText(NewKaynakSistem.SistemKodu),
@@ -339,7 +339,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_KaynakNesne_Kaydet",
+            "ref.sp_SourceObjects_Save",
             new
             {
                 NesneKodu = NormalizeText(NewKaynakNesne.NesneKodu),
@@ -370,7 +370,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_KaynakSistem_Kaydet",
+            "ref.sp_SourceSystems_Save",
             new
             {
                 SistemKodu = sistem.SistemKodu,
@@ -401,7 +401,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_KaynakNesne_Kaydet",
+            "ref.sp_SourceObjects_Save",
             new
             {
                 NesneKodu = nesne.NesneKodu,
@@ -432,7 +432,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_MekanKapsam_Kaydet",
+            "ref.sp_LocationSettings_Save",
             new
             {
                 MekanId = mekan.MekanId,
@@ -462,7 +462,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_IrsTipMap_Kaydet",
+            "ref.sp_TransactionTypeMap_Save",
             new
             {
                 TipId = tipMap.TipId,
@@ -494,7 +494,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_RiskParam_Kaydet",
+            "ref.sp_RiskParameters_Save",
             new
             {
                 ParamKodu = param.ParamKodu,
@@ -527,7 +527,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_RiskSkorAgirlik_Kaydet",
+            "ref.sp_RiskScoreWeights_Save",
             new
             {
                 FlagKodu = skor.FlagKodu,
@@ -559,7 +559,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_Personel_Kaydet",
+            "ref.sp_Personnel_Save",
             new
             {
                 PersonelKodu = personel.PersonelKodu,
@@ -595,7 +595,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_Kullanici_Kaydet",
+            "ref.sp_Users_Save",
             new
             {
                 KullaniciAdi = kullanici.KullaniciAdi,
@@ -634,7 +634,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_Personel_Kaydet",
+            "ref.sp_Personnel_Save",
             new
             {
                 PersonelKodu = NormalizeText(NewPersonel.PersonelKodu),
@@ -673,7 +673,7 @@ public class IndexModel : PageModel
         }
 
         await _db.ExecuteAsync(
-            "ref.sp_Kullanici_Kaydet",
+            "ref.sp_Users_Save",
             new
             {
                 KullaniciAdi = NormalizeText(NewKullanici.KullaniciAdi),
@@ -741,7 +741,7 @@ public class IndexModel : PageModel
             NewIrsTipMap.AktifMi);
 
         await _db.ExecuteAsync(
-            "ref.sp_IrsTipMap_Kaydet",
+            "ref.sp_TransactionTypeMap_Save",
             new
             {
                 TipId = tipId,
@@ -793,7 +793,7 @@ public class IndexModel : PageModel
         foreach (var tipId in tipIds)
         {
             await _db.ExecuteAsync(
-                "ref.sp_IrsTipMap_Kaydet",
+                "ref.sp_TransactionTypeMap_Save",
                 new
                 {
                     TipId = tipId,
@@ -811,19 +811,19 @@ public class IndexModel : PageModel
 
     private async Task LoadAllAsync()
     {
-        Mekanlar = await _db.QueryAsync<MekanKapsamRow>("ref.sp_MekanKapsam_Liste");
+        Mekanlar = await _db.QueryAsync<MekanKapsamRow>("ref.sp_LocationSettings_List");
 
-        TipMaplar = await _db.QueryAsync<TipGrupRow>("ref.sp_IrsTipGrupMap_Liste");
+        TipMaplar = await _db.QueryAsync<TipGrupRow>("ref.sp_TransactionTypeMap_GroupList");
 
-        RiskParamlar = await _db.QueryAsync<RiskParamRow>("ref.sp_RiskParam_Liste");
+        RiskParamlar = await _db.QueryAsync<RiskParamRow>("ref.sp_RiskParameters_List");
 
-        SkorAgirliklar = await _db.QueryAsync<SkorAgirlikRow>("ref.sp_RiskSkorAgirlik_Liste");
+        SkorAgirliklar = await _db.QueryAsync<SkorAgirlikRow>("ref.sp_RiskScoreWeights_List");
 
-        KaynakSistemler = await _db.QueryAsync<KaynakSistemRow>("ref.sp_KaynakSistem_Liste");
+        KaynakSistemler = await _db.QueryAsync<KaynakSistemRow>("ref.sp_SourceSystems_List");
 
-        KaynakNesneler = await _db.QueryAsync<KaynakNesneRow>("ref.sp_KaynakNesne_Liste");
+        KaynakNesneler = await _db.QueryAsync<KaynakNesneRow>("ref.sp_SourceObjects_List");
 
-        var irsTiplerAll = await _db.QueryAsync<IrsTipRow>("ref.sp_IrsTipMap_Liste");
+        var irsTiplerAll = await _db.QueryAsync<IrsTipRow>("ref.sp_TransactionTypeMap_List");
         _irsTipToplam = irsTiplerAll.Count;
 
         var aktifMapTipIds = new HashSet<int>(TipMaplar.Where(x => x.AktifMi).Select(x => x.TipId));
@@ -876,9 +876,9 @@ public class IndexModel : PageModel
 
         TipGrupSecenekleri = TipGrupSecenekStore.OrderBy(x => x.GrupKodu).ToList();
 
-        Personeller = await _db.QueryAsync<PersonelRow>("ref.sp_Personel_Liste");
+        Personeller = await _db.QueryAsync<PersonelRow>("ref.sp_Personnel_List");
 
-        Kullanicilar = await _db.QueryAsync<KullaniciRow>("ref.sp_Kullanici_Liste");
+        Kullanicilar = await _db.QueryAsync<KullaniciRow>("ref.sp_Users_List");
     }
 
     private void ApplyEditDefaults()
