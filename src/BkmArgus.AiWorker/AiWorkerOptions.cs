@@ -23,6 +23,9 @@ public sealed class AiWorkerOptions
     public string ClaudeModel { get; set; } = "claude-sonnet-4-20250514";
     public string? ClaudeModelFallback { get; set; }
     public bool LlmEnabled { get; set; } = true;
+    public bool GeminiEnabled { get; set; } = true;
+    public bool ClaudeEnabled { get; set; } = false;
+    public bool OllamaEnabled { get; set; } = false;
     public bool DocsEnabled { get; set; } = true;
     public string DocsPath { get; set; } = "docs";
     public int DocsMaxChars { get; set; } = 4000;

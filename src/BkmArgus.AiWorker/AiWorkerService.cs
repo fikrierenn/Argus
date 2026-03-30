@@ -22,7 +22,7 @@ public sealed class AiWorkerService : BackgroundService
     private readonly AiWorkerOptions _options;
     private readonly ILogger<AiWorkerService> _logger;
     private readonly IServiceProvider _serviceProvider;
-    private DateTime _lastVectorSyncUtc = DateTime.MinValue;
+    private DateTime _lastVectorSyncUtc = DateTime.UtcNow;
 
     public AiWorkerService(
         Db db,
@@ -48,10 +48,30 @@ public sealed class AiWorkerService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            await SyncVectorsIfNeededAsync(stoppingToken);
-            await ProcessQueueAsync(stoppingToken);
-            await ProcessLlmQueueAsync(stoppingToken);
-            await ProcessSkillQueueAsync(stoppingToken);
+            try
+            {
+                await SyncVectorsIfNeededAsync(stoppingToken);
+            }
+            catch (Exception ex) { _logger.LogWarning(ex, "SyncVectors failed, skipping"); }
+
+            try
+            {
+                await ProcessQueueAsync(stoppingToken);
+            }
+            catch (Exception ex) { _logger.LogWarning(ex, "ProcessQueue failed, skipping"); }
+
+            try
+            {
+                await ProcessLlmQueueAsync(stoppingToken);
+            }
+            catch (Exception ex) { _logger.LogWarning(ex, "ProcessLlmQueue failed, skipping"); }
+
+            try
+            {
+                await ProcessSkillQueueAsync(stoppingToken);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "ProcessSkillQueue failed"); }
+
             _logger.LogInformation("AI Worker cycle completed.");
             await Task.Delay(TimeSpan.FromSeconds(_options.PollSeconds), stoppingToken);
         }

@@ -44,9 +44,16 @@ IHost host = Host.CreateDefaultBuilder(args)
         {
             var baseUrl = Environment.GetEnvironmentVariable("OLLAMA_BASE_URL");
             client.BaseAddress = new Uri(!string.IsNullOrWhiteSpace(baseUrl) ? baseUrl : "http://localhost:11434");
+            client.Timeout = TimeSpan.FromMinutes(10);
         });
-        services.AddHttpClient("gemini");
-        services.AddHttpClient("claude");
+        services.AddHttpClient("gemini", client =>
+        {
+            client.BaseAddress = new Uri("https://generativelanguage.googleapis.com");
+        });
+        services.AddHttpClient("claude", client =>
+        {
+            client.BaseAddress = new Uri("https://api.anthropic.com");
+        });
         services.AddHostedService<AiWorkerService>();
     })
     .Build();

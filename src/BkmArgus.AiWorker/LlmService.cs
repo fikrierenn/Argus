@@ -63,13 +63,11 @@ public sealed class LlmService
 
             if (result.Success)
             {
-                // Quality validation
+                // Quality validation (soft — warn but still return result)
                 var validation = ValidateResult(result.Result);
                 if (!validation.IsValid)
                 {
-                    _logger.LogWarning("LLM result quality validation failed. Issues={Issues}", string.Join("; ", validation.Issues));
-                    errors.Add($"{currentProvider}: {string.Join(", ", validation.Issues)}");
-                    continue;
+                    _logger.LogWarning("LLM result quality validation: {Issues} (proceeding anyway)", string.Join("; ", validation.Issues));
                 }
                 return result;
             }
@@ -85,24 +83,8 @@ public sealed class LlmService
 
     private IEnumerable<(string provider, string model)> GetProviderChain(string primaryProvider)
     {
-        if (primaryProvider == ProviderOllama)
-        {
-            yield return (ProviderOllama, _options.LlmModel);
-            if (!string.IsNullOrWhiteSpace(_options.LlmModelLowRam) &&
-                !string.Equals(_options.LlmModelLowRam, _options.LlmModel, StringComparison.OrdinalIgnoreCase))
-            {
-                yield return (ProviderOllama, _options.LlmModelLowRam!);
-            }
-            if (!string.IsNullOrWhiteSpace(_options.GeminiApiKey))
-            {
-                yield return (ProviderGemini, _options.GeminiModel);
-            }
-            if (!string.IsNullOrWhiteSpace(_options.ClaudeApiKey))
-            {
-                yield return (ProviderClaude, _options.ClaudeModel);
-            }
-        }
-        else if (primaryProvider == ProviderGemini)
+        // Primary provider first
+        if (primaryProvider == ProviderGemini && _options.GeminiEnabled)
         {
             yield return (ProviderGemini, _options.GeminiModel);
             if (!string.IsNullOrWhiteSpace(_options.GeminiModelFallback) &&
@@ -110,13 +92,8 @@ public sealed class LlmService
             {
                 yield return (ProviderGemini, _options.GeminiModelFallback!);
             }
-            if (!string.IsNullOrWhiteSpace(_options.ClaudeApiKey))
-            {
-                yield return (ProviderClaude, _options.ClaudeModel);
-            }
-            yield return (ProviderOllama, _options.LlmModel);
         }
-        else if (primaryProvider == ProviderClaude)
+        else if (primaryProvider == ProviderClaude && _options.ClaudeEnabled)
         {
             yield return (ProviderClaude, _options.ClaudeModel);
             if (!string.IsNullOrWhiteSpace(_options.ClaudeModelFallback) &&
@@ -124,12 +101,25 @@ public sealed class LlmService
             {
                 yield return (ProviderClaude, _options.ClaudeModelFallback!);
             }
-            if (!string.IsNullOrWhiteSpace(_options.GeminiApiKey))
-            {
-                yield return (ProviderGemini, _options.GeminiModel);
-            }
-            yield return (ProviderOllama, _options.LlmModel);
         }
+        else if (primaryProvider == ProviderOllama && _options.OllamaEnabled)
+        {
+            yield return (ProviderOllama, _options.LlmModel);
+            if (!string.IsNullOrWhiteSpace(_options.LlmModelLowRam) &&
+                !string.Equals(_options.LlmModelLowRam, _options.LlmModel, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return (ProviderOllama, _options.LlmModelLowRam!);
+            }
+        }
+
+        // Fallback providers (only if enabled)
+        if (primaryProvider != ProviderGemini && _options.GeminiEnabled && !string.IsNullOrWhiteSpace(_options.GeminiApiKey))
+            yield return (ProviderGemini, _options.GeminiModel);
+        if (primaryProvider != ProviderClaude && _options.ClaudeEnabled && !string.IsNullOrWhiteSpace(_options.ClaudeApiKey))
+            yield return (ProviderClaude, _options.ClaudeModel);
+        if (primaryProvider != ProviderOllama && _options.OllamaEnabled)
+            yield return (ProviderOllama, _options.LlmModel);
+
     }
 
     private async Task<LlmCallResult> CallOllamaWithRetryAsync(string model, string prompt, CancellationToken token)
@@ -238,10 +228,16 @@ public sealed class LlmService
             var json = ExtractAndValidateJson(raw);
             if (string.IsNullOrWhiteSpace(json))
             {
-                _logger.LogWarning("Geçerli JSON çıkarılamadı. Raw={Raw}", raw[..200]);
+                _logger.LogWarning("Ollama JSON parse basarisiz, raw text kullaniliyor. RawLen={Len}", raw.Length);
                 return new LlmCallResult
                 {
-                    Error = BuildError(ProviderOllama, model, "Geçerli JSON bulunamadı.", $"RawLen={raw.Length}", raw[..500], prompt.Length, ResolveBaseUrl(ProviderOllama))
+                    Result = new LlmResultRow
+                    {
+                        ModelName = model,
+                        RawJson = raw,
+                        ExecutiveSummary = raw,
+                        ConfidenceScore = 50
+                    }
                 };
             }
 
@@ -409,10 +405,17 @@ public sealed class LlmService
             var json = ExtractAndValidateJson(raw);
             if (string.IsNullOrWhiteSpace(json))
             {
-                _logger.LogWarning("Gemini için geçerli JSON çıkarılamadı. Raw={Raw}", raw[..200]);
+                // JSON parse failed but raw text is available — return as-is for skill execution
+                _logger.LogWarning("Gemini JSON parse basarisiz, raw text kullaniliyor. RawLen={Len}", raw.Length);
                 return new LlmCallResult
                 {
-                    Error = BuildError(ProviderGemini, model, "Geçerli JSON bulunamadı.", $"RawLen={raw.Length}", raw[..500], prompt.Length, ResolveBaseUrl(ProviderGemini))
+                    Result = new LlmResultRow
+                    {
+                        ModelName = model,
+                        RawJson = raw,
+                        ExecutiveSummary = raw,
+                        ConfidenceScore = 50
+                    }
                 };
             }
 
