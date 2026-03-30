@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using BkmArgus.Infrastructure;
 using Dapper;
 using Microsoft.Data.SqlClient;
@@ -8,11 +9,13 @@ namespace BkmArgus.Web.Data;
 public sealed class SqlDb
 {
     private readonly string _connectionString;
+    private readonly ILogger<SqlDb> _logger;
 
-    public SqlDb(IConfiguration configuration)
+    public SqlDb(IConfiguration configuration, ILogger<SqlDb> logger)
     {
         // BkmDenetimConnection: BKM_DENETIM_CONN > BkmDenetim > BkmArgus (birleşik repo uyumu)
         _connectionString = BkmDenetimConnection.Resolve(configuration);
+        _logger = logger;
     }
 
     public async Task<bool> CanConnectAsync()
@@ -50,30 +53,44 @@ public sealed class SqlDb
 
     public async Task<List<T>> QueryAsync<T>(string storedProcedure, object? parameters = null)
     {
+        var sw = Stopwatch.StartNew();
         await using var connection = new SqlConnection(_connectionString);
         var results = await connection.QueryAsync<T>(
             storedProcedure,
             parameters,
             commandType: CommandType.StoredProcedure);
+        sw.Stop();
+        if (sw.ElapsedMilliseconds > 500)
+            _logger.LogWarning("[SLOW SP] {StoredProcedure}: {ElapsedMs}ms", storedProcedure, sw.ElapsedMilliseconds);
         return results.AsList();
     }
 
     public async Task<T?> QuerySingleAsync<T>(string storedProcedure, object? parameters = null)
     {
+        var sw = Stopwatch.StartNew();
         await using var connection = new SqlConnection(_connectionString);
-        return await connection.QuerySingleOrDefaultAsync<T>(
+        var result = await connection.QuerySingleOrDefaultAsync<T>(
             storedProcedure,
             parameters,
             commandType: CommandType.StoredProcedure);
+        sw.Stop();
+        if (sw.ElapsedMilliseconds > 500)
+            _logger.LogWarning("[SLOW SP] {StoredProcedure}: {ElapsedMs}ms", storedProcedure, sw.ElapsedMilliseconds);
+        return result;
     }
 
     public async Task<int> ExecuteAsync(string storedProcedure, object? parameters = null)
     {
+        var sw = Stopwatch.StartNew();
         await using var connection = new SqlConnection(_connectionString);
-        return await connection.ExecuteAsync(
+        var rows = await connection.ExecuteAsync(
             storedProcedure,
             parameters,
             commandType: CommandType.StoredProcedure);
+        sw.Stop();
+        if (sw.ElapsedMilliseconds > 500)
+            _logger.LogWarning("[SLOW SP] {StoredProcedure}: {ElapsedMs}ms", storedProcedure, sw.ElapsedMilliseconds);
+        return rows;
     }
 
     public sealed class DbInfo
