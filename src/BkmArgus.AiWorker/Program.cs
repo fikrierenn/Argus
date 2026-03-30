@@ -1,4 +1,5 @@
 using BkmArgus.AiWorker;
+using BkmArgus.AiWorker.Skills;
 using BkmArgus.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,6 +27,8 @@ IHost host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<SemanticMemoryService>();
         services.AddSingleton<LlmService>();
         services.AddSingleton<LmRules>();
+        services.AddSingleton<SkillRegistry>();
+        services.AddScoped<SkillExecutor>();
         services.AddOptions<AiWorkerOptions>()
             .BindConfiguration("AiWorker")
             .Configure<IConfiguration>((options, config) =>
