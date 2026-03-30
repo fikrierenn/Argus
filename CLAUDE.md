@@ -44,7 +44,10 @@ D:\Dev\BkmArgus\
 │   ├── 00_create_db.sql ... 15_ai_enhancement_v2.sql (base schema)
 │   ├── 20_migration_audit.sql   (audit schema + tables)
 │   ├── 21_sps_audit.sql         (audit CRUD + analysis SPs)
-│   └── 22_sps_audit_dashboard.sql (audit reporting SPs)
+│   ├── 22_sps_audit_dashboard.sql (audit reporting SPs)
+│   ├── 30_sps_ref_rpt_english.sql  (20 English ref/rpt SPs)
+│   ├── 31_sps_ai_log_etl_english.sql (14 English ai/log/etl SPs)
+│   └── 32_sps_remaining_english.sql  (15 English dashboard/product/personnel SPs)
 ├── docs/                      (architecture, plans, PRD, algorithms)
 ├── _archive/icdenetim/        (original IcDenetim code - reference only)
 └── src/
@@ -54,6 +57,23 @@ D:\Dev\BkmArgus\
     ├── BkmArgus.McpServer/    (schema extraction REST API)
     └── SchemaManagement.Library/ (DbUp migration wrapper)
 ```
+
+## Web Features (Razor Pages)
+All pages under `src/BkmArgus.Web/Features/`:
+- **Index** — Homepage with KPI cards
+- **Dashboard** — ERP Risk / Saha Denetim tabs
+- **Risk** — Filterable risk navigator with sidebar
+- **Dof** — Kanban board with SLA tracking
+- **Ai** — LM/LLM queue + results, Detay subpage
+- **Audit** — Index/Create/Edit/Detail/Items/Reports (field audit CRUD)
+- **Ref** — 8-tab reference data management
+- **Yonetim** — Personnel integration + user mapping
+- **Ayarlar** — User + system settings (static UI)
+
+## Custom Slash Commands (.claude/commands/)
+`/create-sp`, `/sp-inspect`, `/rename-sp`, `/rename-property`, `/migrate-file`, `/build-check`,
+`/db-check`, `/db-migrate`, `/db-query`, `/architect`, `/code-review`, `/deploy-check`,
+`/faz-plan`, `/port-feature`, `/project-status`, `/test-pipeline`
 
 ## Database Schema (8 schemas, 40 tables, ALL ENGLISH)
 
@@ -166,7 +186,8 @@ Request → LM Rules (fast, deterministic)
 ## Migration Status
 - FAZ 0: Project setup, Git init ✅
 - FAZ 1: DB standardization (Turkish→English, dbo→audit) ✅
-- FAZ 2: SP update + C# code alignment ← NEXT
-- FAZ 3: RBAC + Auth
-- FAZ 4: Missing features (DOF state machine, notifications, correlation, export)
-- FAZ 5: Test + deploy
+- FAZ 2: SP + C# code alignment (Turkish→English refs) ✅
+- FAZ 3: Audit UI port (6 pages) + Dashboard tabs + Claude API ✅
+- FAZ 4: AI layers (anomaly detection, LLM narrative, Action Engine) ← NEXT
+- FAZ 5: RBAC + Auth
+- FAZ 6: Test + deploy
