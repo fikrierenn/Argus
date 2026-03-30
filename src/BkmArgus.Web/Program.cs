@@ -24,6 +24,7 @@ builder.Services.AddRazorPages(options =>
 });
 builder.Services.AddSingleton<BkmArgus.Web.Data.SqlDb>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<NotificationService>();
 
 var app = builder.Build();
 
@@ -45,5 +46,23 @@ app.UseAuthorization();
 app.MapStaticAssets();
 app.MapRazorPages()
    .WithStaticAssets();
+
+// --- Notification API endpoints ---
+app.MapPost("/api/notifications/mark-read", async (HttpContext ctx, NotificationService svc) =>
+{
+    if (!int.TryParse(ctx.Request.Query["id"], out var notifId)) return Results.BadRequest();
+    var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
+    await svc.MarkReadAsync(notifId, userId);
+    return Results.Ok();
+}).RequireAuthorization();
+
+app.MapPost("/api/notifications/mark-all-read", async (HttpContext ctx, NotificationService svc) =>
+{
+    var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
+    await svc.MarkAllReadAsync(userId);
+    return Results.Ok();
+}).RequireAuthorization();
 
 app.Run();

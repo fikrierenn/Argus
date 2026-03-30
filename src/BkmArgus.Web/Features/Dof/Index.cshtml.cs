@@ -1,46 +1,65 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using BkmArgus.Web.Data;
 
-namespace BkmArgus.Web.Features;
+namespace BkmArgus.Web.Features.Dof;
 
-public class DofModel : PageModel
+public class IndexModel : PageModel
 {
-    private static readonly IReadOnlyList<string> ColumnList = new[]
-    {
-        "Taslak",
-        "Acik",
-        "Incelemede",
-        "Kapandi"
-    };
+    private readonly SqlDb _db;
+    public IndexModel(SqlDb db) => _db = db;
 
-    public IReadOnlyList<string> Columns => ColumnList;
-    public IReadOnlyList<DofCard> Cards { get; private set; } = Array.Empty<DofCard>();
+    public IReadOnlyList<FindingRow> Findings { get; private set; } = Array.Empty<FindingRow>();
+    public DofKpiRow? Kpi { get; private set; }
 
-    public void OnGet()
+    // Kanban columns
+    public IEnumerable<FindingRow> Draft => Findings.Where(f => f.Status == "DRAFT");
+    public IEnumerable<FindingRow> Open => Findings.Where(f => f.Status == "OPEN");
+    public IEnumerable<FindingRow> InProgress => Findings.Where(f => f.Status == "IN_PROGRESS");
+    public IEnumerable<FindingRow> PendingValidation => Findings.Where(f => f.Status == "PENDING_VALIDATION");
+    public IEnumerable<FindingRow> Closed => Findings.Where(f => f.Status is "CLOSED" or "REJECTED");
+
+    public async Task OnGetAsync()
     {
-        Cards = new List<DofCard>
-        {
-            new(501, 101, "Girissiz satis kontrolu", "Mekan-4477", "Urun-1120", "F. Yilmaz", "Taslak", "2 gun", "Kritik"),
-            new(502, 103, "Sayim duzeltme sapmasi", "Mekan-12", "Urun-88", "S. Kara", "Acik", "5 gun", "Yuksek"),
-            new(503, 104, "Iade orani artisi", "Mekan-18", "Urun-912", "E. Demir", "Acik", "8 gun", "Orta"),
-            new(504, 105, "Net birikim kontrolu", "Mekan-22", "Urun-508", "T. Aydin", "Incelemede", "3 gun", "Yuksek"),
-            new(505, 101, "Stok yok uyari", "Mekan-4477", "Urun-1120", "F. Yilmaz", "Kapandi", "0 gun", "Kritik")
-        };
+        Findings = await _db.QueryAsync<FindingRow>("dof.sp_Finding_List", new { Top = 100 });
+        var kpi = await _db.QuerySingleAsync<DofKpiRow>("dof.sp_Finding_Dashboard");
+        Kpi = kpi ?? new DofKpiRow();
     }
 
-    public IEnumerable<DofCard> CardsByStatus(string status) =>
-        Cards.Where(card => string.Equals(card.Durum, status, StringComparison.OrdinalIgnoreCase));
+    public sealed record FindingRow
+    {
+        public long DofId { get; init; }
+        public string Title { get; init; } = "";
+        public string? Description { get; init; }
+        public int RiskLevel { get; init; }
+        public string Status { get; init; } = "";
+        public string? AssignedTo { get; init; }
+        public DateTime? SlaDueDate { get; init; }
+        public string? FindingSignature { get; init; }
+        public DateTime CreatedAt { get; init; }
 
-    public int CountByStatus(string status) =>
-        Cards.Count(card => string.Equals(card.Durum, status, StringComparison.OrdinalIgnoreCase));
+        public string RiskLabel => RiskLevel switch
+        {
+            >= 5 => "Kritik",
+            >= 4 => "Yuksek",
+            >= 3 => "Orta",
+            _ => "Dusuk"
+        };
 
-    public record DofCard(
-        int Id,
-        int UrunId,
-        string Baslik,
-        string Mekan,
-        string Urun,
-        string Sorumlu,
-        string Durum,
-        string SLA,
-        string Seviye);
+        public int SlaDaysLeft => SlaDueDate.HasValue
+            ? (int)(SlaDueDate.Value.Date - DateTime.Today).TotalDays
+            : 0;
+    }
+
+    public sealed record DofKpiRow
+    {
+        public int TotalCount { get; init; }
+        public int DraftCount { get; init; }
+        public int OpenCount { get; init; }
+        public int InProgressCount { get; init; }
+        public int PendingValidationCount { get; init; }
+        public int ClosedCount { get; init; }
+        public int RejectedCount { get; init; }
+        public int OverdueCount { get; init; }
+        public decimal AvgResolutionDays { get; init; }
+    }
 }
