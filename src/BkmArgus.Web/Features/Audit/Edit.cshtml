@@ -126,7 +126,7 @@
                                         </div>
                                     </div>
 
-                                    <!-- EVET / HAYIR radio buttons -->
+                                    <!-- EVET / HAYIR radio buttons + DOF -->
                                     <div class="flex shrink-0 items-center gap-2">
                                         <label class="cursor-pointer">
                                             <input type="radio" name="@fieldName" value="true"
@@ -144,6 +144,16 @@
                                                 HAYIR
                                             </span>
                                         </label>
+                                        @if (!result.IsPassed)
+                                        {
+                                            <form method="post" asp-page-handler="CreateDof" class="inline">
+                                                <input type="hidden" name="resultId" value="@result.Id" />
+                                                <button type="submit" class="rounded bg-amber-500 px-2 py-1 text-xs font-semibold text-white hover:bg-amber-600 transition-colors"
+                                                        onclick="return confirm('Bu bulgu icin DOF olusturulsun mu?')">
+                                                    DOF
+                                                </button>
+                                            </form>
+                                        }
                                     </div>
                                 </div>
                             </div>

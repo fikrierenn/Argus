@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BkmArgus.Web.Data;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace BkmArgus.Web.Features.Audit;
@@ -59,6 +60,18 @@ public class EditModel : PageModel
 
         TempData["StatusMessage"] = "Denetim kesinlestirildi ve analiz pipeline tamamlandi.";
         return RedirectToPage("Detail", new { id = Id });
+    }
+
+    public async Task<IActionResult> OnPostCreateDofAsync(int resultId)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+        await _db.ExecuteAsync("audit.sp_Analysis_CreateDofForResult", new
+        {
+            AuditResultId = resultId,
+            CreatedByUserId = userId
+        });
+        TempData["StatusMessage"] = "DOF olusturuldu.";
+        return RedirectToPage("Edit", new { id = Id });
     }
 
     public sealed record AuditHeader

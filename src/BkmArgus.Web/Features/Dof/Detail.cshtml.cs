@@ -15,6 +15,7 @@ public class DetailModel : PageModel
     public FindingDetailRow? Finding { get; private set; }
     public IReadOnlyList<StatusHistoryRow> History { get; private set; } = Array.Empty<StatusHistoryRow>();
     public IReadOnlyList<CommentRow> Comments { get; private set; } = Array.Empty<CommentRow>();
+    public IReadOnlyList<AttachmentRow> Attachments { get; private set; } = Array.Empty<AttachmentRow>();
 
     public async Task<IActionResult> OnGetAsync()
     {
@@ -23,6 +24,7 @@ public class DetailModel : PageModel
 
         History = await _db.QueryAsync<StatusHistoryRow>("dof.sp_Finding_History", new { DofId = Id });
         Comments = await _db.QueryAsync<CommentRow>("dof.sp_Finding_Comments", new { DofId = Id });
+        Attachments = await _db.QueryAsync<AttachmentRow>("dof.sp_Attachment_List", new { DofId = Id });
 
         return Page();
     }
@@ -57,6 +59,74 @@ public class DetailModel : PageModel
             AuthorUserId = userId,
             CommentText = commentText.Trim()
         });
+
+        return RedirectToPage(new { id = Id });
+    }
+
+    public async Task<IActionResult> OnPostUploadAsync(IFormFile file, string? description)
+    {
+        if (file == null || file.Length == 0)
+        {
+            TempData["StatusMessage"] = "Dosya secilmedi.";
+            return RedirectToPage(new { id = Id });
+        }
+
+        var allowedTypes = new[] { ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".txt" };
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!allowedTypes.Contains(ext))
+        {
+            TempData["StatusMessage"] = "Desteklenmeyen dosya tipi.";
+            return RedirectToPage(new { id = Id });
+        }
+        if (file.Length > 10 * 1024 * 1024)
+        {
+            TempData["StatusMessage"] = "Dosya 10MB'dan buyuk olamaz.";
+            return RedirectToPage(new { id = Id });
+        }
+
+        var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "dof");
+        Directory.CreateDirectory(uploadsDir);
+        var fileName = $"{Id}_{Guid.NewGuid():N}{ext}";
+        var filePath = Path.Combine(uploadsDir, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+            await file.CopyToAsync(stream);
+
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+        await _db.ExecuteAsync("dof.sp_Attachment_Add", new
+        {
+            DofId = Id,
+            FileName = file.FileName,
+            FilePath = $"/uploads/dof/{fileName}",
+            FileSize = file.Length,
+            ContentType = file.ContentType,
+            UploadedByUserId = userId,
+            Description = description
+        });
+
+        TempData["StatusMessage"] = "Dosya yuklendi.";
+        return RedirectToPage(new { id = Id });
+    }
+
+    public async Task<IActionResult> OnPostDeleteAttachmentAsync(int attachmentId)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+
+        var result = await _db.QuerySingleAsync<DeleteAttachmentResult>(
+            "dof.sp_Attachment_Delete", new { AttachmentId = attachmentId, UserId = userId });
+
+        if (result?.DeletedFilePath is not null)
+        {
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", result.DeletedFilePath.TrimStart('/'));
+            if (System.IO.File.Exists(fullPath))
+                System.IO.File.Delete(fullPath);
+
+            TempData["StatusMessage"] = "Dosya silindi.";
+        }
+        else
+        {
+            TempData["StatusMessage"] = "Dosya silinemedi (yetki yok).";
+        }
 
         return RedirectToPage(new { id = Id });
     }
@@ -136,5 +206,22 @@ public class DetailModel : PageModel
         public string? AuthorName { get; init; }
         public string CommentText { get; init; } = "";
         public DateTime CreatedAt { get; init; }
+    }
+
+    public sealed record AttachmentRow
+    {
+        public int Id { get; init; }
+        public string FileName { get; init; } = "";
+        public string FilePath { get; init; } = "";
+        public long FileSize { get; init; }
+        public string? ContentType { get; init; }
+        public string? UploadedByName { get; init; }
+        public string? Description { get; init; }
+        public DateTime CreatedAt { get; init; }
+    }
+
+    private sealed record DeleteAttachmentResult
+    {
+        public string? DeletedFilePath { get; init; }
     }
 }

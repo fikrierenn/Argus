@@ -15,6 +15,13 @@
     };
 }
 
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        @msg
+    </div>
+}
+
 <!-- Header -->
 <div class="flex flex-wrap items-center justify-between gap-3">
     <div class="flex items-center gap-3">
@@ -55,6 +62,15 @@
         </div>
     </div>
     <div class="flex items-center gap-3">
+        @if (Model.Audit.IsFinalized)
+        {
+            <form method="post" asp-page-handler="CreateAllDof">
+                <button type="submit" class="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition-colors"
+                        onclick="return confirm('Tum basarisiz bulgular icin DOF olusturulsun mu?')">
+                    Tum Bulgular icin DOF Olustur
+                </button>
+            </form>
+        }
         @if (!Model.Audit.IsFinalized)
         {
             <a asp-page="Edit" asp-route-id="@Model.Id"
@@ -159,8 +175,8 @@
                             </div>
                         </div>
 
-                        <!-- Pass/Fail badge -->
-                        <div class="shrink-0">
+                        <!-- Pass/Fail badge + DOF -->
+                        <div class="flex shrink-0 items-center gap-2">
                             @if (result.IsPassed)
                             {
                                 <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white">
@@ -174,6 +190,16 @@
                                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     HAYIR
                                 </span>
+                                @if (Model.Audit!.IsFinalized)
+                                {
+                                    <form method="post" asp-page-handler="CreateDof" class="inline">
+                                        <input type="hidden" name="resultId" value="@result.Id" />
+                                        <button type="submit" class="rounded bg-amber-500 px-2 py-1 text-xs font-semibold text-white hover:bg-amber-600 transition-colors"
+                                                onclick="return confirm('Bu bulgu icin DOF olusturulsun mu?')">
+                                            DOF
+                                        </button>
+                                    </form>
+                                }
                             }
                         </div>
                     </div>
