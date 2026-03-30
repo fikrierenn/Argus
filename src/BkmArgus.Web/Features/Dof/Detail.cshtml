@@ -1,0 +1,219 @@
+@page "{id:long}"
+@model BkmArgus.Web.Features.Dof.DetailModel
+@attribute [Authorize]
+@{
+    ViewData["Title"] = "DOF Detay";
+    ViewData["Subtitle"] = Model.Finding?.Title ?? "";
+
+    string StatusBadge(string status) => status switch
+    {
+        "DRAFT"              => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600",
+        "OPEN"               => "rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700",
+        "IN_PROGRESS"        => "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700",
+        "PENDING_VALIDATION" => "rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700",
+        "CLOSED"             => "rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700",
+        "REJECTED"           => "rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-bkm-red",
+        _                    => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
+    };
+
+    string RiskBadge(string riskLabel) => riskLabel switch
+    {
+        "Kritik" => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
+        "Yuksek" => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
+        "Orta"   => "rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700",
+        _        => "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+    };
+
+    string TransitionBtnClass(string status) => status switch
+    {
+        "REJECTED" or "IN_PROGRESS" when Model.Finding?.Status == "PENDING_VALIDATION"
+            => "rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50",
+        "REJECTED"
+            => "rounded-full border border-red-300 px-4 py-2 text-sm font-semibold text-bkm-red hover:bg-red-50",
+        "CLOSED"
+            => "rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700",
+        _
+            => "rounded-full bg-bkm-red px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+    };
+
+    string StatusLabel(string status) => status switch
+    {
+        "DRAFT" => "Taslak",
+        "OPEN" => "Acik",
+        "IN_PROGRESS" => "Devam Ediyor",
+        "PENDING_VALIDATION" => "Onay Bekliyor",
+        "CLOSED" => "Kapandi",
+        "REJECTED" => "Reddedildi",
+        _ => status
+    };
+
+    var f = Model.Finding!;
+}
+
+<!-- Header -->
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+        <a asp-page="Index" class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M15 19l-7-7 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <div>
+            <div class="flex items-center gap-2">
+                <h2 class="text-lg font-semibold">@f.Title</h2>
+                <span class="@StatusBadge(f.Status)">@f.StatusLabel</span>
+                <span class="@RiskBadge(f.RiskLabel)">@f.RiskLabel</span>
+            </div>
+            <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                @if (f.FindingSignature is not null)
+                {
+                    <span class="font-mono">@f.FindingSignature</span>
+                }
+                <span>Olusturulma: @f.CreatedAt.ToString("dd.MM.yyyy HH:mm")</span>
+                @if (f.CreatedByName is not null)
+                {
+                    <span>Olusturan: @f.CreatedByName</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid gap-6 lg:grid-cols-3">
+    <!-- Left: Info + Description -->
+    <div class="space-y-6 lg:col-span-2">
+        <!-- Info Cards -->
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="text-[11px] font-medium text-slate-400">Kaynak</div>
+                <div class="mt-1 text-sm font-semibold text-slate-700">@(f.SourceKey ?? "-")</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="text-[11px] font-medium text-slate-400">Sorumlu</div>
+                <div class="mt-1 text-sm font-semibold text-slate-700">@(f.AssignedTo ?? "-")</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="text-[11px] font-medium text-slate-400">SLA Tarihi</div>
+                <div class="mt-1 text-sm font-semibold text-slate-700">
+                    @if (f.SlaDueDate.HasValue)
+                    {
+                        @f.SlaDueDate.Value.ToString("dd.MM.yyyy")
+                        <span class="ml-1 text-[10px] @(f.SlaDaysLeft < 0 ? "text-bkm-red" : f.SlaDaysLeft <= 2 ? "text-amber-600" : "text-slate-400")">
+                            (@(f.SlaDaysLeft < 0 ? $"{Math.Abs(f.SlaDaysLeft)}g gecikme" : f.SlaDaysLeft == 0 ? "bugun" : $"{f.SlaDaysLeft}g kaldi"))
+                        </span>
+                    }
+                    else
+                    {
+                        <text>-</text>
+                    }
+                </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="text-[11px] font-medium text-slate-400">Risk Seviyesi</div>
+                <div class="mt-1 text-sm font-semibold text-slate-700">@f.RiskLevel / 5</div>
+            </div>
+        </div>
+
+        <!-- Description -->
+        @if (!string.IsNullOrWhiteSpace(f.Description))
+        {
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+                <div class="mb-2 text-sm font-semibold text-slate-700">Aciklama</div>
+                <div class="text-sm leading-relaxed text-slate-600 whitespace-pre-line">@f.Description</div>
+            </div>
+        }
+
+        <!-- Comments -->
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="mb-4 text-sm font-semibold text-slate-700">Yorumlar (@Model.Comments.Count)</div>
+
+            @if (Model.Comments.Count > 0)
+            {
+                <div class="space-y-4 mb-6">
+                    @foreach (var c in Model.Comments)
+                    {
+                        <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                            <div class="flex items-center justify-between text-xs text-slate-500">
+                                <span class="font-semibold text-slate-700">@(c.AuthorName ?? "Bilinmeyen")</span>
+                                <span>@c.CreatedAt.ToString("dd.MM.yyyy HH:mm")</span>
+                            </div>
+                            <div class="mt-2 text-sm text-slate-600 whitespace-pre-line">@c.CommentText</div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="mb-4 text-center text-xs text-slate-400 py-4">Henuz yorum yok</div>
+            }
+
+            <form method="post" asp-page-handler="Comment" class="space-y-3">
+                <textarea name="commentText" rows="3" required
+                          class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm focus:border-bkm-red focus:outline-none focus:ring-1 focus:ring-bkm-red"
+                          placeholder="Yorum ekle..."></textarea>
+                <div class="flex justify-end">
+                    <button type="submit"
+                            class="rounded-full bg-bkm-red px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">
+                        Gonder
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Right Sidebar: Transitions + History -->
+    <div class="space-y-6">
+        <!-- Transition Actions -->
+        @if (Model.AllowedTransitions.Count > 0)
+        {
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+                <div class="mb-3 text-sm font-semibold text-slate-700">Durum Degistir</div>
+                <div class="space-y-3">
+                    @foreach (var (status, label) in Model.AllowedTransitions)
+                    {
+                        <form method="post" asp-page-handler="Transition" class="space-y-2">
+                            <input type="hidden" name="newStatus" value="@status" />
+                            <textarea name="reason" rows="2"
+                                      class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-bkm-red focus:outline-none focus:ring-1 focus:ring-bkm-red"
+                                      placeholder="Gecis nedeni (opsiyonel)"></textarea>
+                            <button type="submit" class="w-full @TransitionBtnClass(status)">
+                                @label
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Status History Timeline -->
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="mb-4 text-sm font-semibold text-slate-700">Durum Gecmisi</div>
+
+            @if (Model.History.Count > 0)
+            {
+                <div class="relative space-y-4 pl-6 before:absolute before:left-[7px] before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-slate-200">
+                    @foreach (var h in Model.History)
+                    {
+                        <div class="relative">
+                            <div class="absolute -left-6 top-1.5 h-3 w-3 rounded-full border-2 border-white bg-slate-400 shadow-sm"></div>
+                            <div class="text-xs">
+                                <span class="font-semibold text-slate-700">@h.ToStatusLabel</span>
+                                <span class="text-slate-400 ml-1">@h.ChangedAt.ToString("dd.MM.yyyy HH:mm")</span>
+                            </div>
+                            @if (h.ChangedByName is not null)
+                            {
+                                <div class="text-[11px] text-slate-500">@h.ChangedByName</div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(h.Reason))
+                            {
+                                <div class="mt-1 text-[11px] text-slate-500 italic">@h.Reason</div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="text-center text-xs text-slate-400 py-4">Gecmis yok</div>
+            }
+        </div>
+    </div>
+</div>
