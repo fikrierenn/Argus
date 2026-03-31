@@ -279,10 +279,10 @@ else if (Model.ActiveTab == "insights")
                 <thead class="text-left text-xs uppercase text-slate-400">
                     <tr>
                         <th class="px-3 py-2">Seviye</th>
-                        <th class="px-3 py-2">Baslik</th>
+                        <th class="px-3 py-2">Tip</th>
+                        <th class="px-3 py-2">Baslik / Kaynak</th>
                         <th class="px-3 py-2">Aciklama</th>
-                        <th class="px-3 py-2">Kaynak</th>
-                        <th class="px-3 py-2">Olusturma</th>
+                        <th class="px-3 py-2">Tarih</th>
                         <th class="px-3 py-2">Aksiyon</th>
                     </tr>
                 </thead>
@@ -297,15 +297,32 @@ else if (Model.ActiveTab == "insights")
                     {
                         @foreach (var row in Model.Insights)
                         {
+                            var insightType = (string)(row.InsightType ?? "");
+                            var entityType = (string)(row.EntityType ?? "");
+                            var entityId = (int?)row.EntityId;
+                            var entityName = (string)(row.EntityName ?? "");
                             <tr class="hover:bg-slate-50">
                                 <td class="px-3 py-2">
                                     <span class="@InsightSeverityBadge((string)(row.Severity ?? ""))">@(row.Severity ?? "-")</span>
                                 </td>
-                                <td class="px-3 py-2 font-medium">@(row.Title ?? "-")</td>
-                                <td class="px-3 py-2 text-xs text-slate-600 max-w-xs truncate" title="@(row.Description ?? "")">
-                                    @ShortText((string)(row.Description ?? ""), 100)
+                                <td class="px-3 py-2 text-xs text-slate-500">
+                                    @(insightType switch {
+                                        "DENETIM_PLANLA" => "Denetim Planla",
+                                        "TREND_UYARI" => "Trend Uyarisi",
+                                        "ANOMALI_TESPIT" => "Anomali",
+                                        _ => insightType
+                                    })
                                 </td>
-                                <td class="px-3 py-2 text-xs text-slate-500">@(row.Source ?? "-")</td>
+                                <td class="px-3 py-2">
+                                    <div class="font-medium text-sm">@(row.Title ?? "-")</div>
+                                    @if (!string.IsNullOrWhiteSpace(entityName))
+                                    {
+                                        <div class="text-xs text-slate-500">@entityType: @entityName</div>
+                                    }
+                                </td>
+                                <td class="px-3 py-2 text-xs text-slate-600 max-w-xs" title="@(row.Description ?? "")">
+                                    @ShortText((string)(row.Description ?? ""), 120)
+                                </td>
                                 <td class="px-3 py-2 text-xs text-slate-500">
                                     @{
                                         var insightDate = (DateTime?)row.CreatedAt;
@@ -313,8 +330,15 @@ else if (Model.ActiveTab == "insights")
                                     @(insightDate?.ToString("dd.MM.yyyy HH:mm") ?? "-")
                                 </td>
                                 <td class="px-3 py-2">
-                                    <a class="rounded-full bg-bkm-red px-3 py-1 text-xs font-semibold text-white"
-                                       asp-page="/Dof/Index">Aksiyona Al</a>
+                                    <div class="flex flex-col gap-1">
+                                        @if (entityType == "MEKAN" && entityId.HasValue)
+                                        {
+                                            <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600"
+                                               href="/Risk?mekan=@entityId">Urunleri Gor</a>
+                                        }
+                                        <a class="rounded-full bg-bkm-red px-3 py-1 text-xs font-semibold text-white"
+                                           asp-page="/Dof/Index">Aksiyona Al</a>
+                                    </div>
                                 </td>
                             </tr>
                         }

@@ -707,7 +707,7 @@ WHEN NOT MATCHED THEN
         {
             try
             {
-                var variables = BuildSkillVariables(item);
+                var variables = await BuildSkillVariablesAsync(connection, item);
                 var result = await skillExecutor.ExecuteAsync(item.SkillId, variables, token);
 
                 await connection.ExecuteAsync(
@@ -756,10 +756,11 @@ WHEN NOT MATCHED THEN
         }
     }
 
-    private static Dictionary<string, string> BuildSkillVariables(SkillExecutionQueueRow item)
+    private async Task<Dictionary<string, string>> BuildSkillVariablesAsync(IDbConnection connection, SkillExecutionQueueRow item)
     {
         var variables = new Dictionary<string, string>();
 
+        // Parse InputJson first (can be overridden by DB context)
         if (!string.IsNullOrEmpty(item.InputJson))
         {
             try
@@ -771,7 +772,141 @@ WHEN NOT MATCHED THEN
             catch { /* ignore malformed JSON */ }
         }
 
+        // Load DB context based on EntityType
+        try
+        {
+            switch (item.EntityType?.ToUpperInvariant())
+            {
+                case "DENETIM":
+                    await LoadAuditContextAsync(connection, item.EntityId, variables);
+                    break;
+                case "DOF":
+                    await LoadDofContextAsync(connection, item.EntityId, variables);
+                    break;
+                case "MEKAN":
+                    await LoadLocationRiskContextAsync(connection, item.EntityId, variables);
+                    break;
+                case "URUN":
+                    await LoadProductRiskContextAsync(connection, item.EntityId, variables);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "BuildSkillVariables context load failed for {EntityType}/{EntityId} — proceeding with partial context", item.EntityType, item.EntityId);
+        }
+
         return variables;
+    }
+
+    private static async Task LoadAuditContextAsync(IDbConnection connection, int auditId, Dictionary<string, string> vars)
+    {
+        var audit = await connection.QuerySingleOrDefaultAsync(
+            "audit.sp_Audit_Get",
+            new { AuditId = auditId },
+            commandType: CommandType.StoredProcedure);
+
+        if (audit == null) return;
+
+        vars["locationName"] = (string)(audit.LocationName ?? "Bilinmiyor");
+        vars["auditDate"] = ((DateTime?)audit.AuditDate)?.ToString("dd.MM.yyyy") ?? "-";
+        vars["totalItems"] = ((int?)audit.TotalItems ?? 0).ToString();
+        vars["failedItems"] = ((int?)audit.FailedItems ?? 0).ToString();
+
+        var results = (await connection.QueryAsync(
+            "SELECT AuditGroup, Area, ItemText, RiskLevel, RepeatCount, IsSystemic FROM audit.AuditResults WHERE AuditId=@AuditId AND IsPassed=0 ORDER BY RiskScore DESC",
+            new { AuditId = auditId })).ToList();
+
+        vars["failedItemsList"] = results.Count == 0
+            ? "Basarisiz bulgu bulunamadi."
+            : string.Join("\n", results.Select(r =>
+                $"- [{r.AuditGroup}/{r.Area}] {r.ItemText} (Risk: {r.RiskLevel})"));
+
+        var repeats = results.Where(r => (int)(r.RepeatCount ?? 0) > 1).ToList();
+        vars["repeatItems"] = repeats.Count == 0
+            ? "Tekrar eden madde yok."
+            : string.Join("\n", repeats.Select(r =>
+                $"- {r.ItemText} ({r.RepeatCount}x tekrar)"));
+
+        vars["semanticContext"] = "";
+    }
+
+    private static async Task LoadDofContextAsync(IDbConnection connection, int dofId, Dictionary<string, string> vars)
+    {
+        var finding = await connection.QuerySingleOrDefaultAsync(
+            "SELECT Title, Description, RiskLevel, Status FROM dof.Findings WHERE DofId=@DofId",
+            new { DofId = dofId });
+
+        if (finding == null) return;
+
+        vars["findingTitle"] = (string)(finding.Title ?? "");
+        vars["riskLevel"] = ((int?)finding.RiskLevel)?.ToString() ?? "3";
+        vars["auditGroup"] = "";
+        vars["area"] = (string)(finding.Description ?? "");
+        vars["pastDofs"] = "";
+        vars["similarCases"] = "";
+    }
+
+    private static async Task LoadLocationRiskContextAsync(IDbConnection connection, int locationId, Dictionary<string, string> vars)
+    {
+        var topProducts = (await connection.QueryAsync(
+            "rpt.sp_RiskList",
+            new { MekanCSV = locationId.ToString(), Top = 10, PageSize = 10, Page = 1, OrderBy = "SKOR", OrderDir = "DESC" },
+            commandType: CommandType.StoredProcedure)).ToList();
+
+        if (topProducts.Count == 0) return;
+
+        var first = topProducts[0];
+        vars["locationName"] = (string)(first.MekanAd ?? $"Mekan-{locationId}");
+        vars["productList"] = string.Join("\n", topProducts.Take(5).Select(p =>
+        {
+            var flags = new List<string>();
+            if ((bool?)p.FlagGirissizSatis == true) flags.Add("GirissizSatis");
+            if ((bool?)p.FlagStokYok == true) flags.Add("StokYok");
+            if ((bool?)p.FlagNetBirikim == true) flags.Add("NetBirikim");
+            if ((bool?)p.FlagIadeYuksek == true) flags.Add("IadeYuksek");
+            if ((bool?)p.FlagSayimDuzeltme == true) flags.Add("SayimDuzeltme");
+            if ((bool?)p.FlagHizliDevir == true) flags.Add("HizliDevir");
+            var flagStr = flags.Count == 0 ? "" : $" [{string.Join(", ", flags)}]";
+            return $"- {p.UrunAd} (Risk:{p.RiskSkor}){flagStr}";
+        }));
+    }
+
+    private static async Task LoadProductRiskContextAsync(IDbConnection connection, int productId, Dictionary<string, string> vars)
+    {
+        var row = await connection.QuerySingleOrDefaultAsync(
+            @"SELECT TOP 1
+                m.MekanAd, v.MekanId, u.UrunKod, u.UrunAd, v.DonemKodu, v.RiskSkor,
+                v.FlagGirissizSatis, v.FlagStokKaydiYok, v.FlagStokSifir,
+                v.FlagNetBirikim, v.FlagIadeYuksek, v.FlagSayimDuzeltmeYuk, v.FlagHizliDevir, v.StokMiktar
+              FROM rpt.vw_RiskUrunOzet_Stok v
+              LEFT JOIN src.vw_Mekan m ON m.MekanId = v.MekanId
+              LEFT JOIN src.vw_Urun u ON u.StokId = v.StokId
+              WHERE v.StokId = @StokId AND v.DonemKodu = 'Son30Gun'
+              ORDER BY v.RiskSkor DESC",
+            new { StokId = productId });
+
+        if (row == null) return;
+
+        vars["productName"] = (string)(row.UrunAd ?? $"Urun-{productId}");
+        vars["productCode"] = (string)(row.UrunKod ?? "");
+        vars["locationName"] = (string)(row.MekanAd ?? "");
+        vars["riskScore"] = ((int?)row.RiskSkor ?? 0).ToString();
+        vars["activeFlags"] = BuildProductFlagSummary(row);
+        vars["movementSummary"] = $"Stok: {row.StokMiktar}";
+        vars["semanticContext"] = "";
+    }
+
+    private static string BuildProductFlagSummary(dynamic row)
+    {
+        var flags = new List<string>();
+        if ((bool?)row.FlagGirissizSatis == true) flags.Add("GirissizSatis");
+        if ((bool?)row.FlagStokKaydiYok == true || (bool?)row.FlagStokSifir == true) flags.Add("StokYok");
+        if ((bool?)row.FlagNetBirikim == true) flags.Add("NetBirikim");
+        if ((bool?)row.FlagIadeYuksek == true) flags.Add("IadeYuksek");
+        if ((bool?)row.FlagSayimDuzeltmeYuk == true) flags.Add("SayimDuzeltme");
+        if ((bool?)row.FlagHizliDevir == true) flags.Add("HizliDevir");
+        return flags.Count == 0 ? "Aktif flag yok" : string.Join(", ", flags);
     }
 
     private static Task MarkErrorAsync(IDbConnection connection, long requestId, string error)
