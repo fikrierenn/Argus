@@ -94,7 +94,6 @@ Boş tablolar "kullanılmıyor" değil, **yazılmıyor** demek. Her biri bir bug
 - [ ] **F2. Gemini JSON parse** — ham metin fallback çalışıyor, düzgün parse edilmiyor.
 - [ ] **F3. `VectorSyncEnabled` bayrağı yok** — sync'i kapatmak için `VectorSyncMinutes`'a devasa değer vermek gerekiyordu; şu an 60'a çekilmiş ama açık bir aç/kapa bayrağı hâlâ yok.
 - [ ] **F4. `docs/` içindeki 5 çakışan plan** — `PLAN.md`, `MASTER_PLAN.md`, `BKMARGUS_PLATFORM_GECIS_PLANI_V2/V3`, `BIRLESTIRME_PLANI_DETAY`. Hangisi geçerli? Biri kalsın, gerisi `docs/archive/`.
-- [ ] **F5. Kök dizin temizliği** — `all_files_dump.txt`, `REPO_AUDIT_BUNDLE*.txt`, `utputFormat`, `temp_pw.sql`, çeşitli `.bat` dosyaları.
 
 ---
 
@@ -193,6 +192,8 @@ Kazanç: yeni ERP'ye geçişte eşleme maliyeti düşer, dış denetçiye veri t
 - [x] ✅ 2026-08-20 DB tabanlı skill registry + 10 denetim skill'i + semantik katman (`48a5bc4`)
 - [x] ✅ 2026-08-20 Cookie/HTTPS dev uyumu, login default şifre kaldırma, user-enumeration kapatma
 - [x] ✅ 2026-08-20 `bkmargus-etl` + `bkmargus-risk-model` skill dosyaları (advisor-skills referansları kapandı)
+- [x] ✅ 2026-08-21 F5 kök dizin temizliği — 23 dosya kaldırıldı; kaynağı bulundu (RiskAnaliz'den kopyalanmış)
+- [x] ✅ 2026-08-21 `D:\Dev\RiskAnaliz` + `D:\Dev\icdenetim` → `D:\Dev\_archive\` (git'siz snapshot'lardı, içerikleri BkmArgus'ta doğrulandı)
 - [x] Ref ekranları ortak düzen
 - [x] IrsTip map ekranı sadeleştirme
 

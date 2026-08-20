@@ -115,6 +115,25 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
     // Aktif/pasif — zincire girip girmeyecegini belirler
     public async Task<IActionResult> OnPostDurumAsync(int saglayiciId, bool aktif)
     {
+        // Is kurali: anahtari GERCEKTEN cozulemeyen saglayici aktif edilemez.
+        // SP yalniz anahtar ADI'nin dolu olduguna bakabiliyor; ortam degiskeninin
+        // tanimli olup olmadigini yalniz uygulama gorebilir. Bu kontrol olmadan
+        // "aktif ama hicbir zaman calismayacak" bir saglayici olusuyordu.
+        if (aktif)
+        {
+            await LoadAsync();
+            var hedef = Providers.FirstOrDefault(p => p.Id == saglayiciId);
+
+            if (hedef is not null && !hedef.KeyAvailable)
+            {
+                TempData["Error"] = string.IsNullOrWhiteSpace(hedef.ApiKeyRef)
+                    ? "Anahtar tanimlanmadan aktif edilemez."
+                    : $"'{hedef.ApiKeyRef}' ortam degiskeni tanimli degil ve kayitli anahtar yok. "
+                      + "Once anahtari girin veya ortam degiskenini tanimlayin.";
+                return RedirectToPage();
+            }
+        }
+
         try
         {
             await db.ExecuteAsync("ai.sp_LlmProvider_SetActive", new
