@@ -98,6 +98,93 @@ Boş tablolar "kullanılmıyor" değil, **yazılmıyor** demek. Her biri bir bug
 
 ---
 
+## FAZ G — Pazar Boşluğu (2026-08-20 rakip araştırması)
+
+20+ ticari ürün + GitHub taraması. **Konumlanma doğrulandı:** ERP sürekli denetim + saha denetimini tek üründe birleştiren yalnızca MetricStream (\$75K+/yıl, enterprise-only), **Diligent One** (medyan \$23.8K, giriş \$5K) ve **Agilence** (perakendeye özel) var. Açık kaynak muadili yok. En yakın açık kaynak (`cockpit-labs/CockpitCE`, perakende mağaza denetimi) 2022'de ölmüş, 3 yıldız.
+
+Mimari referans: **Diligent One** — ACL Robotics "P2P Analysis for SAP ERP" = bizim ETL kanalımız, Projects mobil fotoğraf/ses kanıtı = saha kanalımız. İkinci referans **Agilence** (exception-based reporting + case management + store audit üçlüsü).
+
+### Doğrulanan tercihlerimiz
+
+- **LLM sayı üretmez** — Optro "deterministic ML + retrieval + LLM harmanı", MindBridge LLM'i **hiç kullanmıyor**, Workiva izlenebilir çıktı. Hiçbir ticari ürün LLM'i sayısal hesaplama/skorlama için kullanmıyor. `ai-layer.md` halüsinasyon kapımız sektör standardıyla aynı.
+- **Versiyonlu prompt kütüphanesi** — IIA-NL GenAI olgunluk modelinde **Seviye 2**; `ai.Skills`/`SkillVersions` ile zaten oradayız.
+- **Kademeli maliyet** — rakiplerden disiplinli.
+
+### G1. AI denetim izi eksik alanları — AB AI Act Art. 12/19
+
+`ai.SkillExecutions`'a ekle: `PromptHash` (SHA-256), `ResponseHash`, **tam model versiyonu** (`ModelName` yetersiz — patch dahil), `Temperature`, `TopP`, `InputTokens`, `OutputTokens`, `ProviderUsed`, `FallbackChain`, `LatencyMs`.
+Not: **temperature 0 tekrarlanabilirlik garanti etmez** — savunma bit-exact çıktıya değil hash izine dayanmalı. Art. 19: min 6 ay saklama.
+
+### G2. Halüsinasyon kapısını koda indir
+
+Kural olarak yazdık ama **programatik kontrol yok**. LLM çıktısındaki her sayıyı context'teki sayılarla eşleştir; eşleşmeyen sayı içeren çıktıyı **reddet**, uyarıyla sakla.
+
+### G3. Onayı kontrole yükselt + gate koy
+
+`ai.Feedback` şu an memnuniyet oyu. CAQ kriteri: onaylayan **completeness + accuracy + relevancy** kontrolünü işaretlemeli, sistem onaylayanın rol/yetkinliğini kaydetmeli.
+Ayrıca **kapı**: AI çıktısı onaylanmadan DÖF/aksiyon tetikleyemesin. HITL'i **seçici** yap — her çıktıya onay hem ölçeklenmez hem *automation bias* üretir.
+
+### G4. Alarm yorgunluğu — eşik tabanlı önceliklendirme
+
+Svanberg vd. (2025, *ISAF* 32/4): CA sistemleri 30 yıldır aynı yerde takılı — **çok fazla istisna üretip terk ediliyorlar**. Kural tabanlı tasarımın çıktı hacmini öngörülebilir kontrol mekanizması yok.
+Bizim `ai.Feedback` onay/ret verisi **zaten etiket üretiyor**. 1.000+ etikete ulaşınca: XGBoost + olasılık eşiği + SHAP açıklaması; denetçi eşiği günlük kapasitesine göre ayarlasın. Ön koşul: hata oranı ≥%1, kararlı veri yapısı.
+*(Bu, mevcut geri bildirim döngümüzün doğal devamı — yeni mimari değil.)*
+
+### G5. Fotoğrafa vision AI — saha kanalının en görünür açığı
+
+`src/BkmArgus.AiWorker/` içinde **hiç görüntü işleme yok**; fotoğraflar yalnızca diskte duruyor. Rakiplerin hepsinde var: Mitti (fotoğraftan otomatik issue), Crunchtime Photo Intelligence, FieldPie raf/fiyat/etiket tanıma, Wooqer SensEye.
+Kitapçı/kafe için: raf düzeni, fiyat etiketi tutarlılığı, temizlik/hijyen, teşhir uyumu.
+
+### G6. Kanıt zinciri
+
+`audit.AuditResultPhotos` şu an `FilePath + Remark + CreatedAt`. Ekle: **SHA-256 hash, EXIF çekim zamanı, yükleyen kullanıcı, GPS**. Üstüne mobil offline (PWA + service worker + IndexedDB) ve check-in GPS doğrulaması.
+MetricStream, FieldPie, PEAKUP'ta standart. Türkiye'de satışa çıkarsak ilk sorulacak şey.
+
+### G7. Denetim yönetimi katmanı — en büyük fonksiyonel açık
+
+Klasik iç denetim yazılımının standardı, bizde **hiç yok**:
+
+| Eksik | Not |
+|---|---|
+| **Denetim evreni** | Mağaza/kafe/süreç envanteri + son denetim tarihi + son bulgu |
+| **Risk-bazlı yıllık plan** | Ağırlıklı skor → frekans. **ERP risk sinyallerimiz bu skoru otomatik besleyebilir — kimse bunu yapmıyor.** Farklılaşma noktası |
+| **Görev yaşam döngüsü** | `audit.Audits`'te sadece `IsFinalized` bit'i. Planning → Fieldwork → Reporting → Closure fazı, kapsam/amaç, saha tarih aralığı yok |
+| **Çalışma kağıdı** | Prosedür → test → kanıt → sonuç zinciri |
+| **Hazırlayan/gözden geçiren imzası** | Tek `IsFinalized` var, ikinci göz yok |
+| **Örnekleme** | İstatistiksel + yargısal, MUS, örneklem büyüklüğü |
+| **Komite raporlaması** | Çeyreklik paket: bulgu özeti, plan gerçekleşme %, açık DÖF yaşlandırma |
+
+### G8. DÖF olgunluğu
+
+Mevcut state machine iyi bir temel (`DRAFT → OPEN → IN_PROGRESS → PENDING_VALIDATION → CLOSED/REJECTED`, rol bazlı geçiş, `EffectivenessScore`). Eksikler:
+- **Gecikmeli etkinlik doğrulaması** — ISO 9001 md.10.2.1.d: kapanıştan N gün sonra tekrar kontrol. Şu an kapanışta tek seferlik skor. *(`dof.effectiveness.review` skill'i bu soruyu soruyor ama tetikleyici yok.)*
+- **Düzeltme ≠ düzeltici ≠ önleyici ayrımı** — ISO 9001 10.2.1.a/b/c. Şu an tek "aksiyon" kavramı; anlık düzeltme ile sistemik önlem ayrışmıyor.
+- **Yapılandırılmış kök neden** — tek `CorrectRootCause varchar(100)`. 5 Neden/Ishikawa alanları yok. *(`audit.rootcause.5why` skill'i var, veri modeli yok.)*
+- **Tekrarlama tespiti** — aynı mekan + aynı bulgu tipi X ay içinde tekrar ederse otomatik "sistemik".
+
+### G9. KVKK — yurt dışına aktarım riski
+
+Gemini/Claude'a giden prompt'lar **mekan adı, personel adı, ürün/stok verisi** içeriyor. Bu KVKK açısından yurt dışına aktarım sorusudur.
+Seçenekler: PII tokenizasyonu (prompt öncesi maskeleme), yerel Ollama'ya yönlendirme (kişisel veri içeren skill'ler için), veya açık rıza/aktarım dayanağı.
+IBM 2025: AI modeli içeren ihlal bildiren kuruluşların **%97'si yetersiz AI erişim kontrolüne** işaret etmiş.
+
+### G10. ISO 21378:2019 — `src.*` katmanını standarda hizala
+
+ERP-bağımsız modüler audit veri standardı (Base/GL/AR/Sales/AP/Purchase/Inventory/PPE). Tam olarak `src.*` soyutlama katmanımızın çözmeye çalıştığı problemi standartlaştırıyor.
+Kazanç: yeni ERP'ye geçişte eşleme maliyeti düşer, dış denetçiye veri teslimi standart olur, **"ISO 21378 uyumlu veri çıkarıyoruz" satılabilir bir iddia** olur. Tamamlayıcı: AICPA Audit Data Standards + Audit Data API.
+
+### Referans kaynaklar
+
+- IIA GTAG *Continuous Auditing* 2nd ed. — CA'in gücü CM ile **koordine edildiğinde** ortaya çıkar
+- IIA *AI Auditing Framework* (Eyl 2024) — "Desirable Attributes for AI" doğrudan denetim kriteri; iç denetim AI'a **yalnızca sınırlı güvence** verebilir
+- CAQ *Auditing in the Age of Generative AI* (Nis 2024) — automation bias, explainability vs interpretability, "çıktı bağımsız yeniden üretilebiliyor mu" kriteri
+- IIA-NL *Internal Audit in the Age of GenAI* (2025) — 5 seviyeli olgunluk modeli (biz Seviye 2'deyiz, hedef 4/RAG)
+- Vasarhelyi MCL mimarisi — bizim `src.* → ETL → rpt.* → LM Rules → ai.* → DÖF` zincirinin akademik karşılığı
+
+**Not:** "AI kanıt olamaz" kategorik olarak yanlış. Doğru formülasyon: AI çıktısı **tek başına yeterli ve uygun denetim kanıtı değildir**; üreten süreç üzerindeki kontroller test edilebilir ve çıktı bağımsız doğrulanabilir olmalıdır. IAASB ISA 500 revizyonu henüz yayımlanmadı, PCAOB'un bağlayıcı AI kuralı yok (2026 ortası).
+
+---
+
 ## Tamamlananlar
 
 - [x] ✅ 2026-08-20 Sır temizliği — 4 API key + 2 DB şifresi tüm geçmişten kaldırıldı (`git filter-repo`)
