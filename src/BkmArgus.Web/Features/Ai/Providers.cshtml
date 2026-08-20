@@ -70,6 +70,14 @@
                         {
                             <div class="text-xs text-slate-400">yedek: @p.FallbackModel</div>
                         }
+                        @if (p.MaxOutputTokens.HasValue)
+                        {
+                            <div class="text-xs text-slate-400">maks @p.MaxOutputTokens token</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(p.ExtraBodyJson))
+                        {
+                            <div class="mt-1 max-w-xs truncate font-mono text-xs text-slate-400" title="@p.ExtraBodyJson">@p.ExtraBodyJson</div>
+                        }
                     </td>
                     <td class="px-4 py-3">
                         @if (p.KeyAvailable)
@@ -189,6 +197,28 @@
                 <label class="text-xs font-medium text-slate-600" asp-for="Input.Priority">Oncelik</label>
                 <input asp-for="Input.Priority" type="number" min="1" max="999" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                 <span asp-validation-for="Input.Priority" class="text-xs text-red-600"></span>
+            </div>
+
+            <div>
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.MaxOutputTokens">Maks cikti token</label>
+                <input asp-for="Input.MaxOutputTokens" type="number" min="256" max="200000" placeholder="8192"
+                       class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <p class="mt-1 text-xs text-slate-400">Bos = genel ayar. Muhakeme modelleri 8-16K ister.</p>
+                <span asp-validation-for="Input.MaxOutputTokens" class="text-xs text-red-600"></span>
+            </div>
+
+            <div class="md:col-span-2">
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.ExtraBodyJson">Ek govde parametreleri (JSON)</label>
+                <textarea asp-for="Input.ExtraBodyJson" rows="2" spellcheck="false"
+                          placeholder='{"thinking":{"type":"disabled"}}'
+                          class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs"></textarea>
+                <p class="mt-1 text-xs text-slate-400">
+                    Saglayiciya ozel alanlar istek govdesine eklenir. Ornekler:
+                    <code class="rounded bg-slate-100 px-1">{"thinking":{"type":"disabled"}}</code> glm-4.7 ·
+                    <code class="rounded bg-slate-100 px-1">{"reasoning_effort":"low"}</code> glm-5.3 ·
+                    <code class="rounded bg-slate-100 px-1">{"chat_template_kwargs":{"enable_thinking":true}}</code> NVIDIA NIM
+                </p>
+                <span asp-validation-for="Input.ExtraBodyJson" class="text-xs text-red-600"></span>
             </div>
 
             <div class="md:col-span-2">

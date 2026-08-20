@@ -30,6 +30,17 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
     // Saglayici ekler veya gunceller
     public async Task<IActionResult> OnPostKaydetAsync()
     {
+        // Is kurali: bozuk JSON kaydedilmez. SP'de de ISJSON kisiti var ama
+        // kullaniciya anlamli mesaji burada verebiliyoruz.
+        if (!string.IsNullOrWhiteSpace(Input.ExtraBodyJson))
+        {
+            try { System.Text.Json.JsonDocument.Parse(Input.ExtraBodyJson); }
+            catch (System.Text.Json.JsonException)
+            {
+                ModelState.AddModelError("Input.ExtraBodyJson", "Gecerli bir JSON degil.");
+            }
+        }
+
         if (!ModelState.IsValid)
         {
             await LoadAsync();
@@ -50,6 +61,8 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
                 AnahtarGerekli = Input.RequiresApiKey,
                 Model          = Input.Model.Trim(),
                 YedekModel     = string.IsNullOrWhiteSpace(Input.FallbackModel) ? null : Input.FallbackModel.Trim(),
+                MaksCiktiToken = Input.MaxOutputTokens,
+                EkGovdeJson    = string.IsNullOrWhiteSpace(Input.ExtraBodyJson) ? null : Input.ExtraBodyJson.Trim(),
                 Oncelik        = Input.Priority,
                 Aktif          = Input.IsActive,
                 Not            = Input.Notes,
@@ -180,6 +193,8 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
             r.ApiKeySetAt,
             r.Model,
             r.FallbackModel,
+            r.MaxOutputTokens,
+            r.ExtraBodyJson,
             r.Priority,
             r.IsActive,
             r.Notes)).ToList();
@@ -191,7 +206,8 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
     public sealed record ProviderRow(
         int Id, string Name, string Kind, string DisplayName, string BaseUrl, string? RequestPath,
         string? ApiKeyRef, bool RequiresApiKey, bool HasStoredKey, bool HasEnvKey, DateTime? ApiKeySetAt,
-        string Model, string? FallbackModel, int Priority, bool IsActive, string? Notes)
+        string Model, string? FallbackModel, int? MaxOutputTokens, string? ExtraBodyJson,
+        int Priority, bool IsActive, string? Notes)
     {
         /// <summary>Anahtar iki yoldan biriyle cozulebiliyor mu?</summary>
         public bool KeyAvailable => !RequiresApiKey || HasStoredKey || HasEnvKey;
@@ -210,6 +226,8 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
         public string DisplayName { get; init; } = string.Empty;
         public string BaseUrl { get; init; } = string.Empty;
         public string? RequestPath { get; init; }
+        public int? MaxOutputTokens { get; init; }
+        public string? ExtraBodyJson { get; init; }
         public string? ApiKeyRef { get; init; }
         public bool RequiresApiKey { get; init; }
         public bool HasStoredKey { get; init; }
@@ -247,6 +265,11 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
         public string Model { get; set; } = string.Empty;
 
         public string? FallbackModel { get; set; }
+
+        [Range(256, 200000, ErrorMessage = "Maksimum cikti 256-200000 arasinda olmali.")]
+        public int? MaxOutputTokens { get; set; }
+
+        public string? ExtraBodyJson { get; set; }
 
         [Range(1, 999, ErrorMessage = "Oncelik 1-999 arasinda olmali.")]
         public int Priority { get; set; } = 100;

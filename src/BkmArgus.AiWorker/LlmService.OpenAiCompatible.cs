@@ -188,7 +188,13 @@ public sealed partial class LlmService
                 };
             }
 
-            return new LlmCallResult { Result = ParseAndValidateResult(json, model) };
+            return new LlmCallResult
+            {
+                Result = ParseAndValidateResult(json, model, provider.Name) with
+                {
+                    FinishReason = choice?.FinishReason
+                }
+            };
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {

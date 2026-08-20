@@ -236,7 +236,7 @@ public sealed partial class LlmService
 
             return new LlmCallResult
             {
-                Result = ParseAndValidateResult(json, model)
+                Result = ParseAndValidateResult(json, model, ProviderOllama)
             };
         }
         catch (OperationCanceledException)
@@ -414,7 +414,7 @@ public sealed partial class LlmService
 
             return new LlmCallResult
             {
-                Result = ParseAndValidateResult(json, model)
+                Result = ParseAndValidateResult(json, model, ProviderGemini)
             };
         }
         catch (OperationCanceledException)
@@ -590,7 +590,7 @@ public sealed partial class LlmService
 
             return new LlmCallResult
             {
-                Result = ParseAndValidateResult(json, model)
+                Result = ParseAndValidateResult(json, model, ProviderClaude)
             };
         }
         catch (OperationCanceledException)
@@ -680,7 +680,8 @@ public sealed partial class LlmService
         }
     }
 
-    private static LlmResultRow ParseAndValidateResult(string raw, string model)
+    private static LlmResultRow ParseAndValidateResult(
+        string raw, string model, string? providerName = null)
     {
         try
         {
@@ -701,6 +702,7 @@ public sealed partial class LlmService
             return new LlmResultRow
             {
                 ModelName = model,
+                ProviderName = providerName,
                 RootCauseHypotheses = rootCause,
                 VerificationSteps = validation,
                 RecommendedActions = actions,
