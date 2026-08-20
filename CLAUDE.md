@@ -1,5 +1,39 @@
 # BkmArgus — AI-Powered Audit & Risk Intelligence Platform
 
+## Kural Fihristi (.claude/rules/) — HEPSİ ZORUNLU
+
+Bu dosya **kimlik ve fihrist**tir. Davranış kuralları `.claude/rules/` altındadır ve compact sonrası da geçerlidir.
+
+| Kural | Konu |
+|---|---|
+| `architecture.md` | SP-first, Dapper, 8 şema, `src.*` dokunulmazlığı, snapshot, AI katmanı, magic string yasağı |
+| `sql-conventions.md` | İngilizce tablo/kolon + **Türkçe SP parametresi**, `datetime2(0)`, `SYSDATETIME()`, `decimal(18,3)`, TRY/CATCH, THROW 50000-59999, idempotent migration |
+| `csharp-conventions.md` | 300/500 satır sınırı, primary ctor, nullable, exception disiplini, Türkçe yorum |
+| `razor-conventions.md` | `@attribute [Authorize]` + policy, antiforgery, `@Html.Raw` yasağı, Tailwind, vanilla JS |
+| `security-principles.md` | RBAC, sır yönetimi, dosya yükleme, IDOR, audit log kapsamı |
+| `ai-layer.md` | Kademeli maliyet, sağlayıcı zinciri soft-fail, prompt DB'de, halüsinasyon kapısı, insan onayı |
+| `etl-discipline.md` | Günlük snapshot, idempotency kanıtı, `ehAltDepo=0`, veri kalitesi kapısı |
+| `error-handling.md` | Result pattern ↔ exception ayrımı, SP THROW köprüsü |
+| `coding-discipline.md` | Türkçe yorum zorunlu, 80 satır metot, guard clause, danışman zorunluluğu |
+| `work-protocol.md` | **Danış → Yap → Kontrol Ettir → Smoke** (her substantive iş) |
+| `advisor-skills.md` | İş türü → danışman skill kataloğu |
+| `agent-usage.md` | Ajan seçimi + model katmanı (haiku/sonnet/opus) |
+| `plan-first.md` | **Tier 1/2/3** — Tier 3'te plan zorunlu |
+| `phase-review-gate.md` | Faz kapanış zinciri: build → review → SQL → güvenlik → fresh-DB → smoke |
+| `footprint-ladder.md` | Yeni yetenek en dar basamakta |
+| `todo-verification.md` | TODO hipotezdir — file:line ile doğrula |
+| `commit-discipline.md` | 15 dosya eşiği, commit-split, zararlı komut yasağı |
+| `session-protocol.md` · `session-memory.md` | Oturum başı/sonu ritüeli, bilgi katmanları |
+| `test-discipline.md` · `turkish-ui.md` · `response-style.md` · `before-major-change.md` | Test, Türkçe UI, yanıt stili, silme öncesi kontrol |
+
+**Ajanlar** (`.claude/agents/`, 15): `code-reviewer` · `security-reviewer` · `sql-sp-reviewer` · `ai-pipeline-reviewer` · `etl-validator` · `denetim-surec-danismani` · `silent-failure-hunter` · `code-architect` · `code-explorer` · `planner` · `build-validator` · `test-runner` · `db-schema-checker` · `commit-splitter` · `reference-researcher`
+
+**Skill'ler** (`.claude/skills/`, 14): `bkmargus-sp-first` · `bkmargus-ai-worker` · `sql-migration-writer` · `bkm-db-explorer` · `impl-spec` · `plan-tracker` · `session-handoff` · `code-quality-checklist` · `feature-completeness-audit` · `screen-ux-standard` · `llm-council` · `yetenek-uret`
+
+**Hook'lar** (`.claude/hooks/`): `session-start` (oturum özeti + sır taraması + kod sağlığı) · `pre-commit-antipattern` (commit **bloklar**) · `post-edit-antipattern` (uyarır) · `post-commit-journal` · `pre-compact`
+
+---
+
 ## Overview
 BKM Kitap unified audit and risk management platform. Two data channels:
 1. **ERP Risk Analysis**: Automated risk signals from stock/document movements (nightly ETL from DerinSISBkm)
@@ -93,8 +127,16 @@ Source: DerinSISBkm (same server, cross-DB queries)
 ### dof — DOF Process (5 tables)
 `Findings`, `FindingDetails`, `Actions`, `Evidence`, `StatusHistory`
 
-### ai — AI Analysis (8 tables)
-`AnalysisQueue`, `SemanticVectors`, `LlmResults`, `AgentConfig`, `AgentExecutions`, `AgentPipelines`, `PredictionModels`, `RiskPredictions`
+### ai — AI Analysis (13 tables)
+`AnalysisQueue`, `SemanticVectors`, `LlmResults`, `AgentConfig`, `AgentExecutions`, `AgentPipelines`, `PredictionModels`, `RiskPredictions`, `Feedback`, `ProactiveInsights`, `SkillExecutions`, **`Skills`**, **`SkillVersions`**
+
+`ai.Skills` + `ai.SkillVersions` = **AI skill registry** (prompt'lar DB'de, versiyonlu). `SkillRegistry.cs` bunları yükler, kod tanımları yalnız fallback'tir. Not: `audit.Skills` FARKLI tablodur (denetim yetkinlik alanları).
+
+### sem — Semantik Katman (8 tables)
+`Databases`, `Entities`, `Bridges`, `CodeSets`, `CodeValues`, `Metrics`, `Queries`, `AiHints`
+
+Şema sözlüğü: hangi tablo ne, hangi join doğru, hangi kod ne demek, hangi metrik neyi İÇERMEZ, doğrulanmış golden SQL. Her kayıtta `Confidence` + `Evidence` + `LastVerifiedAt` + `TtlDays` → `sem.vw_Stale` bayatlayanı işaretler. AI context'i `sem.sp_Context_Build` ile buradan beslenir — LLM şema uydurmaz.
+(`ref.SemanticDefinitions` ise **iş** sözlüğüdür — Türkçe iş terimi ↔ teknik ad. İkisi tamamlayıcı.)
 
 ### log — Execution Logs (3 tables)
 `RiskEtlRuns`, `StockEtlRuns`, `PersonnelIntegrationLog`

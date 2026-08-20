@@ -11,6 +11,7 @@ public class SkillDefinition
     public OutputType Output { get; init; }               // Text, StructuredJson, ActionList, Suggestion
     public double Temperature { get; init; } = 0.2;
     public int MaxTokens { get; init; } = 2048;
+    public int VersionNo { get; init; } = 1;            // ai.SkillVersions surum numarasi
     public string SystemPromptTemplate { get; init; } = "";
     public string UserPromptTemplate { get; init; } = "";
 }

@@ -35,7 +35,7 @@ public class ProactiveInsightJob : BaseAiJob
                 new Dictionary<string, object>
                 {
                     ["GunEsik"] = 30,
-                    ["RiskEsik"] = 60
+                    ["RiskEsik"] = 10
                 },
                 cancellationToken);
 

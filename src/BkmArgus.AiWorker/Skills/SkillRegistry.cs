@@ -1,9 +1,34 @@
+using System.Data;
+using Dapper;
+using Microsoft.Extensions.Logging;
+
 namespace BkmArgus.AiWorker.Skills;
 
+/// <summary>
+/// AI skill kayit defteri. Kaynak onceligi: ai.Skills tablosu (DB) > koddaki yerlesik tanimlar.
+/// Prompt'lar DB'de versiyonlu tutulur (ai.SkillVersions); kod tanimlari yalniz fallback'tir
+/// (DB erisilemezse veya skill henuz seed edilmemisse worker calismaya devam eder).
+/// Bkz. .claude/rules/ai-layer.md 3.
+/// </summary>
 public class SkillRegistry
 {
     private readonly Dictionary<string, SkillDefinition> _skills = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Db? _db;
+    private readonly ILogger<SkillRegistry>? _logger;
+    private DateTime _lastLoadedAt = DateTime.MinValue;
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
 
+    /// <summary>DB'den yeniden yukleme araligi. Prompt degisikligi worker restart'i gerektirmesin.</summary>
+    private static readonly TimeSpan ReloadInterval = TimeSpan.FromMinutes(10);
+
+    public SkillRegistry(Db db, ILogger<SkillRegistry> logger)
+    {
+        _db = db;
+        _logger = logger;
+        RegisterAll();          // once kod fallback'i
+    }
+
+    /// <summary>Parametresiz kurucu — test ve DB'siz senaryolar icin (yalniz kod tanimlari).</summary>
     public SkillRegistry()
     {
         RegisterAll();
@@ -13,6 +38,92 @@ public class SkillRegistry
     public IReadOnlyList<SkillDefinition> GetAll() => _skills.Values.ToList();
     public IReadOnlyList<SkillDefinition> GetByCategory(SkillCategory category) =>
         _skills.Values.Where(s => s.Category == category).ToList();
+
+    /// <summary>
+    /// DB'deki tanimlari yukler ve ayni SkillId'li kod tanimini EZER.
+    /// Soft-fail: DB erisilemezse uyari loglanir, kod tanimlariyla devam edilir.
+    /// </summary>
+    public async Task<int> ReloadFromDbAsync(bool zorla = false, CancellationToken ct = default)
+    {
+        if (_db is null) return 0;
+        if (!zorla && DateTime.UtcNow - _lastLoadedAt < ReloadInterval) return 0;
+
+        await _loadLock.WaitAsync(ct);
+        try
+        {
+            if (!zorla && DateTime.UtcNow - _lastLoadedAt < ReloadInterval) return 0;
+
+            await using var conn = _db.CreateConnection();
+            var rows = await conn.QueryAsync<SkillRow>(
+                new CommandDefinition("ai.sp_Skill_List",
+                    new { SadeceAktif = true },
+                    commandType: CommandType.StoredProcedure,
+                    cancellationToken: ct));
+
+            var yuklenen = 0;
+            foreach (var r in rows)
+            {
+                // Prompt'suz kayit kullanilamaz — kod fallback'i korunur
+                if (string.IsNullOrWhiteSpace(r.SystemPromptTemplate) || string.IsNullOrWhiteSpace(r.UserPromptTemplate))
+                {
+                    _logger?.LogWarning("Skill {SkillId} DB'de prompt'suz — kod tanimi korunuyor.", r.SkillId);
+                    continue;
+                }
+
+                _skills[r.SkillId] = new SkillDefinition
+                {
+                    SkillId              = r.SkillId,
+                    Name                 = r.Name ?? r.SkillId,
+                    Description          = r.Description ?? "",
+                    Category             = ParseEnum(r.Category, SkillCategory.General),
+                    Trigger              = ParseEnum(r.TriggerMode, TriggerMode.Reactive),
+                    Output               = ParseEnum(r.OutputType, OutputType.Text),
+                    RequiredContext      = (r.RequiredContext ?? "")
+                                               .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                    Temperature          = (double)(r.Temperature ?? 0.20m),
+                    MaxTokens            = r.MaxTokens ?? 2048,
+                    VersionNo            = r.CurrentVersion,
+                    SystemPromptTemplate = r.SystemPromptTemplate,
+                    UserPromptTemplate   = r.UserPromptTemplate
+                };
+                yuklenen++;
+            }
+
+            _lastLoadedAt = DateTime.UtcNow;
+            _logger?.LogInformation("Skill registry DB'den yuklendi: {Adet} skill (toplam {Toplam}).", yuklenen, _skills.Count);
+            return yuklenen;
+        }
+        catch (Exception ex)
+        {
+            // Soft-fail: AI hatti DB skill'i olmadan da kod tanimlariyla calisir
+            _logger?.LogWarning(ex, "Skill registry DB'den yuklenemedi — kod tanimlariyla devam ediliyor.");
+            return 0;
+        }
+        finally
+        {
+            _loadLock.Release();
+        }
+    }
+
+    private static TEnum ParseEnum<TEnum>(string? deger, TEnum varsayilan) where TEnum : struct
+        => Enum.TryParse<TEnum>(deger, ignoreCase: true, out var sonuc) ? sonuc : varsayilan;
+
+    /// <summary>ai.sp_Skill_List donus satiri.</summary>
+    private sealed class SkillRow
+    {
+        public string SkillId { get; init; } = "";
+        public string? Name { get; init; }
+        public string? Description { get; init; }
+        public string? Category { get; init; }
+        public string? TriggerMode { get; init; }
+        public string? OutputType { get; init; }
+        public string? RequiredContext { get; init; }
+        public decimal? Temperature { get; init; }
+        public int? MaxTokens { get; init; }
+        public int CurrentVersion { get; init; }
+        public string? SystemPromptTemplate { get; init; }
+        public string? UserPromptTemplate { get; init; }
+    }
 
     private void RegisterAll()
     {

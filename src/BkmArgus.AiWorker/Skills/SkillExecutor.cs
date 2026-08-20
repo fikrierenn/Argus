@@ -20,6 +20,9 @@ public class SkillExecutor
         Dictionary<string, string> variables,
         CancellationToken cancellationToken = default)
     {
+        // DB'deki prompt surumlerini tazele (10 dk'da bir; soft-fail — DB yoksa kod tanimlari kullanilir)
+        await _registry.ReloadFromDbAsync(zorla: false, ct: cancellationToken);
+
         var skill = _registry.Get(skillId);
         if (skill is null)
             return SkillResult.Fail($"Skill bulunamadi: {skillId}");
@@ -43,6 +46,7 @@ public class SkillExecutor
             {
                 Success = true,
                 SkillId = skillId,
+                SkillVersionNo = skill.VersionNo,
                 Output = result.Result?.RawJson ?? result.Result?.ExecutiveSummary ?? "",
                 ModelName = result.Result?.ModelName ?? "unknown",
                 ConfidenceScore = result.Result?.ConfidenceScore ?? 0,
@@ -72,6 +76,7 @@ public class SkillResult
     public bool Success { get; init; }
     public string? Error { get; init; }
     public string SkillId { get; init; } = "";
+    public int SkillVersionNo { get; init; } = 1;   // hangi prompt surumuyle uretildi
     public string Output { get; init; } = "";
     public string ModelName { get; init; } = "";
     public int? ConfidenceScore { get; init; }
