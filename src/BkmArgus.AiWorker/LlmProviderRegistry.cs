@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using BkmArgus.Infrastructure;
 
 namespace BkmArgus.AiWorker;
 
@@ -100,7 +101,7 @@ public sealed class LlmProviderRegistry(
                     Order          = row.Priority,
                     RequiresApiKey = row.RequiresApiKey,
                     Enabled        = row.IsActive,
-                    ApiKey         = ResolveApiKey(row.ApiKeyRef)
+                    ApiKey         = ResolveApiKey(row.ApiKeyRef, row.ApiKeyEncrypted)
                 };
 
                 // Anahtari cozulemeyen saglayici zincire alinmaz — cagri aninda
@@ -129,26 +130,34 @@ public sealed class LlmProviderRegistry(
     }
 
     /// <summary>
-    /// Anahtar degerini adiyla cozer. Sira: ortam degiskeni, sonra yapilandirma
-    /// (appsettings.Local.json). Deger hicbir zaman loglanmaz.
+    /// Anahtari cozer. Sira: ortam degiskeni / yapilandirma (adiyla), sonra
+    /// yonetim ekranindan girilip veritabaninda sifreli saklanan deger.
+    /// Ortam degiskeni onceliklidir — uretimde anahtari hic DB'ye koymadan
+    /// calistirmak mumkun kalir. Deger hicbir kosulda loglanmaz.
     /// </summary>
-    private string ResolveApiKey(string? apiKeyRef)
+    private string ResolveApiKey(string? apiKeyRef, string? apiKeyEncrypted)
     {
-        if (string.IsNullOrWhiteSpace(apiKeyRef))
+        if (!string.IsNullOrWhiteSpace(apiKeyRef))
         {
-            return string.Empty;
+            var fromEnv = Environment.GetEnvironmentVariable(apiKeyRef);
+            if (!string.IsNullOrWhiteSpace(fromEnv))
+            {
+                return fromEnv;
+            }
+
+            var fromConfig = configuration[apiKeyRef]
+                ?? configuration[$"AiWorker:{apiKeyRef}"]
+                ?? configuration[$"ApiKeys:{apiKeyRef}"];
+
+            if (!string.IsNullOrWhiteSpace(fromConfig))
+            {
+                return fromConfig;
+            }
         }
 
-        var fromEnv = Environment.GetEnvironmentVariable(apiKeyRef);
-        if (!string.IsNullOrWhiteSpace(fromEnv))
-        {
-            return fromEnv;
-        }
-
-        return configuration[apiKeyRef]
-            ?? configuration[$"AiWorker:{apiKeyRef}"]
-            ?? configuration[$"ApiKeys:{apiKeyRef}"]
-            ?? string.Empty;
+        // Ekrandan girilmis sifreli anahtar. Cozulemezse bos doner ve saglayici
+        // zincire alinmaz — ana anahtar eksikse/degistiyse sessizce kapali kalir.
+        return SecretProtector.Unprotect(configuration, apiKeyEncrypted);
     }
 
     /// <summary>
@@ -202,6 +211,7 @@ public sealed class LlmProviderRegistry(
         public string BaseUrl { get; init; } = string.Empty;
         public string? RequestPath { get; init; }
         public string? ApiKeyRef { get; init; }
+        public string? ApiKeyEncrypted { get; init; }
         public bool RequiresApiKey { get; init; }
         public string Model { get; init; } = string.Empty;
         public string? FallbackModel { get; init; }

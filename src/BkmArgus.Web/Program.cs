@@ -57,6 +57,21 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddSingleton<ExcelExportService>();
 
+// Sir sifreleme ana anahtari yoksa uret ve appsettings.Local.json'a yaz.
+// Kurulumda elle adim birakmamak icin. Anahtar VERITABANINA yazilmaz:
+// sifreli API anahtarlariyla ayni yerde durursa sifrelemenin anlami kalmaz.
+var secretsPath = BkmArgus.Infrastructure.SecretProtector.ResolveSecretsFilePath();
+builder.Configuration.AddJsonFile(secretsPath, optional: true, reloadOnChange: true);
+
+if (BkmArgus.Infrastructure.SecretProtector.EnsureMasterKey(builder.Configuration, secretsPath, out var secretKeyError))
+{
+    Log.Information("BKM_SECRET_KEY uretildi ve {Dosya} icine yazildi.", secretsPath);
+}
+else if (secretKeyError is not null)
+{
+    Log.Warning("BKM_SECRET_KEY uretilemedi: {Hata}. Sir sifreleme devre disi.", secretKeyError);
+}
+
 var app = builder.Build();
 
 app.UseSerilogRequestLogging(options =>

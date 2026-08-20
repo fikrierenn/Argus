@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 
@@ -23,6 +25,87 @@ public static class SecretProtector
     /// <summary>Ana anahtar tanimli mi — ekranda uyari gostermek icin.</summary>
     public static bool IsConfigured(IConfiguration configuration)
         => TryResolveMasterKey(configuration, out _);
+
+    /// <summary>
+    /// Ana anahtar yoksa uretir ve appsettings.Local.json'a yazar.
+    /// Amac: kurulumda elle adim birakmamak. Anahtar VERITABANINA yazilmaz —
+    /// sifreli API anahtarlariyla ayni yerde durursa sifreleme anlamsizlasir;
+    /// bir DB yedegi hem kilidi hem anahtari birlikte tasir.
+    ///
+    /// Dosya .gitignore'lu oldugu icin anahtar kaynak kontrolune de girmez.
+    /// Uretim ortaminda BKM_SECRET_KEY ortam degiskeni tanimliysa bu yol hic
+    /// calismaz; ortam degiskeni her zaman onceliklidir.
+    ///
+    /// Donen deger: anahtar yeni uretildiyse true.
+    /// </summary>
+    /// <summary>
+    /// Web ve AiWorker'in ORTAK sir dosyasi. Iki uygulama ayri content root'a
+    /// sahip oldugu icin her biri kendi appsettings.Local.json'ina yazsaydi
+    /// farkli anahtarlar uretirdi: biri sifreler, digeri cozemezdi.
+    ///
+    /// Sira: BKM_SECRET_PATH ortam degiskeni, sonra makine geneli ProgramData.
+    /// </summary>
+    public static string ResolveSecretsFilePath()
+    {
+        var configured = Environment.GetEnvironmentVariable("BKM_SECRET_PATH");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured;
+        }
+
+        var root = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            root = Path.GetTempPath();
+        }
+
+        return Path.Combine(root, "BkmArgus", "secrets.json");
+    }
+
+    public static bool EnsureMasterKey(IConfiguration configuration, string localSettingsPath, out string? error)
+    {
+        error = null;
+
+        if (TryResolveMasterKey(configuration, out _))
+        {
+            return false;
+        }
+
+        try
+        {
+            var generated = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
+
+            var json = File.Exists(localSettingsPath)
+                ? File.ReadAllText(localSettingsPath)
+                : "{}";
+
+            var node = JsonNode.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json) as JsonObject
+                       ?? new JsonObject();
+
+            node[MasterKeyName] = generated;
+
+            var directory = Path.GetDirectoryName(localSettingsPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(
+                localSettingsPath,
+                node.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+            // Bu surecin kendi yapilandirmasi da hemen gorsun — yeniden baslatma beklenmesin
+            configuration[MasterKeyName] = generated;
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            // Anahtar uretilemedi — sifreleme devre disi kalir, uygulama ayakta kalir
+            error = ex.Message;
+            return false;
+        }
+    }
 
     /// <summary>Duz metni sifreler; sonuc base64 (nonce | tag | sifreli metin).</summary>
     public static string Protect(IConfiguration configuration, string plainText)

@@ -24,6 +24,10 @@ IHost host = Host.CreateDefaultBuilder(args)
     .ConfigureAppConfiguration((context, config) =>
     {
         config.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
+        // Web ile ORTAK sir dosyasi — ana sifreleme anahtari buradan gelir.
+        // Iki uygulama ayni anahtari gormezse Web sifreler, Worker cozemez.
+        config.AddJsonFile(SecretProtector.ResolveSecretsFilePath(), optional: true, reloadOnChange: true);
         config.AddEnvironmentVariables();
     })
     .ConfigureServices(services =>
