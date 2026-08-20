@@ -30,6 +30,15 @@ public sealed class AiWorkerOptions
     public bool LlmEnabled { get; set; } = true;
     public bool GeminiEnabled { get; set; } = true;
     public bool ClaudeEnabled { get; set; } = false;
+
+    // GLM (Z.AI) — OpenAI uyumlu sohbet tamamlama ucu.
+    // Anahtar appsettings.Local.json veya GLM_API_KEY ortam degiskeninden gelir;
+    // takipli appsettings.json'a asla yazilmaz (security-principles.md §5).
+    public string  GlmBaseUrl { get; set; } = "https://api.z.ai";
+    public string  GlmApiKey { get; set; } = string.Empty;
+    public string  GlmModel { get; set; } = "glm-4.6";
+    public string? GlmModelFallback { get; set; }
+    public bool    GlmEnabled { get; set; } = false;
     public bool OllamaEnabled { get; set; } = false;
     public bool DocsEnabled { get; set; } = true;
     public string DocsPath { get; set; } = "docs";

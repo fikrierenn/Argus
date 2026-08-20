@@ -60,6 +60,11 @@ IHost host = Host.CreateDefaultBuilder(args)
         {
             client.BaseAddress = new Uri("https://api.anthropic.com");
         });
+        services.AddHttpClient("glm", client =>
+        {
+            var baseUrl = Environment.GetEnvironmentVariable("GLM_BASE_URL");
+            client.BaseAddress = new Uri(!string.IsNullOrWhiteSpace(baseUrl) ? baseUrl : "https://api.z.ai");
+        });
         services.AddHostedService<AiWorkerService>();
     })
     .Build();

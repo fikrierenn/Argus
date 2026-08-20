@@ -10,15 +10,17 @@ using Microsoft.Extensions.Options;
 
 namespace BkmArgus.AiWorker;
 
-public sealed class LlmService
+public sealed partial class LlmService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private const string ProviderOllama = "ollama";
     private const string ProviderGemini = "gemini";
     private const string ProviderClaude = "claude";
+    private const string ProviderGlm = "glm";
     private readonly HttpClient _ollama;
     private readonly HttpClient _gemini;
     private readonly HttpClient _claude;
+    private readonly HttpClient _glm;
     private readonly AiWorkerOptions _options;
     private readonly ILogger<LlmService> _logger;
 
@@ -30,6 +32,7 @@ public sealed class LlmService
         _ollama = httpFactory.CreateClient("ollama");
         _gemini = httpFactory.CreateClient("gemini");
         _claude = httpFactory.CreateClient("claude");
+        _glm = httpFactory.CreateClient("glm");
         _options = options.Value;
         _logger = logger;
     }
@@ -41,6 +44,7 @@ public sealed class LlmService
         {
             var model = provider == ProviderGemini ? _options.GeminiModel
                       : provider == ProviderClaude ? _options.ClaudeModel
+                      : provider == ProviderGlm    ? _options.GlmModel
                       : _options.LlmModel;
             return new LlmCallResult
             {
@@ -57,6 +61,7 @@ public sealed class LlmService
             {
                 ProviderGemini => await CallGeminiWithRetryAsync(model, prompt, token),
                 ProviderClaude => await CallClaudeWithRetryAsync(model, prompt, token),
+                ProviderGlm    => await CallGlmWithRetryAsync(model, prompt, token),
                 ProviderOllama => await CallOllamaWithRetryAsync(model, prompt, token),
                 _ => new LlmCallResult { Error = $"Unknown provider: {currentProvider}" }
             };
@@ -102,6 +107,15 @@ public sealed class LlmService
                 yield return (ProviderClaude, _options.ClaudeModelFallback!);
             }
         }
+        else if (primaryProvider == ProviderGlm && _options.GlmEnabled)
+        {
+            yield return (ProviderGlm, _options.GlmModel);
+
+            if (!string.IsNullOrWhiteSpace(_options.GlmModelFallback))
+            {
+                yield return (ProviderGlm, _options.GlmModelFallback!);
+            }
+        }
         else if (primaryProvider == ProviderOllama && _options.OllamaEnabled)
         {
             yield return (ProviderOllama, _options.LlmModel);
@@ -117,6 +131,8 @@ public sealed class LlmService
             yield return (ProviderGemini, _options.GeminiModel);
         if (primaryProvider != ProviderClaude && _options.ClaudeEnabled && !string.IsNullOrWhiteSpace(_options.ClaudeApiKey))
             yield return (ProviderClaude, _options.ClaudeModel);
+        if (primaryProvider != ProviderGlm && _options.GlmEnabled && !string.IsNullOrWhiteSpace(_options.GlmApiKey))
+            yield return (ProviderGlm, _options.GlmModel);
         if (primaryProvider != ProviderOllama && _options.OllamaEnabled)
             yield return (ProviderOllama, _options.LlmModel);
 
@@ -847,6 +863,11 @@ public sealed class LlmService
         if (string.Equals(provider, ProviderClaude, StringComparison.OrdinalIgnoreCase))
         {
             return _claude.BaseAddress?.ToString() ?? _options.ClaudeBaseUrl;
+        }
+
+        if (string.Equals(provider, ProviderGlm, StringComparison.OrdinalIgnoreCase))
+        {
+            return _glm.BaseAddress?.ToString() ?? _options.GlmBaseUrl;
         }
 
         return _ollama.BaseAddress?.ToString() ?? _options.OllamaBaseUrl;
