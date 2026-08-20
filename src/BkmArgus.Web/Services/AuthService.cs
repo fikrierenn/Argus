@@ -16,7 +16,7 @@ public class AuthService
         var user = await _db.QuerySingleAsync<UserRow>("audit.sp_Auth_Login", new { Username = username, IpAddress = ipAddress, UserAgent = userAgent });
 
         if (user is null)
-            return AuthResult.Fail("Kullanici bulunamadi.");
+            return AuthResult.Fail("Kullanici adi veya sifre hatali.");
 
         if (user.IsLocked)
             return AuthResult.Fail("Hesap kilitlendi. Yonetici ile iletisime gecin.");
@@ -24,7 +24,7 @@ public class AuthService
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
         {
             await _db.ExecuteAsync("audit.sp_Auth_LoginFail", new { UserId = user.Id, IpAddress = ipAddress, UserAgent = userAgent, Reason = "Yanlis sifre" });
-            return AuthResult.Fail("Sifre hatali.");
+            return AuthResult.Fail("Kullanici adi veya sifre hatali.");
         }
 
         // Success

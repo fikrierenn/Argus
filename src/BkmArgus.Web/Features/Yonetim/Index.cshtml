@@ -1,6 +1,6 @@
 @page
 @model BkmArgus.Web.Features.Yonetim.IndexModel
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.AdminOnly)]
 @{
     ViewData["Title"] = "Yonetim";
     ViewData["Subtitle"] = "Personel entegrasyon ve esleme";

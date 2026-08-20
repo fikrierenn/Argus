@@ -1,0 +1,17 @@
+@page
+@model BkmArgus.Web.Features.Account.AccessDeniedModel
+@{
+    ViewData["Title"] = "Yetkisiz Erisim";
+}
+
+<div class="mx-auto max-w-lg py-16 text-center">
+    <div class="mb-4 text-5xl">&#128274;</div>
+    <h1 class="mb-2 text-2xl font-semibold text-slate-800">Bu sayfaya erisim yetkiniz yok</h1>
+    <p class="mb-6 text-sm text-slate-500">
+        Rolunuz: <span class="font-medium text-slate-700">@Model.RoleCode</span>.
+        Erisim gerekiyorsa sistem yoneticisi ile iletisime gecin.
+    </p>
+    <a asp-page="/Index" class="rounded-full bg-bkm-red px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 transition">
+        Ana sayfaya don
+    </a>
+</div>

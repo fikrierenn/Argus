@@ -20,6 +20,12 @@ if (args.Length > 0)
 }
 
 IHost host = Host.CreateDefaultBuilder(args)
+    // Sirlar kaynak kodda tutulmaz: appsettings.Local.json (gitignore) veya ortam degiskeni.
+    .ConfigureAppConfiguration((context, config) =>
+    {
+        config.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+        config.AddEnvironmentVariables();
+    })
     .ConfigureServices(services =>
     {
         services.AddSingleton<Db>();

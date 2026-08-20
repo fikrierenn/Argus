@@ -1,6 +1,6 @@
 @page
 @model AiModel
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.YonetimVeUstu)]
 @{
     ViewData["Title"] = "AI Analiz";
     ViewData["Subtitle"] = "LM/LLM kuyruk ve ciktilar";

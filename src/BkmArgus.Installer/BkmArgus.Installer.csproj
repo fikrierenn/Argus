@@ -35,4 +35,10 @@
     <Compile Include="..\..\Shared\BkmDenetimConnection.cs" Link="Shared\BkmDenetimConnection.cs" />
   </ItemGroup>
 
+
+  <ItemGroup>
+    <None Update="appsettings.Local.json" Condition="Exists('appsettings.Local.json')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

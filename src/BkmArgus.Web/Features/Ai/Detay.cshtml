@@ -1,6 +1,6 @@
 @page "{id:long}"
 @model DetayModel
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.YonetimVeUstu)]
 @{
     ViewData["Title"] = "AI Detay";
     ViewData["Subtitle"] = "LLM cikti detaylari";

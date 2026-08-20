@@ -1,6 +1,6 @@
 @page
 @model SkillResultModel
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.YonetimVeUstu)]
 @{
     ViewData["Title"] = "Skill Sonucu";
     ViewData["Subtitle"] = "AI skill cikti detaylari";

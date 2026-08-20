@@ -1,6 +1,6 @@
 @page
 @model BkmArgus.Web.Features.Ref.IndexModel
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.AdminOnly)]
 @{
     ViewData["Title"] = "Tanimlar";
     ViewData["Subtitle"] = "Referans ve parametreler";

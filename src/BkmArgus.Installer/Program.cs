@@ -11,6 +11,10 @@ class Program
     static async Task Main(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
+
+        // Sirlar kaynak kodda tutulmaz: appsettings.Local.json (gitignore) veya ortam degiskeni.
+        builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+        builder.Configuration.AddEnvironmentVariables();
         
         // Services
         builder.Services.AddScoped<DatabaseService>();

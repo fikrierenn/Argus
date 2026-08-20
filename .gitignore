@@ -44,3 +44,8 @@ git_status_now.txt
 
 ## NuGet
 nupkg/
+
+## Secrets - ek (2026-08)
+appsettings.Local.json
+**/appsettings.Local.json
+.claude/settings.local.json

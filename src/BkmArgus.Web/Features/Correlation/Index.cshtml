@@ -1,6 +1,6 @@
 @page
 @model BkmArgus.Web.Features.Correlation.IndexModel
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.YonetimVeUstu)]
 @{
     ViewData["Title"] = "Capraz Korelasyon";
     ViewData["Subtitle"] = "ERP Risk x Saha Denetim";

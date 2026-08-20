@@ -1,6 +1,6 @@
 @page
 @model AyarlarModel
-@attribute [Authorize]
+@attribute [Authorize(Policy = Policies.AdminOnly)]
 @{
     ViewData["Title"] = "Ayarlar";
     ViewData["Subtitle"] = "Kullanici ve sistem ayarlari";
