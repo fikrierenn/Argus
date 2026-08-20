@@ -4,6 +4,11 @@ public sealed class AiWorkerOptions
 {
     public string ConnectionString { get; set; } = string.Empty;
     public int PollSeconds { get; set; } = 15;
+
+    // Gunluk risk ETL'i sonrasi otomatik AI kuyruklama. Esik kodda sabit
+    // birakilmaz (ai-layer.md §6) — maliyeti dogrudan bu deger belirler.
+    public bool PostRiskEtlTriggerEnabled { get; set; } = true;
+    public int  PostRiskEtlRiskEsik { get; set; } = 85;
     public int BatchSize { get; set; } = 20;
     public int SemanticTop { get; set; } = 500;
     public double SimilarityThreshold { get; set; } = 0.85;

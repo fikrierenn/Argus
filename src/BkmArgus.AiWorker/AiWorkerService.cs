@@ -22,6 +22,10 @@ public sealed class AiWorkerService : BackgroundService
     private readonly AiWorkerOptions _options;
     private readonly ILogger<AiWorkerService> _logger;
     private readonly IServiceProvider _serviceProvider;
+    // LM kural setinin surumu — kural mantigi degisince artirilir,
+    // boylece eski ciktinin hangi kural setiyle uretildigi izlenebilir kalir.
+    private const string RuleSetVersion = "v1";
+
     private DateTime _lastVectorSyncUtc = DateTime.UtcNow;
 
     public AiWorkerService(
@@ -50,29 +54,35 @@ public sealed class AiWorkerService : BackgroundService
         {
             try
             {
+                await TriggerPostRiskEtlAsync(stoppingToken);
+            }
+            catch (Exception ex) { _logger.LogWarning(ex, "PostRiskEtl tetigi basarisiz, atlaniyor"); }
+
+            try
+            {
                 await SyncVectorsIfNeededAsync(stoppingToken);
             }
-            catch (Exception ex) { _logger.LogWarning(ex, "SyncVectors failed, skipping"); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Vektor senkronu basarisiz, atlaniyor"); }
 
             try
             {
                 await ProcessQueueAsync(stoppingToken);
             }
-            catch (Exception ex) { _logger.LogWarning(ex, "ProcessQueue failed, skipping"); }
+            catch (Exception ex) { _logger.LogWarning(ex, "LM kuyrugu islenemedi, atlaniyor"); }
 
             try
             {
                 await ProcessLlmQueueAsync(stoppingToken);
             }
-            catch (Exception ex) { _logger.LogWarning(ex, "ProcessLlmQueue failed, skipping"); }
+            catch (Exception ex) { _logger.LogWarning(ex, "LLM kuyrugu islenemedi, atlaniyor"); }
 
             try
             {
                 await ProcessSkillQueueAsync(stoppingToken);
             }
-            catch (Exception ex) { _logger.LogError(ex, "ProcessSkillQueue failed"); }
+            catch (Exception ex) { _logger.LogError(ex, "Skill kuyrugu islenemedi"); }
 
-            _logger.LogInformation("AI Worker cycle completed.");
+            _logger.LogInformation("AI Worker dongusu tamamlandi.");
             await Task.Delay(TimeSpan.FromSeconds(_options.PollSeconds), stoppingToken);
         }
     }
@@ -151,22 +161,49 @@ OUTPUT
 
                 await UpsertRuleResultAsync(connection, row.RequestId ?? 0, decision);
 
+                // Kural sonucuna gore kuyruk durumu: LLM gerekiyorsa siraya, gerekmiyorsa kapat
                 var newStatus = decision.LlmRequired ? "LLM_QUEUED" : "LM_DONE";
                 await connection.ExecuteAsync(
-                    "UPDATE ai.AnalysisQueue SET Status = @Status, EvidencePlan = @EvidencePlan, RuleNote = @RuleNote, UpdatedAt = SYSDATETIME() WHERE RequestId = @RequestId",
+                    "ai.sp_AnalysisQueue_SetRuleOutcome",
                     new
                     {
-                        RequestId = row.RequestId ?? 0,
-                        Status = newStatus,
-                        EvidencePlan = decision.EvidencePlan,
-                        RuleNote = decision.SemanticNote
-                    });
+                        IstekId    = row.RequestId ?? 0,
+                        Durum      = newStatus,
+                        KanitPlani = decision.EvidencePlan,
+                        KuralNotu  = decision.SemanticNote
+                    },
+                    commandType: CommandType.StoredProcedure);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "AI request processing failed. RequestId={RequestId}", row.RequestId);
                 await MarkErrorAsync(connection, row.RequestId ?? 0, FormatException("LM request processing failed", ex));
             }
+        }
+    }
+
+    // Gunluk risk ETL'i sonrasi, esigi asan urunleri AI analiz kuyruguna alir.
+    // SP idempotent (mekan+urun+gun+periyot bazinda NOT EXISTS korumasi), bu yuzden
+    // her poll dongusunde guvenle cagrilabilir; ETL'in devasa SP'sine dokunmaya gerek yok.
+    private async Task TriggerPostRiskEtlAsync(CancellationToken token)
+    {
+        if (!_options.PostRiskEtlTriggerEnabled)
+        {
+            return;
+        }
+
+        using var connection = _db.CreateConnection();
+        var queued = await connection.ExecuteScalarAsync<int?>(
+            new CommandDefinition(
+                "ai.sp_Trigger_PostRiskEtl",
+                new { RiskEsik = _options.PostRiskEtlRiskEsik },
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: token));
+
+        // Sifir da bir sonuctur — sessiz gecme (etl-discipline.md)
+        if (queued is > 0)
+        {
+            _logger.LogInformation("PostRiskEtl: {Adet} yeni analiz istegi kuyruklandi.", queued);
         }
     }
 
@@ -620,73 +657,41 @@ OUTPUT
         }));
     }
 
+    // LLM ciktisini kalici hale getirir. Inline MERGE yerine SP (SP-first).
+    // Sayisal degerler LLM'den DEGIL deterministik katmandan gelir; burada
+    // yalniz LLM'in urettigi anlati ve modelin kendi guven skoru saklanir.
     private static Task UpsertLlmResultAsync(IDbConnection connection, long requestId, LlmResultRow result)
-    {
-        const string sql = @"
-MERGE ai.LlmResults AS t
-USING (SELECT @RequestId AS RequestId) AS s
-ON t.RequestId = s.RequestId
-WHEN MATCHED THEN
-    UPDATE SET
-        ModelName = @ModelName,
-        PromptVersion = @PromptVersion,
-        RootCauseHypotheses = @RootCauseHypotheses,
-        VerificationSteps = @VerificationSteps,
-        RecommendedActions = @RecommendedActions,
-        DofDraftJson = @DofDraftJson,
-        ExecutiveSummary = @ExecutiveSummary,
-        ConfidenceScore = @ConfidenceScore,
-        CreatedAt = SYSDATETIME()
-WHEN NOT MATCHED THEN
-    INSERT (RequestId, ModelName, PromptVersion, RootCauseHypotheses, VerificationSteps, RecommendedActions, DofDraftJson, ExecutiveSummary, ConfidenceScore, CreatedAt)
-    VALUES (@RequestId, @ModelName, @PromptVersion, @RootCauseHypotheses, @VerificationSteps, @RecommendedActions, @DofDraftJson, @ExecutiveSummary, @ConfidenceScore, SYSDATETIME());";
-
-        return connection.ExecuteAsync(sql, new
-        {
-            RequestId = requestId,
-            result.ModelName,
-            result.PromptVersion,
-            result.RootCauseHypotheses,
-            result.VerificationSteps,
-            result.RecommendedActions,
-            result.DofDraftJson,
-            ExecutiveSummary = result.ExecutiveSummary ?? result.RawJson,
-            result.ConfidenceScore
-        });
-    }
+        => connection.ExecuteAsync(
+            "ai.sp_LlmResult_Upsert",
+            new
+            {
+                IstekId            = requestId,
+                ModelAdi           = result.ModelName,
+                PromptSurumu       = result.PromptVersion,
+                KokNedenHipotez    = result.RootCauseHypotheses,
+                DogrulamaAdimlari  = result.VerificationSteps,
+                OnerilenAksiyon    = result.RecommendedActions,
+                DofTaslakJson      = result.DofDraftJson,
+                YoneticiOzeti      = result.ExecutiveSummary ?? result.RawJson,
+                GuvenSkoru         = result.ConfidenceScore
+            },
+            commandType: CommandType.StoredProcedure);
 
     private static Task UpsertRuleResultAsync(IDbConnection connection, long requestId, RuleDecision decision)
-    {
-        const string sql = @"
-MERGE ai.RuleResults AS t
-USING (SELECT @RequestId AS RequestId) AS s
-ON t.RequestId = s.RequestId
-WHEN MATCHED THEN
-    UPDATE SET
-        RootCauseClass = @RootCauseClass,
-        EvidencePlan = @EvidencePlan,
-        LlmRequired = @LlmRequired,
-        PriorityScore = @PriorityScore,
-        BriefSummary = @BriefSummary,
-        FeatureJson = @FeatureJson,
-        RuleSetVersion = @RuleSetVersion,
-        CreatedAt = SYSDATETIME()
-WHEN NOT MATCHED THEN
-    INSERT (RequestId, RootCauseClass, EvidencePlan, LlmRequired, PriorityScore, BriefSummary, FeatureJson, RuleSetVersion, CreatedAt)
-    VALUES (@RequestId, @RootCauseClass, @EvidencePlan, @LlmRequired, @PriorityScore, @BriefSummary, @FeatureJson, @RuleSetVersion, SYSDATETIME());";
-
-        return connection.ExecuteAsync(sql, new
-        {
-            RequestId = requestId,
-            decision.RootCauseClass,
-            decision.EvidencePlan,
-            decision.LlmRequired,
-            decision.PriorityScore,
-            decision.BriefSummary,
-            decision.FeatureJson,
-            RuleSetVersion = "v1"
-        });
-    }
+        => connection.ExecuteAsync(
+            "ai.sp_RuleResult_Upsert",
+            new
+            {
+                IstekId         = requestId,
+                KokNedenSinifi  = decision.RootCauseClass,
+                KanitPlani      = decision.EvidencePlan,
+                LlmGerekli      = decision.LlmRequired,
+                OncelikSkoru    = decision.PriorityScore,
+                KisaOzet        = decision.BriefSummary,
+                OzellikJson     = decision.FeatureJson,
+                KuralSetiSurumu = RuleSetVersion
+            },
+            commandType: CommandType.StoredProcedure);
 
     private async Task ProcessSkillQueueAsync(CancellationToken token)
     {
@@ -909,13 +914,13 @@ WHEN NOT MATCHED THEN
         return flags.Count == 0 ? "Aktif flag yok" : string.Join(", ", flags);
     }
 
+    // Istegi ERROR durumuna dusurur. Sessiz basarisizlik yasak — hata mesaji
+    // her zaman kayda gecer (error-handling.md).
     private static Task MarkErrorAsync(IDbConnection connection, long requestId, string error)
-    {
-        var safe = TrimError(error);
-        return connection.ExecuteAsync(
-            "UPDATE ai.AnalysisQueue SET Status = @Status, ErrorMessage = @ErrorMessage, UpdatedAt = SYSDATETIME() WHERE RequestId = @RequestId",
-            new { RequestId = requestId, Status = "ERROR", ErrorMessage = safe });
-    }
+        => connection.ExecuteAsync(
+            "ai.sp_AnalysisQueue_MarkError",
+            new { IstekId = requestId, HataMesaji = TrimError(error) },
+            commandType: CommandType.StoredProcedure);
 
     private static string TrimError(string? message)
     {
