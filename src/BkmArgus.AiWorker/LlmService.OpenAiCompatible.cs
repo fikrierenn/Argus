@@ -6,13 +6,16 @@ using Microsoft.Extensions.Logging;
 namespace BkmArgus.AiWorker;
 
 /// <summary>
-/// GLM (Z.AI) saglayicisi. OpenAI uyumlu /chat/completions ucu kullanir.
+/// OpenAI uyumlu saglayicilar icin TEK cagri yolu.
+/// GLM (Z.AI), DeepSeek, Groq, OpenRouter, Together, Mistral, vLLM ve benzerleri
+/// ayni sozlesmeyi konusur; yeni birini eklemek icin bu dosya DEGISMEZ —
+/// ai.LlmProviders tablosuna Kind = 'openai' kaydi eklemek yeter.
 /// LlmService buyudugu icin saglayici basina ayri dosyaya bolunmustur
 /// (csharp-conventions.md dosya boyutu disiplini).
 /// </summary>
 public sealed partial class LlmService
 {
-    private async Task<LlmCallResult> CallGlmWithRetryAsync(string model, string prompt, CancellationToken token)
+    private async Task<LlmCallResult> CallOpenAiCompatibleWithRetryAsync(LlmProviderConfig provider, string model, string prompt, CancellationToken token)
     {
         const int maxRetries = 2;
 
@@ -20,7 +23,7 @@ public sealed partial class LlmService
         {
             try
             {
-                var result = await CallGlmAsync(model, prompt, token);
+                var result = await CallOpenAiCompatibleAsync(provider, model, prompt, token);
                 if (result.Success)
                 {
                     return result;
@@ -29,8 +32,8 @@ public sealed partial class LlmService
                 if (attempt < maxRetries)
                 {
                     var delay = TimeSpan.FromSeconds(2 * attempt);
-                    _logger.LogWarning("GLM {Attempt}. deneme basarisiz. {Delay}s sonra tekrar. Hata: {Error}",
-                        attempt, delay.TotalSeconds, result.Error);
+                    _logger.LogWarning("{Saglayici} {Attempt}. deneme basarisiz. {Delay}s sonra tekrar. Hata: {Error}",
+                        provider.Name, attempt, delay.TotalSeconds, result.Error);
                     await Task.Delay(delay, token);
                 }
             }
@@ -41,27 +44,27 @@ public sealed partial class LlmService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "GLM {Attempt}. denemesi istisna ile basarisiz", attempt);
+                _logger.LogError(ex, "{Saglayici} {Attempt}. denemesi istisna ile basarisiz", provider.Name, attempt);
                 if (attempt == maxRetries)
                 {
-                    return new LlmCallResult { Error = $"GLM {maxRetries} denemede basarisiz: {ex.Message}" };
+                    return new LlmCallResult { Error = $"{provider.Name} {maxRetries} denemede basarisiz: {ex.Message}" };
                 }
             }
         }
 
-        return new LlmCallResult { Error = $"GLM {maxRetries} denemede basarisiz." };
+        return new LlmCallResult { Error = $"{provider.Name} {maxRetries} denemede basarisiz." };
     }
 
-    private async Task<LlmCallResult> CallGlmAsync(string model, string prompt, CancellationToken token)
+    private async Task<LlmCallResult> CallOpenAiCompatibleAsync(LlmProviderConfig provider, string model, string prompt, CancellationToken token)
     {
-        var baseUrl = ResolveBaseUrl(ProviderGlm);
+        var baseUrl = provider.BaseUrl;
 
         // Anahtar yoksa saglayici KAPALI sayilir — exception degil, hata sonucu (ai-layer.md §2)
-        if (string.IsNullOrWhiteSpace(_options.GlmApiKey))
+        if (string.IsNullOrWhiteSpace(provider.ApiKey))
         {
             return new LlmCallResult
             {
-                Error = BuildError(ProviderGlm, model, "GLM API anahtari bos.", null, null, prompt.Length, baseUrl)
+                Error = BuildError(provider.Name, model, "API anahtari bos.", null, null, prompt.Length, baseUrl)
             };
         }
 
@@ -69,7 +72,7 @@ public sealed partial class LlmService
         {
             return new LlmCallResult
             {
-                Error = BuildError(ProviderGlm, "-", "GLM model adi bos.", null, null, prompt.Length, baseUrl)
+                Error = BuildError(provider.Name, "-", "Model adi bos.", null, null, prompt.Length, baseUrl)
             };
         }
 
@@ -82,7 +85,7 @@ public sealed partial class LlmService
             // ayri bir mesaj olarak bekler (OpenAI sozlesmesi).
             var (systemPrompt, userPrompt) = ExtractClaudeSystemPrompt(prompt);
 
-            var payload = new GlmChatRequest
+            var payload = new OpenAiChatRequest
             {
                 Model = model,
                 Temperature = _options.Temperature,
@@ -91,30 +94,30 @@ public sealed partial class LlmService
 
             if (!string.IsNullOrWhiteSpace(systemPrompt))
             {
-                payload.Messages.Add(new GlmMessage { Role = "system", Content = systemPrompt });
+                payload.Messages.Add(new OpenAiMessage { Role = "system", Content = systemPrompt });
             }
 
-            payload.Messages.Add(new GlmMessage { Role = "user", Content = userPrompt });
+            payload.Messages.Add(new OpenAiMessage { Role = "user", Content = userPrompt });
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Post,
-                $"{_options.GlmBaseUrl.TrimEnd('/')}/api/paas/v4/chat/completions");
-            request.Headers.Add("Authorization", $"Bearer {_options.GlmApiKey}");
+                $"{provider.BaseUrl.TrimEnd('/')}/{provider.Path.TrimStart('/')}");
+            request.Headers.Add("Authorization", $"Bearer {provider.ApiKey}");
             request.Content = new StringContent(
                 JsonSerializer.Serialize(payload, JsonOptions),
                 Encoding.UTF8,
                 "application/json");
 
-            using var response = await _glm.SendAsync(request, cts.Token);
+            using var response = await _openAi.SendAsync(request, cts.Token);
             var body = await response.Content.ReadAsStringAsync(cts.Token);
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("GLM HTTP istegi basarisiz. Model={Model} Status={Status}", model, response.StatusCode);
+                _logger.LogWarning("{Saglayici} HTTP istegi basarisiz. Model={Model} Status={Status}", provider.Name, model, response.StatusCode);
                 var detail = $"Status={(int)response.StatusCode} {response.ReasonPhrase}; BodyLen={body.Length}";
                 return new LlmCallResult
                 {
-                    Error = BuildError(ProviderGlm, model, "HTTP istegi basarisiz.", detail, body, prompt.Length, baseUrl)
+                    Error = BuildError(provider.Name, model, "HTTP istegi basarisiz.", detail, body, prompt.Length, baseUrl)
                 };
             }
 
@@ -122,21 +125,21 @@ public sealed partial class LlmService
             {
                 return new LlmCallResult
                 {
-                    Error = BuildError(ProviderGlm, model, "HTTP yaniti bos.", "BodyLen=0", null, prompt.Length, baseUrl)
+                    Error = BuildError(provider.Name, model, "HTTP yaniti bos.", "BodyLen=0", null, prompt.Length, baseUrl)
                 };
             }
 
-            GlmChatResponse? data;
+            OpenAiChatResponse? data;
             try
             {
-                data = JsonSerializer.Deserialize<GlmChatResponse>(body, JsonOptions);
+                data = JsonSerializer.Deserialize<OpenAiChatResponse>(body, JsonOptions);
             }
             catch (JsonException ex)
             {
                 var detail = $"ParseError={ex.GetType().Name}: {ex.Message}; BodyLen={body.Length}";
                 return new LlmCallResult
                 {
-                    Error = BuildError(ProviderGlm, model, "GLM yaniti parse edilemedi.", detail, body, prompt.Length, baseUrl)
+                    Error = BuildError(provider.Name, model, "Yanit parse edilemedi.", detail, body, prompt.Length, baseUrl)
                 };
             }
 
@@ -151,17 +154,17 @@ public sealed partial class LlmService
 
                 return new LlmCallResult
                 {
-                    Error = BuildError(ProviderGlm, model, "GLM yaniti bos.", detail, body, prompt.Length, baseUrl)
+                    Error = BuildError(provider.Name, model, "Yanit bos.", detail, body, prompt.Length, baseUrl)
                 };
             }
 
             var json = ExtractAndValidateJson(raw);
             if (string.IsNullOrWhiteSpace(json))
             {
-                _logger.LogWarning("GLM icin gecerli JSON cikarilamadi. Raw={Raw}", raw[..Math.Min(200, raw.Length)]);
+                _logger.LogWarning("{Saglayici} icin gecerli JSON cikarilamadi. Raw={Raw}", provider.Name, raw[..Math.Min(200, raw.Length)]);
                 return new LlmCallResult
                 {
-                    Error = BuildError(ProviderGlm, model, "Gecerli JSON bulunamadi.",
+                    Error = BuildError(provider.Name, model, "Gecerli JSON bulunamadi.",
                         $"RawLen={raw.Length}", raw[..Math.Min(500, raw.Length)], prompt.Length, baseUrl)
                 };
             }
@@ -177,7 +180,7 @@ public sealed partial class LlmService
             // Zaman asimi — cagiran iptal etmedi, sure doldu
             return new LlmCallResult
             {
-                Error = BuildError(ProviderGlm, model, $"Zaman asimi ({_options.LlmTimeoutSeconds}s).",
+                Error = BuildError(provider.Name, model, $"Zaman asimi ({_options.LlmTimeoutSeconds}s).",
                     null, null, prompt.Length, baseUrl)
             };
         }
@@ -185,20 +188,20 @@ public sealed partial class LlmService
         {
             return new LlmCallResult
             {
-                Error = BuildError(ProviderGlm, model, "Baglanti hatasi.", ex.Message, null, prompt.Length, baseUrl)
+                Error = BuildError(provider.Name, model, "Baglanti hatasi.", ex.Message, null, prompt.Length, baseUrl)
             };
         }
     }
 
-    // ── GLM istek/yanit sozlesmesi (OpenAI uyumlu) ─────────────────────────
+    // ── OpenAI sohbet-tamamlama sozlesmesi ─────────────────────────────────
 
-    private sealed class GlmChatRequest
+    private sealed class OpenAiChatRequest
     {
         [JsonPropertyName("model")]
         public string Model { get; set; } = string.Empty;
 
         [JsonPropertyName("messages")]
-        public List<GlmMessage> Messages { get; } = [];
+        public List<OpenAiMessage> Messages { get; } = [];
 
         [JsonPropertyName("temperature")]
         public double Temperature { get; set; }
@@ -207,7 +210,7 @@ public sealed partial class LlmService
         public int MaxTokens { get; set; }
     }
 
-    private sealed class GlmMessage
+    private sealed class OpenAiMessage
     {
         [JsonPropertyName("role")]
         public string Role { get; set; } = string.Empty;
@@ -216,22 +219,22 @@ public sealed partial class LlmService
         public string Content { get; set; } = string.Empty;
     }
 
-    private sealed class GlmChatResponse
+    private sealed class OpenAiChatResponse
     {
         [JsonPropertyName("choices")]
-        public List<GlmChoice>? Choices { get; set; }
+        public List<OpenAiChoice>? Choices { get; set; }
 
         [JsonPropertyName("error")]
-        public GlmError? Error { get; set; }
+        public OpenAiError? Error { get; set; }
     }
 
-    private sealed class GlmChoice
+    private sealed class OpenAiChoice
     {
         [JsonPropertyName("message")]
-        public GlmMessage? Message { get; set; }
+        public OpenAiMessage? Message { get; set; }
     }
 
-    private sealed class GlmError
+    private sealed class OpenAiError
     {
         [JsonPropertyName("message")]
         public string? Message { get; set; }

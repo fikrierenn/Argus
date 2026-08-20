@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\Shared\BkmDenetimConnection.cs" Link="Shared\BkmDenetimConnection.cs" />
+    <Compile Include="..\..\Shared\SecretProtector.cs" Link="Shared\SecretProtector.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -16,127 +16,104 @@ public sealed partial class LlmService
     private const string ProviderOllama = "ollama";
     private const string ProviderGemini = "gemini";
     private const string ProviderClaude = "claude";
-    private const string ProviderGlm = "glm";
     private readonly HttpClient _ollama;
     private readonly HttpClient _gemini;
     private readonly HttpClient _claude;
-    private readonly HttpClient _glm;
+    private readonly HttpClient _openAi;
     private readonly AiWorkerOptions _options;
+    private readonly LlmProviderRegistry _registry;
     private readonly ILogger<LlmService> _logger;
 
     public LlmService(
         IHttpClientFactory httpFactory,
         IOptions<AiWorkerOptions> options,
+        LlmProviderRegistry registry,
         ILogger<LlmService> logger)
     {
         _ollama = httpFactory.CreateClient("ollama");
         _gemini = httpFactory.CreateClient("gemini");
         _claude = httpFactory.CreateClient("claude");
-        _glm = httpFactory.CreateClient("glm");
+        _openAi = httpFactory.CreateClient("openai-compatible");
         _options = options.Value;
+        _registry = registry;
         _logger = logger;
     }
 
     public async Task<LlmCallResult> GenerateAsync(string prompt, CancellationToken token)
     {
-        var provider = NormalizeProvider(_options.LlmProvider);
+        // Saglayici zinciri ai.LlmProviders'tan gelir; kodda sabit sira yok.
+        var chain = await _registry.GetAsync(token);
+
+        if (chain.Count == 0)
+        {
+            // Hicbir saglayici aktif degil — is LLM_SKIPPED ile kapanir, exception atilmaz
+            return new LlmCallResult { Error = "Aktif LLM saglayicisi yok." };
+        }
+
         if (string.IsNullOrWhiteSpace(prompt))
         {
-            var model = provider == ProviderGemini ? _options.GeminiModel
-                      : provider == ProviderClaude ? _options.ClaudeModel
-                      : provider == ProviderGlm    ? _options.GlmModel
-                      : _options.LlmModel;
+            var first = chain[0];
             return new LlmCallResult
             {
-                Error = BuildError(provider, model, "Prompt bos.", null, null, 0, ResolveBaseUrl(provider))
+                Error = BuildError(first.Name, first.Model, "Prompt bos.", null, null, 0, first.BaseUrl)
             };
         }
 
-        var providers = GetProviderChain(provider);
         var errors = new List<string>();
 
-        foreach (var (currentProvider, model) in providers)
+        foreach (var provider in chain)
         {
-            var result = currentProvider switch
+            foreach (var model in ModelsOf(provider))
             {
-                ProviderGemini => await CallGeminiWithRetryAsync(model, prompt, token),
-                ProviderClaude => await CallClaudeWithRetryAsync(model, prompt, token),
-                ProviderGlm    => await CallGlmWithRetryAsync(model, prompt, token),
-                ProviderOllama => await CallOllamaWithRetryAsync(model, prompt, token),
-                _ => new LlmCallResult { Error = $"Unknown provider: {currentProvider}" }
-            };
+                var result = await CallProviderAsync(provider, model, prompt, token);
 
-            if (result.Success)
-            {
-                // Quality validation (soft — warn but still return result)
-                var validation = ValidateResult(result.Result);
-                if (!validation.IsValid)
+                if (result.Success)
                 {
-                    _logger.LogWarning("LLM result quality validation: {Issues} (proceeding anyway)", string.Join("; ", validation.Issues));
-                }
-                return result;
-            }
+                    // Kalite dogrulamasi yumusak — uyarir ama sonucu reddetmez
+                    var validation = ValidateResult(result.Result);
+                    if (!validation.IsValid)
+                    {
+                        _logger.LogWarning("LLM cikti kalite uyarisi: {Sorunlar} (yine de kullaniliyor)",
+                            string.Join("; ", validation.Issues));
+                    }
 
-            errors.Add($"{currentProvider}: {result.Error}");
+                    return result;
+                }
+
+                errors.Add($"{provider.Name}/{model}: {result.Error}");
+            }
         }
 
         return new LlmCallResult
         {
-            Error = $"All providers failed. Errors: {string.Join(" | ", errors)}"
+            Error = $"Tum saglayicilar basarisiz. Hatalar: {string.Join(" | ", errors)}"
         };
     }
 
-    private IEnumerable<(string provider, string model)> GetProviderChain(string primaryProvider)
+    // Bir saglayicida denenecek modeller: once birincil, sonra varsa yedek
+    private static IEnumerable<string> ModelsOf(LlmProviderConfig provider)
     {
-        // Primary provider first
-        if (primaryProvider == ProviderGemini && _options.GeminiEnabled)
-        {
-            yield return (ProviderGemini, _options.GeminiModel);
-            if (!string.IsNullOrWhiteSpace(_options.GeminiModelFallback) &&
-                !string.Equals(_options.GeminiModelFallback, _options.GeminiModel, StringComparison.OrdinalIgnoreCase))
-            {
-                yield return (ProviderGemini, _options.GeminiModelFallback!);
-            }
-        }
-        else if (primaryProvider == ProviderClaude && _options.ClaudeEnabled)
-        {
-            yield return (ProviderClaude, _options.ClaudeModel);
-            if (!string.IsNullOrWhiteSpace(_options.ClaudeModelFallback) &&
-                !string.Equals(_options.ClaudeModelFallback, _options.ClaudeModel, StringComparison.OrdinalIgnoreCase))
-            {
-                yield return (ProviderClaude, _options.ClaudeModelFallback!);
-            }
-        }
-        else if (primaryProvider == ProviderGlm && _options.GlmEnabled)
-        {
-            yield return (ProviderGlm, _options.GlmModel);
+        yield return provider.Model;
 
-            if (!string.IsNullOrWhiteSpace(_options.GlmModelFallback))
-            {
-                yield return (ProviderGlm, _options.GlmModelFallback!);
-            }
-        }
-        else if (primaryProvider == ProviderOllama && _options.OllamaEnabled)
+        if (!string.IsNullOrWhiteSpace(provider.FallbackModel) &&
+            !string.Equals(provider.FallbackModel, provider.Model, StringComparison.OrdinalIgnoreCase))
         {
-            yield return (ProviderOllama, _options.LlmModel);
-            if (!string.IsNullOrWhiteSpace(_options.LlmModelLowRam) &&
-                !string.Equals(_options.LlmModelLowRam, _options.LlmModel, StringComparison.OrdinalIgnoreCase))
-            {
-                yield return (ProviderOllama, _options.LlmModelLowRam!);
-            }
+            yield return provider.FallbackModel!;
         }
-
-        // Fallback providers (only if enabled)
-        if (primaryProvider != ProviderGemini && _options.GeminiEnabled && !string.IsNullOrWhiteSpace(_options.GeminiApiKey))
-            yield return (ProviderGemini, _options.GeminiModel);
-        if (primaryProvider != ProviderClaude && _options.ClaudeEnabled && !string.IsNullOrWhiteSpace(_options.ClaudeApiKey))
-            yield return (ProviderClaude, _options.ClaudeModel);
-        if (primaryProvider != ProviderGlm && _options.GlmEnabled && !string.IsNullOrWhiteSpace(_options.GlmApiKey))
-            yield return (ProviderGlm, _options.GlmModel);
-        if (primaryProvider != ProviderOllama && _options.OllamaEnabled)
-            yield return (ProviderOllama, _options.LlmModel);
-
     }
+
+    // Protokole gore dogru cagri yoluna dagitir. Yeni bir OpenAI uyumlu AI eklemek
+    // icin burasi DEGISMEZ — ai.LlmProviders'a Kind='openai' kaydi yeter.
+    private Task<LlmCallResult> CallProviderAsync(
+        LlmProviderConfig provider, string model, string prompt, CancellationToken token)
+        => provider.Kind switch
+        {
+            LlmProviderKinds.OpenAi => CallOpenAiCompatibleWithRetryAsync(provider, model, prompt, token),
+            LlmProviderKinds.Gemini => CallGeminiWithRetryAsync(model, prompt, token),
+            LlmProviderKinds.Claude => CallClaudeWithRetryAsync(model, prompt, token),
+            LlmProviderKinds.Ollama => CallOllamaWithRetryAsync(model, prompt, token),
+            _ => Task.FromResult(new LlmCallResult { Error = $"Bilinmeyen saglayici turu: {provider.Kind}" })
+        };
 
     private async Task<LlmCallResult> CallOllamaWithRetryAsync(string model, string prompt, CancellationToken token)
     {
@@ -863,11 +840,6 @@ public sealed partial class LlmService
         if (string.Equals(provider, ProviderClaude, StringComparison.OrdinalIgnoreCase))
         {
             return _claude.BaseAddress?.ToString() ?? _options.ClaudeBaseUrl;
-        }
-
-        if (string.Equals(provider, ProviderGlm, StringComparison.OrdinalIgnoreCase))
-        {
-            return _glm.BaseAddress?.ToString() ?? _options.GlmBaseUrl;
         }
 
         return _ollama.BaseAddress?.ToString() ?? _options.OllamaBaseUrl;

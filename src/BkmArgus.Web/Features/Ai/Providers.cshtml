@@ -1,0 +1,232 @@
+@page
+@model BkmArgus.Web.Features.Ai.ProvidersModel
+@attribute [Authorize(Policy = Policies.AdminOnly)]
+@{
+    ViewData["Title"] = "AI Saglayicilari";
+    ViewData["Subtitle"] = "LLM zinciri — sira, model ve anahtar yonetimi";
+}
+
+@if (TempData["StatusMessage"] is string msg)
+{
+    <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">@msg</div>
+}
+@if (TempData["Error"] is string err)
+{
+    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">@err</div>
+}
+
+@if (!Model.SecretsConfigured)
+{
+    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <span class="font-semibold">BKM_SECRET_KEY tanimli degil.</span>
+        Anahtar sifrelenerek saklanamaz. Ortam degiskeni olarak veya
+        <code class="rounded bg-amber-100 px-1">appsettings.Local.json</code> icine ekleyin;
+        o zamana kadar anahtarlar yalniz ortam degiskeni yoluyla kullanilabilir.
+    </div>
+}
+
+<div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+    Zincir <span class="font-semibold">oncelik sirasina</span> gore denenir; ilk basarili yanit kullanilir.
+    Pasif saglayici ve anahtari cozulemeyen saglayici zincire hic girmez.
+    <span class="font-semibold">OpenAI uyumlu</span> bir servis eklemek icin kod degisikligi gerekmez —
+    tur olarak <code class="rounded bg-slate-200 px-1">openai</code> secip adres ve model yazmak yeterli
+    (DeepSeek, Groq, OpenRouter, Together, Mistral, vLLM...).
+</div>
+
+@* ── Saglayici listesi ────────────────────────────────────────────────── *@
+<div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                    <th class="px-4 py-3">Sira</th>
+                    <th class="px-4 py-3">Saglayici</th>
+                    <th class="px-4 py-3">Tur</th>
+                    <th class="px-4 py-3">Model</th>
+                    <th class="px-4 py-3">Anahtar</th>
+                    <th class="px-4 py-3">Durum</th>
+                    <th class="px-4 py-3">Islemler</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+            @if (Model.Providers.Count == 0)
+            {
+                <tr><td colspan="7" class="px-4 py-8 text-center text-slate-500">Kayit bulunamadi.</td></tr>
+            }
+            @foreach (var p in Model.Providers)
+            {
+                <tr class="@(p.IsActive ? "" : "bg-slate-50/60")">
+                    <td class="px-4 py-3 text-slate-500">@p.Priority</td>
+                    <td class="px-4 py-3">
+                        <div class="font-medium text-slate-900">@p.DisplayName</div>
+                        <div class="text-xs text-slate-500">@p.Name · @p.BaseUrl</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">@p.Kind</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="text-slate-700">@p.Model</div>
+                        @if (!string.IsNullOrWhiteSpace(p.FallbackModel))
+                        {
+                            <div class="text-xs text-slate-400">yedek: @p.FallbackModel</div>
+                        }
+                    </td>
+                    <td class="px-4 py-3">
+                        @if (p.KeyAvailable)
+                        {
+                            <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">@p.KeySource</span>
+                        }
+                        else
+                        {
+                            <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">tanimsiz</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(p.ApiKeyRef))
+                        {
+                            <div class="mt-1 text-xs text-slate-400">@p.ApiKeyRef</div>
+                        }
+                    </td>
+                    <td class="px-4 py-3">
+                        @if (p.IsActive)
+                        {
+                            <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">Aktif</span>
+                        }
+                        else
+                        {
+                            <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-500">Pasif</span>
+                        }
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <form method="post" asp-page-handler="Durum" class="inline">
+                                <input type="hidden" name="saglayiciId" value="@p.Id" />
+                                <input type="hidden" name="aktif" value="@((!p.IsActive).ToString().ToLowerInvariant())" />
+                                <button type="submit" class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50">
+                                    @(p.IsActive ? "Pasife al" : "Aktif et")
+                                </button>
+                            </form>
+                            <button type="button" class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                                    data-anahtar-panel="@p.Id">Anahtar</button>
+                        </div>
+
+                        @* Anahtar paneli — yaz-only, mevcut deger hicbir zaman gosterilmez *@
+                        <form method="post" asp-page-handler="Anahtar" class="mt-2 hidden" id="anahtar-@p.Id">
+                            <input type="hidden" name="saglayiciId" value="@p.Id" />
+                            <div class="flex flex-wrap items-center gap-2">
+                                <input type="password" name="apiKey" autocomplete="new-password"
+                                       placeholder="@(p.HasStoredKey ? "Yeni anahtar (degistirmek icin)" : "API anahtari")"
+                                       class="w-64 rounded-lg border border-slate-200 px-3 py-2 text-xs" />
+                                <button type="submit" class="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">Kaydet</button>
+                                @if (p.HasStoredKey)
+                                {
+                                    <button type="submit" name="apiKey" value=""
+                                            class="rounded-full border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50">Sil</button>
+                                }
+                            </div>
+                            <p class="mt-1 text-xs text-slate-400">
+                                Sifrelenerek saklanir, bir daha goruntulenemez.
+                                @if (p.ApiKeySetAt.HasValue)
+                                {
+                                    <span>Son kayit: @p.ApiKeySetAt.Value.ToString("dd MMM yyyy HH:mm")</span>
+                                }
+                            </p>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* ── Yeni saglayici ───────────────────────────────────────────────────── *@
+<div class="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+    <h2 class="mb-4 text-sm font-semibold text-slate-900">Yeni saglayici ekle</h2>
+
+    <form method="post" asp-page-handler="Kaydet">
+        <div asp-validation-summary="ModelOnly" class="mb-3 text-xs text-red-600"></div>
+
+        <div class="grid gap-4 md:grid-cols-3">
+            <div>
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.Name">Ad (kod)</label>
+                <input asp-for="Input.Name" placeholder="deepseek" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <span asp-validation-for="Input.Name" class="text-xs text-red-600"></span>
+            </div>
+            <div>
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.DisplayName">Gorunen ad</label>
+                <input asp-for="Input.DisplayName" placeholder="DeepSeek" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <span asp-validation-for="Input.DisplayName" class="text-xs text-red-600"></span>
+            </div>
+            <div>
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.Kind">Tur</label>
+                <select asp-for="Input.Kind" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    <option value="openai">openai (OpenAI uyumlu)</option>
+                    <option value="gemini">gemini</option>
+                    <option value="claude">claude</option>
+                    <option value="ollama">ollama</option>
+                </select>
+            </div>
+
+            <div class="md:col-span-2">
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.BaseUrl">Adres</label>
+                <input asp-for="Input.BaseUrl" placeholder="https://api.deepseek.com" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <span asp-validation-for="Input.BaseUrl" class="text-xs text-red-600"></span>
+            </div>
+            <div>
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.RequestPath">Istek yolu</label>
+                <input asp-for="Input.RequestPath" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            </div>
+
+            <div>
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.Model">Model</label>
+                <input asp-for="Input.Model" placeholder="deepseek-chat" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <span asp-validation-for="Input.Model" class="text-xs text-red-600"></span>
+            </div>
+            <div>
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.FallbackModel">Yedek model</label>
+                <input asp-for="Input.FallbackModel" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            </div>
+            <div>
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.Priority">Oncelik</label>
+                <input asp-for="Input.Priority" type="number" min="1" max="999" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <span asp-validation-for="Input.Priority" class="text-xs text-red-600"></span>
+            </div>
+
+            <div class="md:col-span-2">
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.ApiKeyRef">Ortam degiskeni adi (opsiyonel)</label>
+                <input asp-for="Input.ApiKeyRef" placeholder="DEEPSEEK_API_KEY" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                <p class="mt-1 text-xs text-slate-400">
+                    Anahtari ortam degiskeninde tutmayi tercih ederseniz adini buraya yazin.
+                    Ekrandan girilen sifreli anahtar yerine bu oncelikli kullanilir.
+                </p>
+            </div>
+            <div class="flex items-end gap-4">
+                <label class="flex items-center gap-2 text-xs text-slate-600">
+                    <input asp-for="Input.RequiresApiKey" class="rounded border-slate-300" /> Anahtar gerekli
+                </label>
+            </div>
+
+            <div class="md:col-span-3">
+                <label class="text-xs font-medium text-slate-600" asp-for="Input.Notes">Not</label>
+                <input asp-for="Input.Notes" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            </div>
+        </div>
+
+        <div class="mt-4 flex items-center gap-3">
+            <button type="submit" class="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold text-white">Kaydet</button>
+            <a asp-page="/Ai/Providers" class="rounded-full border border-slate-200 px-5 py-2 text-xs text-slate-600">Vazgec</a>
+            <span class="text-xs text-slate-400">Yeni saglayici pasif olarak eklenir; anahtar tanimlandiktan sonra aktif edin.</span>
+        </div>
+    </form>
+</div>
+
+<script>
+    (function () {
+        // Anahtar panelini ac/kapat — satir basina bagimsiz
+        document.querySelectorAll('[data-anahtar-panel]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var panel = document.getElementById('anahtar-' + btn.dataset.anahtarPanel);
+                if (panel) { panel.classList.toggle('hidden'); }
+            });
+        });
+    })();
+</script>

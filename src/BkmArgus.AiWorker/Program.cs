@@ -60,11 +60,13 @@ IHost host = Host.CreateDefaultBuilder(args)
         {
             client.BaseAddress = new Uri("https://api.anthropic.com");
         });
-        services.AddHttpClient("glm", client =>
+        // OpenAI uyumlu tum saglayicilar tek istemciyi paylasir; adres kayit
+        // defterinden gelir, bu yuzden BaseAddress atanmaz.
+        services.AddHttpClient("openai-compatible", client =>
         {
-            var baseUrl = Environment.GetEnvironmentVariable("GLM_BASE_URL");
-            client.BaseAddress = new Uri(!string.IsNullOrWhiteSpace(baseUrl) ? baseUrl : "https://api.z.ai");
+            client.Timeout = TimeSpan.FromMinutes(10);
         });
+        services.AddSingleton<LlmProviderRegistry>();
         services.AddHostedService<AiWorkerService>();
     })
     .Build();

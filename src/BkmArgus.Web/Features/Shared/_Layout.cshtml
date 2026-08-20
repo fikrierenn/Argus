@@ -127,6 +127,16 @@
                     <span>AI Analiz</span>
                 </a>
                 }
+                @if (isAdmin)
+                {
+                <a class="@NavClass("/Ai/Providers")" asp-area="" asp-page="/Ai/Providers">
+                    <svg class="h-4 w-4 text-current" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                        <path d="M8 5v4M14 10v4M10 15v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                    </svg>
+                    <span>AI Saglayicilari</span>
+                </a>
+                }
                 @if (isYonetim)
                 {
                 <a class="@NavClass("/Correlation")" asp-area="" asp-page="/Correlation/Index">
