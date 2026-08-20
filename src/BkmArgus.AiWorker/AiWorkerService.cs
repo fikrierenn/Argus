@@ -523,7 +523,10 @@ OUTPUT
                 }
                 prompt = promptBuilder.ToString();
 
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 var call = await _llm.GenerateAsync(prompt, token);
+                sw.Stop();
+
                 if (!call.Success || call.Result is null)
                 {
                     var error = string.IsNullOrWhiteSpace(call.Error) ? "LLM response could not be obtained." : call.Error;
@@ -531,7 +534,7 @@ OUTPUT
                     continue;
                 }
 
-                await UpsertLlmResultAsync(connection, row.RequestId, call.Result);
+                await UpsertLlmResultAsync(connection, row.RequestId, call.Result, prompt, (int)sw.ElapsedMilliseconds);
 
                 await connection.ExecuteAsync(
                     "UPDATE ai.AnalysisQueue SET Status = @Status, UpdatedAt = SYSDATETIME() WHERE RequestId = @RequestId",
@@ -660,20 +663,27 @@ OUTPUT
     // LLM ciktisini kalici hale getirir. Inline MERGE yerine SP (SP-first).
     // Sayisal degerler LLM'den DEGIL deterministik katmandan gelir; burada
     // yalniz LLM'in urettigi anlati ve modelin kendi guven skoru saklanir.
-    private static Task UpsertLlmResultAsync(IDbConnection connection, long requestId, LlmResultRow result)
+    private static Task UpsertLlmResultAsync(
+        IDbConnection connection, long requestId, LlmResultRow result, string prompt, int durationMs)
         => connection.ExecuteAsync(
             "ai.sp_LlmResult_Upsert",
             new
             {
                 IstekId            = requestId,
                 ModelAdi           = result.ModelName,
+                SaglayiciAdi       = result.ProviderName,
                 PromptSurumu       = result.PromptVersion,
+                // Denetim izi: hangi prompt, hangi ham yanit, ne kadar surdu (TODO G1)
+                PromptMetni        = prompt,
+                SonucMetni         = result.RawJson,
                 KokNedenHipotez    = result.RootCauseHypotheses,
                 DogrulamaAdimlari  = result.VerificationSteps,
                 OnerilenAksiyon    = result.RecommendedActions,
                 DofTaslakJson      = result.DofDraftJson,
                 YoneticiOzeti      = result.ExecutiveSummary ?? result.RawJson,
-                GuvenSkoru         = result.ConfidenceScore
+                GuvenSkoru         = result.ConfidenceScore,
+                SureMs             = durationMs,
+                BitisSebebi        = result.FinishReason
             },
             commandType: CommandType.StoredProcedure);
 

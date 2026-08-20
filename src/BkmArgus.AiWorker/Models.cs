@@ -77,6 +77,8 @@ public sealed record LlmResultRow
     public string? ExecutiveSummary { get; init; }
     public int? ConfidenceScore { get; init; }
     public string RawJson { get; init; } = string.Empty;
+    public string? ProviderName { get; init; }
+    public string? FinishReason { get; init; }
     public string? ParseError { get; init; }
 }
 
@@ -122,11 +124,17 @@ public sealed record DofRecordRow
 public sealed record SkillExecutionQueueRow(int ExecutionId, string SkillId, int RequestedByUserId,
     string EntityType, int EntityId, string? InputJson, DateTime CreatedAt);
 
-public record ApprovedExample(
-    int FeedbackId,
-    int? RequestId,
-    int? SkillExecutionId,
-    int? Rating,
-    string? ApprovedOutput,
-    string SkillId,
-    string? InputContext);
+// Onaylanmis ornekler — LLM'e few-shot baglami olarak verilir (ogrenme dongusu).
+// Konumsal record DEGIL: Dapper konumsal kayitlarda TAM imza eslesmesi arar ve
+// SP'nin dondurdugu tinyint Rating / non-null RequestId ile eslesemiyordu.
+// Ozellik eslemesi tip donusumunu kendisi halleder.
+public sealed record ApprovedExample
+{
+    public int FeedbackId { get; init; }
+    public int? RequestId { get; init; }
+    public int? SkillExecutionId { get; init; }
+    public int? Rating { get; init; }
+    public string? ApprovedOutput { get; init; }
+    public string SkillId { get; init; } = string.Empty;
+    public string? InputContext { get; init; }
+}

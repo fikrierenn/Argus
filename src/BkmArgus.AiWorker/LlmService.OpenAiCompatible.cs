@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 
@@ -89,7 +90,11 @@ public sealed partial class LlmService
             {
                 Model = model,
                 Temperature = _options.Temperature,
-                MaxTokens = _options.MaxTokens > 0 ? _options.MaxTokens : 4096
+                // Saglayici kendi sinirini bildirmisse o gecerli: muhakeme modeli
+                // 8-16K isterken kucuk bir model 2K ile yetinir.
+                MaxTokens = provider.MaxOutputTokens is > 0
+                    ? provider.MaxOutputTokens.Value
+                    : (_options.MaxTokens > 0 ? _options.MaxTokens : 4096)
             };
 
             if (!string.IsNullOrWhiteSpace(systemPrompt))
@@ -99,14 +104,16 @@ public sealed partial class LlmService
 
             payload.Messages.Add(new OpenAiMessage { Role = "user", Content = userPrompt });
 
+            var requestJson = MergeExtraBody(
+                JsonSerializer.Serialize(payload, JsonOptions),
+                provider.ExtraBodyJson,
+                provider.Name);
+
             using var request = new HttpRequestMessage(
                 HttpMethod.Post,
                 $"{provider.BaseUrl.TrimEnd('/')}/{provider.Path.TrimStart('/')}");
             request.Headers.Add("Authorization", $"Bearer {provider.ApiKey}");
-            request.Content = new StringContent(
-                JsonSerializer.Serialize(payload, JsonOptions),
-                Encoding.UTF8,
-                "application/json");
+            request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
             using var response = await _openAi.SendAsync(request, cts.Token);
             var body = await response.Content.ReadAsStringAsync(cts.Token);
@@ -143,18 +150,30 @@ public sealed partial class LlmService
                 };
             }
 
-            var raw = data?.Choices?.FirstOrDefault()?.Message?.Content;
+            var choice = data?.Choices?.FirstOrDefault();
+            var raw = choice?.Message?.Content;
+
             if (string.IsNullOrWhiteSpace(raw))
             {
-                var detail = $"BodyLen={body.Length}";
+                var detail = $"BodyLen={body.Length}; FinishReason={choice?.FinishReason ?? "-"}";
+
                 if (!string.IsNullOrWhiteSpace(data?.Error?.Message))
                 {
                     detail = $"{detail}; ApiError={data.Error.Message}";
                 }
 
+                // Muhakeme modeli token butcesini dusunmeye harcadiysa bunu acikca
+                // soyle — "yanit bos" demek gercek sebebi gizliyordu.
+                var reasoningLen = choice?.Message?.ReasoningContent?.Length ?? 0;
+                var message = choice?.FinishReason == "length" && reasoningLen > 0
+                    ? $"Token butcesi muhakemeye harcandi, cevap alani bos kaldi "
+                      + $"(reasoning {reasoningLen} karakter, MaxTokens={_options.MaxTokens}). "
+                      + "MaxTokens artirin veya modelin dusunme modunu kapatin."
+                    : "Yanit bos.";
+
                 return new LlmCallResult
                 {
-                    Error = BuildError(provider.Name, model, "Yanit bos.", detail, body, prompt.Length, baseUrl)
+                    Error = BuildError(provider.Name, model, message, detail, body, prompt.Length, baseUrl)
                 };
             }
 
@@ -193,6 +212,43 @@ public sealed partial class LlmService
         }
     }
 
+    /// <summary>
+    /// Saglayiciya ozel parametreleri istek govdesine birlestirir. Ayni ada sahip
+    /// alan varsa saglayici ayari kazanir. Bozuk JSON istegi durdurmaz — uyarilir
+    /// ve yok sayilir; kayit anindaki ISJSON kisiti zaten ilk savunma hattidir.
+    /// </summary>
+    private string MergeExtraBody(string baseJson, string? extraBodyJson, string providerName)
+    {
+        if (string.IsNullOrWhiteSpace(extraBodyJson))
+        {
+            return baseJson;
+        }
+
+        try
+        {
+            var merged = JsonNode.Parse(baseJson)!.AsObject();
+            var extra = JsonNode.Parse(extraBodyJson)?.AsObject();
+
+            if (extra is null)
+            {
+                return baseJson;
+            }
+
+            foreach (var (key, value) in extra.ToList())
+            {
+                merged[key] = value?.DeepClone();
+            }
+
+            return merged.ToJsonString();
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning("{Saglayici} ek govde parametreleri okunamadi, yok sayiliyor: {Mesaj}",
+                providerName, ex.Message);
+            return baseJson;
+        }
+    }
+
     // ── OpenAI sohbet-tamamlama sozlesmesi ─────────────────────────────────
 
     private sealed class OpenAiChatRequest
@@ -217,6 +273,14 @@ public sealed partial class LlmService
 
         [JsonPropertyName("content")]
         public string Content { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Muhakeme modellerinde (GLM-4.6, DeepSeek-R1 vb.) dusunme adimlari buraya
+        /// gelir ve token butcesinden dusulur. Cevap alaninin bos kalmasinin en
+        /// yaygin sebebi budur; teshis icin okunur, icerik olarak kullanilmaz.
+        /// </summary>
+        [JsonPropertyName("reasoning_content")]
+        public string? ReasoningContent { get; set; }
     }
 
     private sealed class OpenAiChatResponse
@@ -232,6 +296,10 @@ public sealed partial class LlmService
     {
         [JsonPropertyName("message")]
         public OpenAiMessage? Message { get; set; }
+
+        /// <summary>"stop" | "length" | "content_filter" — bos yanitin sebebini ayirt eder.</summary>
+        [JsonPropertyName("finish_reason")]
+        public string? FinishReason { get; set; }
     }
 
     private sealed class OpenAiError

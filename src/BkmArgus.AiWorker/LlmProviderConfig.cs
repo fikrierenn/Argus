@@ -30,6 +30,17 @@ public sealed class LlmProviderConfig
     /// <summary>Birincil model basarisiz olursa ayni saglayicida denenecek model.</summary>
     public string? FallbackModel { get; set; }
 
+    /// <summary>
+    /// Saglayiciya ozel istek govdesi parametreleri (serbest JSON). Istek govdesine
+    /// birlestirilir. Ornek: {"thinking":{"type":"disabled"}} (glm-4.7),
+    /// {"reasoning_effort":"low"} (glm-5.3). Boylece yeni bir AI'in kendine has
+    /// parametresi kod degisikligi gerektirmez.
+    /// </summary>
+    public string? ExtraBodyJson { get; set; }
+
+    /// <summary>Bu saglayiciya ozel cikti token siniri. Bos ise global ayar kullanilir.</summary>
+    public int? MaxOutputTokens { get; set; }
+
     /// <summary>Kapali saglayici zincirde sessizce atlanir (ai-layer.md §2).</summary>
     public bool Enabled { get; set; }
 

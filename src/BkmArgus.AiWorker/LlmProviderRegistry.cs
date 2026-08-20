@@ -98,6 +98,8 @@ public sealed class LlmProviderRegistry(
                     Path           = row.RequestPath ?? string.Empty,
                     Model          = row.Model,
                     FallbackModel  = row.FallbackModel,
+                    MaxOutputTokens = row.MaxOutputTokens,
+                    ExtraBodyJson  = row.ExtraBodyJson,
                     Order          = row.Priority,
                     RequiresApiKey = row.RequiresApiKey,
                     Enabled        = row.IsActive,
@@ -215,6 +217,8 @@ public sealed class LlmProviderRegistry(
         public bool RequiresApiKey { get; init; }
         public string Model { get; init; } = string.Empty;
         public string? FallbackModel { get; init; }
+        public int? MaxOutputTokens { get; init; }
+        public string? ExtraBodyJson { get; init; }
         public int Priority { get; init; }
         public bool IsActive { get; init; }
     }
