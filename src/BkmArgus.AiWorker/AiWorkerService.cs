@@ -330,10 +330,13 @@ OUTPUT
                 "ai.sp_SemanticVector_UpsertGolden",
                 new
                 {
-                    RiskId = (long)item.FeedbackId,
-                    Baslik = title,
-                    OzetMetin = summary,
-                    VektorJson = JsonSerializer.Serialize(vector)
+                    KaynakId   = (long)item.FeedbackId,
+                    Baslik     = Truncate(title, 500),
+                    OzetMetin  = Truncate(summary, 4000),
+                    VektorJson = JsonSerializer.Serialize(vector),
+                    ModelAdi   = _embedding.ModelName,
+                    Boyut      = vector.Length,
+                    Kritik     = false
                 },
                 commandType: CommandType.StoredProcedure);
         }

@@ -31,6 +31,12 @@ public sealed class SemanticMemoryService(
     ILogger<SemanticMemoryService> logger)
 {
     private readonly AiWorkerOptions _options = options.Value;
+    private readonly KeywordIndex _keywords = new();
+    private readonly SemaphoreSlim _cacheGate = new(1, 1);
+
+    private List<SemanticVectorRow> _corpus = [];
+    private List<float[]> _corpusVectors = [];
+    private DateTime _corpusLoadedUtc = DateTime.MinValue;
 
     /// <summary>
     /// En iyi tek eslesme. Emin olunamayan durumda null doner — yanlis eslesme
@@ -90,6 +96,18 @@ public sealed class SemanticMemoryService(
     /// modellerin vektorleri ayni uzayda degildir, karistirmak anlamsiz
     /// benzerlik uretir.
     /// </summary>
+    /// <summary>
+    /// Hibrit arama: anlamsal (vektor) + anahtar kelime (BM25), RRF ile birlestirilir.
+    ///
+    /// Neden ikisi birden: vektor "sayim farki" ile "stok tutarsizligi"ni
+    /// eslestirir ama "Ozluce" veya bir urun kodunu kacirir. BM25 tam tersi.
+    /// Azure'un olcumunde kisa/tanimlayici sorgularda keyword 79,2 / vektor 11,7.
+    ///
+    /// Neden RRF, neden agirlikli toplam degil: iki skor ayni olcekte degil
+    /// (kosinus 0.75-0.90 arasinda sikisik, BM25 sinirsiz). Normalize etmek
+    /// korpus degistikce kayar. RRF yalniz SIRA kullanir, olcek sorunu kalkar
+    /// (Cormack ve ark., SIGIR 2009).
+    /// </summary>
     private async Task<List<ScoredMatch>> ScoreAllAsync(string text, CancellationToken token)
     {
         if (!_options.SemanticMemoryEnabled)
@@ -97,58 +115,162 @@ public sealed class SemanticMemoryService(
             return [];
         }
 
-        var vector = await embedding.TryEmbedQueryAsync(text, token);
-        if (vector is null || vector.Length == 0)
+        await EnsureCorpusAsync(token);
+
+        if (_corpus.Count == 0)
         {
             return [];
         }
 
-        await using var connection = db.CreateConnection();
-        var rows = await connection.QueryAsync<SemanticVectorRow>(
-            new CommandDefinition(
-                "ai.sp_SemanticVector_ListWeighted",
-                new { ModelAdi = embedding.ModelName, Top = _options.SemanticTop },
-                commandType: CommandType.StoredProcedure,
-                cancellationToken: token));
+        var vector = await embedding.TryEmbedQueryAsync(text, token);
 
-        var scored = new List<ScoredMatch>();
+        // Anlamsal siralama
+        var semanticRank = new Dictionary<int, int>();
+        var rawScores = new double[_corpus.Count];
 
-        foreach (var row in rows)
+        if (vector is { Length: > 0 })
         {
-            var other = TryParseVector(row);
-            if (other is null)
+            var ordered = new List<(int Index, double Score)>(_corpus.Count);
+
+            for (var i = 0; i < _corpus.Count; i++)
             {
-                continue;
-            }
+                var candidate = _corpusVectors[i];
 
-            // Boyut uyusmazligi = farkli model. Sessizce yanlis skor uretmektense atla.
-            if (other.Length != vector.Length)
-            {
-                logger.LogWarning(
-                    "Vektor boyutu uyusmuyor (kayit {Boyut}, sorgu {Beklenen}). SourceId={SourceId} atlandi.",
-                    other.Length, vector.Length, row.SourceId);
-                continue;
-            }
-
-            var raw = CosineSimilarity(vector, other);
-
-            scored.Add(new ScoredMatch(
-                RawSimilarity: raw,
-                WeightedScore: raw * row.Weight,
-                Match: new SemanticMatch
+                // Boyut uyusmazligi = farkli model; sessizce yanlis skor uretme
+                if (candidate.Length != vector.Length)
                 {
-                    SourceId = row.SourceId,
-                    DofId = row.DofId,
-                    Title = string.IsNullOrWhiteSpace(row.Title) ? "Gecmis kayit" : row.Title,
-                    Similarity = raw,
-                    IsCritical = row.IsCritical
-                }));
+                    continue;
+                }
+
+                rawScores[i] = CosineSimilarity(vector, candidate);
+                ordered.Add((i, rawScores[i]));
+            }
+
+            ordered.Sort((a, b) => b.Score.CompareTo(a.Score));
+            for (var r = 0; r < ordered.Count; r++)
+            {
+                semanticRank[ordered[r].Index] = r + 1;
+            }
         }
 
-        // Siralama agirlikli skora gore: dogrulanmis vaka one cikar.
-        // Kabul karari ise ham benzerlige bakar (yukaridaki iki kapi).
-        scored.Sort((a, b) => b.WeightedScore.CompareTo(a.WeightedScore));
+        // Anahtar kelime siralamasi
+        var keywordRank = new Dictionary<int, int>();
+        var keywordOrdered = _keywords.Score(text).OrderByDescending(kv => kv.Value).ToArray();
+
+        for (var r = 0; r < keywordOrdered.Length; r++)
+        {
+            keywordRank[keywordOrdered[r].Key] = r + 1;
+        }
+
+        // RRF birlestirme. k kucuk secildi: 60 gibi bir deger 189 kayitlik
+        // listede tum siralari duzlestirir (1. ile 20. arasi yalnizca %31 fark).
+        var k = _options.RrfK;
+        var fused = new Dictionary<int, double>();
+
+        foreach (var (index, rank) in semanticRank)
+        {
+            fused[index] = fused.GetValueOrDefault(index) + 1.0 / (k + rank);
+        }
+
+        foreach (var (index, rank) in keywordRank)
+        {
+            fused[index] = fused.GetValueOrDefault(index) + 1.0 / (k + rank);
+        }
+
+        var scored = fused
+            .Select(kv =>
+            {
+                var row = _corpus[kv.Key];
+                return new ScoredMatch(
+                    RawSimilarity: rawScores[kv.Key],
+                    WeightedScore: kv.Value * row.Weight,
+                    FusionScore: kv.Value,
+                    Match: new SemanticMatch
+                    {
+                        SourceId = row.SourceId,
+                        DofId = row.DofId,
+                        Title = string.IsNullOrWhiteSpace(row.Title) ? "Gecmis kayit" : row.Title,
+                        Similarity = rawScores[kv.Key],
+                        IsCritical = row.IsCritical
+                    });
+            })
+            .ToList();
+
+        // Fuzyon skoruna gore sirala. Agirlik yalnizca birbirine cok yakin
+        // adaylar arasinda esitligi bozar; carpan yapilirsa benzerlikten daha
+        // belirleyici hale gelir — olculdu, IsSystemic kaydi her sorguda
+        // birinci geliyordu.
+        scored.Sort((a, b) =>
+        {
+            var diff = b.FusionScore - a.FusionScore;
+            if (Math.Abs(diff) > 1e-9)
+            {
+                return diff > 0 ? 1 : -1;
+            }
+
+            return b.WeightedScore.CompareTo(a.WeightedScore);
+        });
+
         return scored;
+    }
+
+    /// <summary>
+    /// Arsivi bellege alir ve anahtar kelime indeksini kurar.
+    /// 189 kayit x 768 boyut = 581 KB; ayri bir vektor veritabani gerekmiyor.
+    /// Faiss'in kendi rehberi 1M altinda duz tarama oneriyor.
+    /// </summary>
+    private async Task EnsureCorpusAsync(CancellationToken token)
+    {
+        var ttl = TimeSpan.FromMinutes(_options.CorpusCacheMinutes);
+
+        if (_corpus.Count > 0 && DateTime.UtcNow - _corpusLoadedUtc < ttl)
+        {
+            return;
+        }
+
+        await _cacheGate.WaitAsync(token);
+        try
+        {
+            if (_corpus.Count > 0 && DateTime.UtcNow - _corpusLoadedUtc < ttl)
+            {
+                return;
+            }
+
+            await using var connection = db.CreateConnection();
+            var rows = (await connection.QueryAsync<SemanticVectorRow>(
+                new CommandDefinition(
+                    "ai.sp_SemanticVector_ListWeighted",
+                    new { ModelAdi = embedding.ModelName, Top = _options.SemanticTop },
+                    commandType: CommandType.StoredProcedure,
+                    cancellationToken: token))).ToList();
+
+            var corpus = new List<SemanticVectorRow>(rows.Count);
+            var vectors = new List<float[]>(rows.Count);
+
+            foreach (var row in rows)
+            {
+                var parsed = TryParseVector(row);
+                if (parsed is null)
+                {
+                    continue;
+                }
+
+                corpus.Add(row);
+                vectors.Add(parsed);
+            }
+
+            _corpus = corpus;
+            _corpusVectors = vectors;
+            _keywords.Build(corpus.Select(c => $"{c.Title} {c.SummaryText}").ToList());
+            _corpusLoadedUtc = DateTime.UtcNow;
+
+            logger.LogInformation("Semantik arsiv bellege alindi: {Adet} kayit ({Model}).",
+                corpus.Count, embedding.ModelName);
+        }
+        finally
+        {
+            _cacheGate.Release();
+        }
     }
 
     private float[]? TryParseVector(SemanticVectorRow row)
@@ -194,5 +316,6 @@ public sealed class SemanticMemoryService(
         return dot / (Math.Sqrt(na) * Math.Sqrt(nb));
     }
 
-    private readonly record struct ScoredMatch(double RawSimilarity, double WeightedScore, SemanticMatch Match);
+    private readonly record struct ScoredMatch(
+        double RawSimilarity, double WeightedScore, double FusionScore, SemanticMatch Match);
 }

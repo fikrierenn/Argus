@@ -32,6 +32,13 @@ public sealed class AiWorkerOptions
     // Marj: en iyi eslesme ikinciyi bu kadar gecmezse karar verilmez.
     // Olcumde yanlis getirdigimiz tek vakada aradaki fark 0.0003'tu.
     public double SimilarityMargin { get; set; } = 0.02;
+
+    // RRF sabiti. Literatur varsayilani 60, ama o deger binlerce belgelik
+    // listeler icin; 189 kayitta tum siralari duzlestirir. Olcerek secilmeli.
+    public int RrfK { get; set; } = 15;
+
+    // Arsiv bellek onbellegi. 189 kayit x 768 boyut = 581 KB.
+    public int CorpusCacheMinutes { get; set; } = 10;
     public string OllamaBaseUrl { get; set; } = "http://localhost:11434";
     public string EmbeddingModel { get; set; } = "multilingual-e5-base";
     public int EmbeddingTimeoutSeconds { get; set; } = 30;
