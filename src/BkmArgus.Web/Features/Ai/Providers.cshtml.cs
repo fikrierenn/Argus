@@ -41,6 +41,15 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
             }
         }
 
+        // Is kurali: API anahtari bu adrese Bearer olarak gidiyor. Adres
+        // dogrulanmazsa bir sir, ic aga veya disaridaki bir sunucuya
+        // yollatilabilir (SSRF + sir sizdirma). https zorunlu; localhost
+        // gelistirme icin serbest, ozel IP araliklari kapali.
+        if (!string.IsNullOrWhiteSpace(Input.BaseUrl) && !AdresGuvenliMi(Input.BaseUrl, out var adresHata))
+        {
+            ModelState.AddModelError("Input.BaseUrl", adresHata);
+        }
+
         if (!ModelState.IsValid)
         {
             await LoadAsync();
@@ -171,6 +180,63 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
         return RedirectToPage();
     }
 
+    /// <summary>
+    /// Saglayici adresinin sir tasimaya uygun olup olmadigini denetler.
+    ///
+    /// Anahtar bu adrese Authorization: Bearer olarak gidiyor. Sema
+    /// dogrulanmazsa duz http uzerinde acik gider; ozel IP araliklari
+    /// serbest birakilirsa ic aga istek yaptirilabilir (SSRF).
+    /// localhost gelistirme icin acik birakildi.
+    /// </summary>
+    private static bool AdresGuvenliMi(string adres, out string hata)
+    {
+        hata = string.Empty;
+
+        if (!Uri.TryCreate(adres.Trim(), UriKind.Absolute, out var uri))
+        {
+            hata = "Gecerli bir adres girin.";
+            return false;
+        }
+
+        var yerel = uri.IsLoopback
+                    || string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase);
+
+        if (!yerel && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            hata = "Adres https olmali — anahtar bu adrese gonderiliyor.";
+            return false;
+        }
+
+        if (!yerel && System.Net.IPAddress.TryParse(uri.Host, out var ip) && OzelAralikMi(ip))
+        {
+            hata = "Ozel ag adresi kabul edilmiyor.";
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>RFC1918 ve bag-yerel araliklar.</summary>
+    private static bool OzelAralikMi(System.Net.IPAddress ip)
+    {
+        if (System.Net.IPAddress.IsLoopback(ip))
+        {
+            return true;
+        }
+
+        var b = ip.GetAddressBytes();
+
+        if (b.Length != 4)
+        {
+            return ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal;
+        }
+
+        return b[0] == 10
+            || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
+            || (b[0] == 192 && b[1] == 168)
+            || (b[0] == 169 && b[1] == 254);
+    }
+
     private async Task LoadAsync()
     {
         SecretsConfigured = SecretProtector.IsConfigured(configuration);
@@ -189,7 +255,8 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
             r.HasStoredKey,
             // Ortam degiskeni yolu da gecerli bir anahtar kaynagi
             !string.IsNullOrWhiteSpace(r.ApiKeyRef)
-                && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(r.ApiKeyRef) ?? configuration[r.ApiKeyRef]),
+                && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(r.ApiKeyRef)
+                    ?? configuration[$"ApiKeys:{r.ApiKeyRef}"]),
             r.ApiKeySetAt,
             r.Model,
             r.FallbackModel,
@@ -258,6 +325,14 @@ public sealed class ProvidersModel(SqlDb db, IConfiguration configuration, ILogg
         public string BaseUrl { get; set; } = string.Empty;
 
         public string? RequestPath { get; set; } = "/v1/chat/completions";
+
+        // Bu deger AiWorker'da ORTAM DEGISKENI ADI olarak cozuluyor.
+        // Serbest metin birakilirsa "ConnectionStrings:BkmArgus" gibi bir
+        // yapilandirma yolu yazilabilir ve cozulen deger, yine operatorun
+        // girdigi BaseUrl'e Bearer olarak gonderilir — yani DB sifresi disari
+        // sizar. Iki nokta ve nokta iceren her sey reddediliyor.
+        [RegularExpression("^[A-Za-z][A-Za-z0-9_]{2,63}$",
+            ErrorMessage = "Anahtar adi yalniz harf, rakam ve alt cizgi icerebilir (ornek: GLM_API_KEY).")]
         public string? ApiKeyRef { get; set; }
         public bool RequiresApiKey { get; set; } = true;
 

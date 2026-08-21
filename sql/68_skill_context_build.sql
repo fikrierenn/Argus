@@ -23,6 +23,27 @@
 -- Cikti: (Ad nvarchar(100), Deger nvarchar(max)) satirlari.
 -- ============================================================================
 
+------------------------------------------------------------------------------
+-- ILERI BAGIMLILIK KAPISI
+--
+-- Asagidaki SP, ai.fn_LearningContext fonksiyonunu cagiriyor; fonksiyonun
+-- gercek govdesi sql/71 ve sql/74'te tanimli — yani BU dosyadan SONRA.
+-- SQL Server'da gecikmeli ad cozumu yalniz tablo/view icin gecerlidir;
+-- skaler UDF referansi CREATE aninda cozulur. Iskelet olmadan sifirdan
+-- kurulan bir veritabaninda bu dosya Msg 4121 ile patlar ve SP HIC OLUSMAZ.
+-- Sonrasinda AddSkillContextAsync hatayi yutar, tum skill'ler bos baglamla
+-- kosar ve bu dosyanin yazilma sebebi olan hata sessizce geri gelir.
+--
+-- Iskelet NULL doner: ogrenme baglami sql/71-74 uygulanana kadar yoktur,
+-- bu dogru davranistir. Sonraki dosyalar CREATE OR ALTER ile uzerine yazar.
+------------------------------------------------------------------------------
+IF OBJECT_ID('ai.fn_LearningContext', 'FN') IS NULL
+    EXEC(N'CREATE FUNCTION ai.fn_LearningContext
+           (@SkillId varchar(50) = NULL, @TopRed int = 2,
+            @TopOnay int = 2, @MaksKarakter int = 4000)
+           RETURNS nvarchar(max) AS BEGIN RETURN NULL END');
+GO
+
 CREATE OR ALTER PROCEDURE ai.sp_SkillContext_Build
     @SkillId     varchar(50),
     @VarlikTipi  varchar(20) = NULL,
@@ -286,6 +307,12 @@ BEGIN
                 ORDER BY f.RiskLevel DESC, f.CreatedAt DESC
             ) x;
 
+            -- PK cakismasi korumasi: 'checklistItems' audit.checklist.improve
+            -- dalinda da yaziliyor. Istemci SkillId ve EntityType'i serbestce
+            -- verebildigi icin (checklist.improve + MEKAN) kombinasyonu
+            -- cagrilabilir; korumasiz INSERT 2627 firlatir ve TUM baglam
+            -- yuklenemez — skill bos veriyle kosar.
+            IF NOT EXISTS (SELECT 1 FROM @Ctx WHERE Ad = N'checklistItems')
             INSERT INTO @Ctx (Ad, Deger)
             SELECT N'checklistItems', ISNULL(STRING_AGG(CAST(x.S AS nvarchar(max)), CHAR(10)), @YOK)
             FROM (

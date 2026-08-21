@@ -147,8 +147,11 @@ public sealed class LlmProviderRegistry(
                 return fromEnv;
             }
 
-            var fromConfig = configuration[apiKeyRef]
-                ?? configuration[$"AiWorker:{apiKeyRef}"]
+            // AD ALANI SABIT: ham configuration[apiKeyRef] cagrisi kaldirildi.
+            // Onunla "ConnectionStrings:BkmArgus" veya "BKM_SECRET_KEY" gibi bir
+            // yol yazip cozulen degeri kendi belirledigi BaseUrl'e Bearer olarak
+            // gonderten bir kayit acmak mumkundu — sir sizdirma yolu.
+            var fromConfig = configuration[$"AiWorker:{apiKeyRef}"]
                 ?? configuration[$"ApiKeys:{apiKeyRef}"];
 
             if (!string.IsNullOrWhiteSpace(fromConfig))
