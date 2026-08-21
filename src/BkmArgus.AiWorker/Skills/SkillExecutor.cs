@@ -110,15 +110,41 @@ public partial class SkillExecutor
     [GeneratedRegex("""\"guvenSkoru\"\s*:\s*([0-9]*\.?[0-9]+)""", RegexOptions.IgnoreCase)]
     private static partial Regex GuvenDeseni();
 
-    private static string RenderTemplate(string template, Dictionary<string, string> variables)
+    /// <summary>
+    /// Prompt sablonundaki {{Degisken}} yer tutucularini doldurur.
+    ///
+    /// Sozlukte KARSILIGI OLMAYAN yer tutucu prompt'ta ham kalirdi: model
+    /// literal "{{OgrenilenBilgi}}" metnini gorurdu ve ustundeki "bunlara UY"
+    /// talimatiyla birlikte anlamsiz bir blok olusurdu. Kalanlar acik bir
+    /// isaretle degistiriliyor ve SAYILIYOR — hangi degiskenin hic dolmadigi
+    /// boylece olculebilir, sessizce kaybolmaz.
+    /// </summary>
+    private string RenderTemplate(string template, Dictionary<string, string> variables)
     {
         var result = template;
+
         foreach (var (key, value) in variables)
         {
             result = result.Replace($"{{{{{key}}}}}", value ?? "");
         }
+
+        var kalanlar = KalanYerTutucu().Matches(result);
+
+        if (kalanlar.Count > 0)
+        {
+            _logger.LogInformation(
+                "Prompt'ta {Adet} yer tutucu dolmadi: {Adlar}",
+                kalanlar.Count,
+                string.Join(", ", kalanlar.Select(m => m.Groups[1].Value).Distinct()));
+
+            result = KalanYerTutucu().Replace(result, "(bu bilgi mevcut degil)");
+        }
+
         return result;
     }
+
+    [GeneratedRegex(@"\{\{([A-Za-z0-9_]+)\}\}")]
+    private static partial Regex KalanYerTutucu();
 }
 
 public class SkillResult

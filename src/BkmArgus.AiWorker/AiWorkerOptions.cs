@@ -19,6 +19,11 @@ public sealed class AiWorkerOptions
     // Cross-encoder yeniden siralama. Olcumde HitRate@1 0,800 -> 0,967 ama
     // aday basina ~130 ms. Bu yuzden varsayilan KAPALI; LLM'e kanit hazirlanan
     // yolda acilir, her aramada degil (ai-layer.md kademeli maliyet).
+    // Tutarsizlik taramasi: deterministik, LLM'siz, sifir maliyet.
+    // Sik kosmasinin zarari yok ama soru kumesi gunde birkac kez degisir.
+    public bool ConsistencyScanEnabled { get; set; } = true;
+    public int  ConsistencyScanMinutes { get; set; } = 360;
+
     // Semantik baglam: sem.* katmanindan skill prompt'una tasinan sema bilgisi.
     // Ust sinir prompt butcesini korur — baglam buyudukce asil veriye yer kalmaz.
     public int SemanticContextTopPerSection { get; set; } = 8;

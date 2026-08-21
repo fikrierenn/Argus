@@ -178,10 +178,19 @@ app.MapGet("/api/ai/skill/status/{id:int}", async (int id, BkmArgus.Web.Data.Sql
 }).RequireAuthorization();
 
 // --- AI Feedback API ---
+// YETKI: Yorum metni ai.fn_LearningContext uzerinden her skill'in SISTEM
+// prompt'una giriyor. Yani buraya yazan kisi modelin talimatini yaziyor.
+// RequireAuthorization() yetmez — en dusuk rol (DENETCI) tum AI ciktisini
+// yonlendirebilirdi. Maliyetli/etkili endpoint kurali: YonetimVeUstu.
 app.MapPost("/api/ai/feedback", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db) =>
 {
     var form = await ctx.Request.ReadFromJsonAsync<FeedbackRequest>();
     if (form is null) return Results.BadRequest();
+
+    // Prompt'a girecek metin sinirli olmali; uzun metin hem butceyi yer
+    // hem enjeksiyon yuzeyini buyutur.
+    if (form.Comment is { Length: > 1000 })
+        return Results.BadRequest("Yorum en fazla 1000 karakter olabilir.");
 
     var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
@@ -191,7 +200,7 @@ app.MapPost("/api/ai/feedback", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb 
               Puan = form.Rating, Yorum = form.Comment, KullaniciId = userId });
 
     return Results.Ok();
-}).RequireAuthorization();
+}).RequireAuthorization(BkmArgus.Web.Security.Policies.YonetimVeUstu);
 
 app.Run();
 

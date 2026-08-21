@@ -27,6 +27,7 @@ public sealed class AiWorkerService : BackgroundService
     private const string RuleSetVersion = "v1";
 
     private DateTime _lastVectorSyncUtc = DateTime.UtcNow;
+    private DateTime _lastConsistencyScanUtc = DateTime.MinValue;   // ilk turda hemen kossun
 
     public AiWorkerService(
         Db db,
@@ -57,6 +58,12 @@ public sealed class AiWorkerService : BackgroundService
                 await TriggerPostRiskEtlAsync(stoppingToken);
             }
             catch (Exception ex) { _logger.LogWarning(ex, "PostRiskEtl tetigi basarisiz, atlaniyor"); }
+
+            try
+            {
+                await ScanConsistencyIfNeededAsync(stoppingToken);
+            }
+            catch (Exception ex) { _logger.LogWarning(ex, "Tutarsizlik taramasi basarisiz, atlaniyor"); }
 
             try
             {
@@ -204,6 +211,62 @@ OUTPUT
         if (queued is > 0)
         {
             _logger.LogInformation("PostRiskEtl: {Adet} yeni analiz istegi kuyruklandi.", queued);
+        }
+    }
+
+    /// <summary>
+    /// Veri tutarsizligi taramasi. Tamamen deterministik SQL — LLM cagrilmaz,
+    /// maliyeti sifirdir (ai-layer.md kademeli maliyet: bu bir KURAL isi).
+    ///
+    /// Bulunan her tutarsizlik ai.LearningQuestions'a TOPLU bir soru olarak
+    /// duser; imza bazli oldugu icin tekrar kosmak mukerrer soru uretmez ve
+    /// cevaplanmis soruyu yeniden acmaz. Insan cevaplayinca ai.LearningFacts'e
+    /// gecer ve sonraki skill calistirmalarinin baglamina girer.
+    /// </summary>
+    private async Task ScanConsistencyIfNeededAsync(CancellationToken token)
+    {
+        if (!_options.ConsistencyScanEnabled)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+
+        if ((now - _lastConsistencyScanUtc).TotalMinutes < _options.ConsistencyScanMinutes)
+        {
+            return;
+        }
+
+        _lastConsistencyScanUtc = now;
+
+        try
+        {
+            using var connection = _db.CreateConnection();
+
+            var acikSoru = await connection.QueryAsync<dynamic>(
+                new CommandDefinition(
+                    "ai.sp_Consistency_Scan",
+                    new { KullaniciId = (int?)null },
+                    commandType: CommandType.StoredProcedure,
+                    cancellationToken: token));
+
+            var adet = acikSoru.Count();
+
+            // Sifir da bir sonuctur — sessiz gecme
+            _logger.LogInformation(
+                adet > 0
+                    ? "Tutarsizlik taramasi: {Adet} acik soru cevap bekliyor."
+                    : "Tutarsizlik taramasi: acik soru yok.",
+                adet);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Tarama bir iyilestirmedir; patlarsa worker durmaz
+            _logger.LogWarning(ex, "Tutarsizlik taramasi basarisiz.");
         }
     }
 

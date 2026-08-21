@@ -229,7 +229,9 @@ public sealed partial class LlmService
                         ModelName = model,
                         RawJson = raw,
                         ExecutiveSummary = raw,
-                        ConfidenceScore = 50
+                        // JSON cozulemedi: guven OLCULEMEDI demektir. Sabit 50 yazmak uydurmadir
+                        // ve SkillExecutor.GuvenSkoruOku'nun ?? daliini olu birakiyordu.
+                        ConfidenceScore = null
                     }
                 };
             }
@@ -407,7 +409,9 @@ public sealed partial class LlmService
                         ModelName = model,
                         RawJson = raw,
                         ExecutiveSummary = raw,
-                        ConfidenceScore = 50
+                        // JSON cozulemedi: guven OLCULEMEDI demektir. Sabit 50 yazmak uydurmadir
+                        // ve SkillExecutor.GuvenSkoruOku'nun ?? daliini olu birakiyordu.
+                        ConfidenceScore = null
                     }
                 };
             }

@@ -1,0 +1,173 @@
+@page
+@model BkmArgus.Web.Features.Ai.OgrenmeModel
+@attribute [Authorize(Policy = Policies.YonetimVeUstu)]
+@{
+    ViewData["Title"] = "AI Öğrenme";
+}
+
+<div class="mx-auto max-w-5xl px-4 py-6">
+
+    <div class="mb-6 flex items-start justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold text-slate-800">AI Öğrenme</h1>
+            <p class="mt-1 text-sm text-slate-500">
+                Sistem verideki tutarsızlıkları kendisi bulur ve size sorar. Verdiğiniz cevap
+                kalıcı bilgiye dönüşür ve bundan sonraki her AI çalıştırmasında dikkate alınır.
+                Tarama tamamen kural tabanlıdır — LLM çağrılmaz, maliyeti yoktur.
+            </p>
+        </div>
+        <form method="post" asp-page-handler="Tara">
+            <button type="submit"
+                    class="shrink-0 rounded-lg bg-bkm-red px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+                Tutarsızlık Tara
+            </button>
+        </form>
+    </div>
+
+    @if (TempData["StatusMessage"] is string msg)
+    {
+        <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">@msg</div>
+    }
+    @if (TempData["Error"] is string err)
+    {
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">@err</div>
+    }
+
+    @* ---------- Açık sorular ---------- *@
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Cevap Bekleyen Sorular (@Model.Questions.Count)
+    </h2>
+
+    @if (Model.Questions.Count == 0)
+    {
+        <div class="mb-8 rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            Açık soru yok. Yeni tutarsızlık aramak için &laquo;Tutarsızlık Tara&raquo; deyin.
+        </div>
+    }
+
+    @foreach (var q in Model.Questions)
+    {
+        var renk = q.Severity switch
+        {
+            "kritik" => "border-red-200 bg-red-50",
+            "uyari"  => "border-amber-200 bg-amber-50",
+            _        => "border-slate-200 bg-slate-50"
+        };
+        var rozet = q.Severity switch
+        {
+            "kritik" => "bg-red-600",
+            "uyari"  => "bg-amber-500",
+            _        => "bg-slate-400"
+        };
+
+        <div class="mb-4 rounded-lg border @renk p-4">
+            <div class="mb-2 flex items-center gap-2">
+                <span class="rounded px-2 py-0.5 text-xs font-medium text-white @rozet">@q.Severity</span>
+                <span class="text-xs text-slate-500">@q.Category</span>
+                <span class="ml-auto text-xs font-medium text-slate-600">@q.AffectedCount kayıt</span>
+            </div>
+
+            <p class="text-sm text-slate-800">@q.QuestionText</p>
+
+            @if (!string.IsNullOrWhiteSpace(q.EvidenceSample))
+            {
+                <details class="mt-2">
+                    <summary class="cursor-pointer text-xs text-slate-500 hover:text-slate-700">Örnek kayıtlar</summary>
+                    <pre class="mt-2 overflow-x-auto whitespace-pre-wrap rounded bg-white/70 p-2 text-xs text-slate-600">@q.EvidenceSample</pre>
+                </details>
+            }
+
+            <form method="post" asp-page-handler="Cevapla" class="mt-3 space-y-2">
+                <input type="hidden" name="soruId" value="@q.QuestionId" />
+
+                @foreach (var (secenek, i) in BkmArgus.Web.Features.Ai.OgrenmeModel
+                              .ParseOptions(q.OptionsJson).Select((s, i) => (s, i)))
+                {
+                    var rid = $"q{q.QuestionId}_o{i}";
+                    <label for="@rid" class="flex cursor-pointer items-start gap-2 rounded bg-white/70 px-3 py-2 text-sm text-slate-700 hover:bg-white">
+                        <input type="radio" id="@rid" name="cevap" value="@secenek" class="mt-0.5" />
+                        <span>@secenek</span>
+                    </label>
+                }
+
+                <input type="text" name="serbestCevap" maxlength="1200"
+                       placeholder="Ya da kendi cevabınızı yazın..."
+                       class="w-full rounded border border-slate-300 px-3 py-2 text-sm" />
+
+                <div class="flex gap-2 pt-1">
+                    <button type="submit"
+                            class="rounded-lg bg-bkm-red px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+                        Cevapla ve Öğret
+                    </button>
+                    <button type="submit" asp-page-handler="Yoksay" formnovalidate
+                            class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                        Yoksay
+                    </button>
+                </div>
+            </form>
+        </div>
+    }
+
+    @* ---------- AI'ın öğrendikleri ---------- *@
+    <h2 class="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        AI Şu An Neyi Biliyor (@Model.Facts.Count)
+    </h2>
+
+    @if (Model.Facts.Count == 0)
+    {
+        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            Henüz öğrenilmiş bilgi yok. Bir soruyu cevaplayınca burada görünür.
+        </div>
+    }
+    else
+    {
+        <div class="overflow-hidden rounded-lg border border-slate-200">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                        <th class="px-4 py-2">Bilgi</th>
+                        <th class="w-24 px-4 py-2">Kaynak</th>
+                        <th class="w-28 px-4 py-2">Tarih</th>
+                        <th class="w-24 px-4 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @foreach (var f in Model.Facts)
+                    {
+                        <tr>
+                            <td class="px-4 py-2 text-slate-700">@f.FactText</td>
+                            <td class="px-4 py-2 text-xs text-slate-500">@f.SourceType</td>
+                            <td class="px-4 py-2 text-xs text-slate-500">@f.CreatedAt.ToString("dd MMM yyyy")</td>
+                            <td class="px-4 py-2 text-right">
+                                @* Yanlis ogrenilmis bir karari geri almanin tek yolu bu *@
+                                <form method="post" asp-page-handler="BilgiKaldir">
+                                    <input type="hidden" name="bilgiId" value="@f.FactId" />
+                                    <button type="submit" class="text-xs text-slate-400 hover:text-red-600">Kaldır</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @* ---------- Cevaplanmış sorular ---------- *@
+    @if (Model.Answered.Count > 0)
+    {
+        <details class="mt-6">
+            <summary class="cursor-pointer text-sm text-slate-500 hover:text-slate-700">
+                Cevaplanmış sorular (@Model.Answered.Count)
+            </summary>
+            <div class="mt-2 space-y-2">
+                @foreach (var a in Model.Answered)
+                {
+                    <div class="rounded border border-slate-200 bg-white px-3 py-2 text-xs">
+                        <div class="text-slate-500">@a.QuestionText</div>
+                        <div class="mt-1 font-medium text-slate-700">→ @a.AnswerText</div>
+                    </div>
+                }
+            </div>
+        </details>
+    }
+</div>
