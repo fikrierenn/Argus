@@ -501,6 +501,18 @@ BEGIN
                    END;
         END
 
+        ------------------------------------------------------------------
+        -- Ogrenilen bilgi: insan kararlari + reddedilen ciktilar + onayli
+        -- ornekler. sql/71'deki fonksiyondan gelir; hicbiri yoksa NULL doner
+        -- ve degisken hic eklenmez (bos blok prompt butcesi harcamasin).
+        ------------------------------------------------------------------
+        DECLARE @Ogrenilen nvarchar(max) = ai.fn_LearningContext(@SkillId, 2, 2, 4000);
+        -- NOT: skaler UDF'te varsayilan parametre ATLANAMAZ; dorduncu
+        -- argumani vermezsek 'yetersiz arguman' hatasi alinir.
+
+        IF @Ogrenilen IS NOT NULL
+            INSERT INTO @Ctx (Ad, Deger) VALUES (N'OgrenilenBilgi', @Ogrenilen);
+
         SELECT Ad, Deger FROM @Ctx WHERE Deger IS NOT NULL;
     END TRY
     BEGIN CATCH
