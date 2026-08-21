@@ -20,6 +20,7 @@ IHost host = Host.CreateDefaultBuilder(args)
     {
         services.AddSingleton<Db>();
         services.AddSingleton<LocalEmbeddingService>();
+        services.AddSingleton<CrossEncoderReranker>();
         services.AddSingleton<SemanticMemoryService>();
         services.AddSingleton<LlmService>();
         services.AddSingleton<LmRules>();

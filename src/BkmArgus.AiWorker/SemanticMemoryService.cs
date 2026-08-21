@@ -27,6 +27,7 @@ namespace BkmArgus.AiWorker;
 public sealed class SemanticMemoryService(
     Db db,
     LocalEmbeddingService embedding,
+    CrossEncoderReranker reranker,
     IOptions<AiWorkerOptions> options,
     ILogger<SemanticMemoryService> logger)
 {
@@ -83,11 +84,18 @@ public sealed class SemanticMemoryService(
     {
         var scored = await ScoreAllAsync(text, token);
 
-        return scored
+        var candidates = scored
             .Where(s => s.RawSimilarity >= _options.SimilarityFloor)
-            .Take(top)
             .Select(s => s.Match)
             .ToList();
+
+        // Yeniden siralama opsiyonel ve VARSAYILAN KAPALI.
+        // Bu yol LLM'e ilk N kaniti verir, yani onemli olan H@3 — ve olcumde
+        // hibrit orada zaten onde (0,940 vs reranker 0,900), ustelik 48 kat
+        // hizli. Reranker top-1 kesinligi gereken senaryolar icin acilabilir.
+        var reranked = await reranker.RerankAsync(text, candidates, m => m.Title, token);
+
+        return reranked.Take(top).ToList();
     }
 
     /// <summary>

@@ -28,19 +28,28 @@ namespace BkmArgus.Tests;
 /// </summary>
 public sealed class RetrievalEvaluator : IDisposable
 {
-    private const int RerankCandidates = 10;
+    /// <summary>
+    /// Yeniden siralanacak aday sayisi. Kucuk pencere hizli ama dogru cevap
+    /// hibritin ilk N'ine giremezse reranker onu kurtaramaz — parafraz
+    /// sorgularda tam olarak bu oluyor.
+    /// </summary>
+    public int RerankCandidates { get; set; } = 10;
 
     private readonly string _connectionString;
     private readonly InferenceSession _embedder;
     private readonly Tokenizer _embedTokenizer;
     private readonly InferenceSession? _reranker;
     private readonly Tokenizer? _rerankTokenizer;
+    private readonly RerankerStyle _rerankStyle;
 
     private List<ArchiveRow> _archive = [];
     private KeywordScorer _keywords = new();
 
-    public RetrievalEvaluator(string connectionString, string embeddingDir, string? rerankerDir = null)
+    public RetrievalEvaluator(
+        string connectionString, string embeddingDir,
+        string? rerankerDir = null, RerankerStyle rerankStyle = RerankerStyle.XlmRoberta)
     {
+        _rerankStyle = rerankStyle;
         _connectionString = connectionString;
         _embedTokenizer = new Tokenizer(vocabPath: Path.Combine(embeddingDir, "tokenizer.json"));
         _embedder = new InferenceSession(Path.Combine(embeddingDir, "model.onnx"));
@@ -81,7 +90,11 @@ public sealed class RetrievalEvaluator : IDisposable
         _keywords.Build(_archive.Select(a => $"{a.Title} {a.Summary}").ToList());
     }
 
-    public async Task<List<EvalQuery>> LoadQueriesAsync()
+    /// <summary>
+    /// Sorgulari yukler. origin verilirse yalniz o kaynaktan (MANUEL / LLM).
+    /// Iki seti ayri olcmek, sorgu yazarinin yanliligini gorunur kilar.
+    /// </summary>
+    public async Task<List<EvalQuery>> LoadQueriesAsync(string? origin = null)
     {
         var queries = new List<EvalQuery>();
 
@@ -89,7 +102,9 @@ public sealed class RetrievalEvaluator : IDisposable
         await db.OpenAsync();
 
         await using var cmd = new SqlCommand(
-            "SELECT QueryText, ExpectSource, ExpectId FROM ai.RetrievalEvalSet WHERE IsActive = 1 ORDER BY EvalId", db);
+            "SELECT QueryText, ExpectSource, ExpectId FROM ai.RetrievalEvalSet " +
+            "WHERE IsActive = 1 AND (@Origin IS NULL OR Origin = @Origin) ORDER BY EvalId", db);
+        cmd.Parameters.AddWithValue("@Origin", (object?)origin ?? DBNull.Value);
         await using var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
@@ -250,15 +265,33 @@ public sealed class RetrievalEvaluator : IDisposable
 
     private float Rerank(string query, string document)
     {
-        // XLM-R cross-encoder sozlesmesi: <s> sorgu </s> belge </s>
+        // Cross-encoder sorgu ve belgeyi BIRLIKTE gorur. Ozel token'lar model
+        // ailesine gore degisir; yanlis sozlesme sessizce bozuk skor uretir.
         var q = _rerankTokenizer!.Encode(query).Select(i => (long)i).ToList();
         var d = _rerankTokenizer.Encode(document).Select(i => (long)i).ToList();
 
-        if (q.Count > 0 && q[^1] == 2) q.RemoveAt(q.Count - 1);
-        if (d.Count > 0 && d[0] == 0) d.RemoveAt(0);
+        List<long> ids;
+        int maxLen;
 
-        var ids = q.Concat([2L]).Concat(d).ToList();
-        if (ids.Count > 512) ids = ids.Take(512).ToList();
+        if (_rerankStyle == RerankerStyle.XlmRoberta)
+        {
+            // <s> sorgu </s> belge </s>   (<s>=0, </s>=2)
+            if (q.Count > 0 && q[^1] == 2) q.RemoveAt(q.Count - 1);
+            if (d.Count > 0 && d[0] == 0) d.RemoveAt(0);
+            ids = q.Concat([2L]).Concat(d).ToList();
+            maxLen = 512;
+        }
+        else
+        {
+            // [CLS] sorgu [SEP] belge [SEP]   ([CLS]=2, [SEP]=3)
+            if (q.Count > 0 && q[^1] == 3) q.RemoveAt(q.Count - 1);
+            if (d.Count > 0 && d[0] == 2) d.RemoveAt(0);
+            if (d.Count > 0 && d[^1] == 3) d.RemoveAt(d.Count - 1);
+            ids = q.Concat(d).Append(3L).ToList();
+            maxLen = 8192;
+        }
+
+        if (ids.Count > maxLen) ids = ids.Take(maxLen).ToList();
 
         var n = ids.Count;
         using var result = _reranker!.Run(
@@ -382,6 +415,16 @@ public sealed class RetrievalEvaluator : IDisposable
             if (token.Length > 5) result.Add(token[..5] + "#");
         }
     }
+}
+
+/// <summary>
+/// Cross-encoder'in ozel token sozlesmesi. XLM-R tabanli modeller (mmarco,
+/// bge-m3) ile BERT tabanlilar (ModernBERT-tr) farkli ayirici kullanir.
+/// </summary>
+public enum RerankerStyle
+{
+    XlmRoberta,
+    Bert
 }
 
 public enum RetrievalMode

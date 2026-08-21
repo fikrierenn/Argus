@@ -7,14 +7,19 @@ using Xunit.Abstractions;
 namespace BkmArgus.Tests;
 
 /// <summary>
-/// Geri getirme yapilandirmalarini ayni sorgu setiyle karsilastirir ve
+/// Geri getirme yapilandirmalarini ayni sorgu setleriyle karsilastirir ve
 /// sonuclari ai.RetrievalEvalRuns'a yazar.
 ///
-/// Bir "gecti/kaldi" testi degil, bir OLCUM kosumu. Tek sert kapi var:
-/// hibrit arama, tek basina vektorden kotu OLMAMALI. Gerisi rapordur —
-/// 30 sorgu ince farklari savunacak guce sahip degil.
+/// UC AYRI SET olculur: elle yazilan sorgular, LLM'in yazdiklari, ve ikisi
+/// birlikte. Sebep: sorgulari kayitlara bakarak yazan kisi farkinda olmadan
+/// eslesecek kelimeler secebilir ve aramayi oldugundan iyi gosterir. Ikinci
+/// bir yazar bu yanliligi tasimaz. Iki set AYNI siralamayi veriyorsa karar
+/// saglam; ayrisiyorsa hangisinin yaniltigi arastirilmali.
 ///
-/// Veritabani ve yerel modeller gerekir; ikisi de yoksa test atlanir.
+/// Bir "gecti/kaldi" testi degil, bir OLCUM kosumu. Tek sert kapi: hibrit
+/// arama tek basina vektorden kotu OLMAMALI.
+///
+/// Veritabani ve yerel modeller gerekir; yoksa test atlanir.
 /// </summary>
 public sealed class RetrievalEvalTests(ITestOutputHelper output)
 {
@@ -23,7 +28,16 @@ public sealed class RetrievalEvalTests(ITestOutputHelper output)
         "BkmArgus", "models");
 
     private static string EmbeddingDir => Path.Combine(ModelRoot, "multilingual-e5-base");
-    private static string RerankerDir => Path.Combine(ModelRoot, "turkish-reranker");
+    private static string SeroeRerankerDir => Path.Combine(ModelRoot, "turkish-reranker");
+    private static string YtuRerankerDir => Path.Combine(ModelRoot, "ytu-modernbert-tr-reranker");
+
+    private static readonly (string Name, RetrievalMode Mode, int RrfK)[] BaseConfigurations =
+    [
+        ("vector", RetrievalMode.Vector, 15),
+        ("bm25", RetrievalMode.Bm25, 15),
+        ("hybrid-rrf15", RetrievalMode.Hybrid, 15),
+        ("hybrid-rrf60", RetrievalMode.Hybrid, 60)
+    ];
 
     [Fact]
     public async Task Yapilandirmalari_karsilastir_ve_kaydet()
@@ -36,75 +50,111 @@ public sealed class RetrievalEvalTests(ITestOutputHelper output)
             return;
         }
 
-        using var evaluator = new RetrievalEvaluator(
-            connectionString,
-            EmbeddingDir,
-            Directory.Exists(RerankerDir) ? RerankerDir : null);
+        using var baseline = new RetrievalEvaluator(connectionString, EmbeddingDir);
+        await baseline.LoadArchiveAsync();
 
-        await evaluator.LoadArchiveAsync();
-        var queries = await evaluator.LoadQueriesAsync();
+        var sets = new List<(string Label, List<RetrievalEvaluator.EvalQuery> Queries)>
+        {
+            ("ELLE", await baseline.LoadQueriesAsync("MANUEL")),
+            ("LLM", await baseline.LoadQueriesAsync("LLM")),
+            ("TUMU", await baseline.LoadQueriesAsync())
+        };
 
-        if (queries.Count == 0)
+        if (sets[^1].Queries.Count == 0)
         {
             output.WriteLine("Olcum seti bos — sql/64_retrieval_eval_seed.sql uygulanmali.");
             return;
         }
 
-        output.WriteLine($"{queries.Count} sorgu ile olcum\n");
-        output.WriteLine($"{"Yapilandirma",-24} {"H@1",6} {"H@3",6} {"H@5",6} {"MRR",6} {"R@10",6} {"ms",6}");
-        output.WriteLine(new string('-', 64));
+        output.WriteLine($"Setler: ELLE {sets[0].Queries.Count} | LLM {sets[1].Queries.Count} | TUMU {sets[2].Queries.Count}");
+        output.WriteLine("");
 
-        var configurations = new List<(string Name, RetrievalMode Mode, int RrfK)>
+        RetrievalEvaluator.EvalResult? vectorAll = null;
+        RetrievalEvaluator.EvalResult? hybridAll = null;
+
+        var rerankers = new List<(string Label, string Dir, RerankerStyle Style)>
         {
-            ("vector", RetrievalMode.Vector, 0),
-            ("bm25", RetrievalMode.Bm25, 0),
-            ("hybrid-rrf10", RetrievalMode.Hybrid, 10),
-            ("hybrid-rrf15", RetrievalMode.Hybrid, 15),
-            ("hybrid-rrf60", RetrievalMode.Hybrid, 60)
+            ("hybrid+seroe-mmarco-tr", SeroeRerankerDir, RerankerStyle.XlmRoberta),
+            ("hybrid+ytu-modernbert-tr", YtuRerankerDir, RerankerStyle.Bert)
         };
 
-        if (Directory.Exists(RerankerDir))
+        foreach (var (setLabel, setQueries) in sets)
         {
-            configurations.Add(("hybrid+rerank-tr", RetrievalMode.HybridRerank, 15));
-        }
-
-        RetrievalEvaluator.EvalResult? vectorOnly = null;
-        RetrievalEvaluator.EvalResult? bestHybrid = null;
-
-        foreach (var (name, mode, rrfK) in configurations)
-        {
-            var result = evaluator.Evaluate(queries, mode, rrfK == 0 ? 15 : rrfK);
-
-            output.WriteLine(
-                $"{name,-24} {result.HitRate1,6:F3} {result.HitRate3,6:F3} {result.HitRate5,6:F3} " +
-                $"{result.Mrr10,6:F3} {result.Recall10,6:F3} {result.AvgLatencyMs,6}");
-
-            await SaveRunAsync(connectionString, name, mode, rrfK, result);
-
-            if (mode == RetrievalMode.Vector) vectorOnly = result;
-            if (mode is RetrievalMode.Hybrid && (bestHybrid is null || result.HitRate1 > bestHybrid.HitRate1))
+            if (setQueries.Count == 0)
             {
-                bestHybrid = result;
+                continue;
             }
+
+            output.WriteLine($"--- {setLabel} ({setQueries.Count} sorgu) ---");
+            output.WriteLine($"{"Yapilandirma",-26} {"H@1",6} {"H@3",6} {"MRR",6} {"ms",6}");
+
+            foreach (var (name, mode, rrfK) in BaseConfigurations)
+            {
+                var result = baseline.Evaluate(setQueries, mode, rrfK);
+
+                output.WriteLine(
+                    $"{name,-26} {result.HitRate1,6:F3} {result.HitRate3,6:F3} {result.Mrr10,6:F3} {result.AvgLatencyMs,6}");
+
+                await SaveRunAsync(connectionString, $"{name} [{setLabel}]", null, rrfK, result);
+
+                if (setLabel != "TUMU")
+                {
+                    continue;
+                }
+
+                if (mode == RetrievalMode.Vector)
+                {
+                    vectorAll = result;
+                }
+                else if (mode == RetrievalMode.Hybrid && (hybridAll is null || result.HitRate1 > hybridAll.HitRate1))
+                {
+                    hybridAll = result;
+                }
+            }
+
+            foreach (var (label, dir, style) in rerankers)
+            {
+                if (!Directory.Exists(dir))
+                {
+                    continue;
+                }
+
+                using var withReranker = new RetrievalEvaluator(connectionString, EmbeddingDir, dir, style);
+                await withReranker.LoadArchiveAsync();
+
+                // Aday penceresi taranir: dogru cevap hibritin ilk N'ine
+                // girmiyorsa reranker onu kurtaramaz. Parafraz sorgularda
+                // pencerenin dar olmasi supheli — olcerek bakiyoruz.
+                foreach (var window in new[] { 10, 25 })
+                {
+                    withReranker.RerankCandidates = window;
+                    var result = withReranker.Evaluate(setQueries, RetrievalMode.HybridRerank, 60);
+                    var name = $"{label}@{window}";
+
+                    output.WriteLine(
+                        $"{name,-26} {result.HitRate1,6:F3} {result.HitRate3,6:F3} {result.Mrr10,6:F3} {result.AvgLatencyMs,6}");
+
+                    await SaveRunAsync(connectionString, $"{name} [{setLabel}]", label, 60, result);
+                }
+            }
+
+            output.WriteLine("");
         }
 
-        output.WriteLine("");
-        output.WriteLine("Not: 30 sorgu bir kapidir, benchmark degil.");
-        output.WriteLine("Birkac puanlik fark gurultu olabilir; buyuk farklar yorumlanabilir.");
+        output.WriteLine("Not: setler kucuk. Birkac puanlik fark gurultu olabilir;");
+        output.WriteLine("iki setin AYNI siralamayi vermesi tek basina yuksek skordan degerlidir.");
 
         // Tek sert kapi: hibrit, tek basina vektorden kotu olmamali.
-        // Kotuyse fuzyon parametreleri veya BM25 tokenizasyonu bozulmus demektir.
-        if (vectorOnly is not null && bestHybrid is not null)
+        if (vectorAll is not null && hybridAll is not null)
         {
             Assert.True(
-                bestHybrid.HitRate1 >= vectorOnly.HitRate1,
-                $"Hibrit ({bestHybrid.HitRate1:F3}) tek basina vektorden ({vectorOnly.HitRate1:F3}) kotu. " +
-                "Fuzyon veya BM25 tokenizasyonu bozulmus olabilir.");
+                hybridAll.HitRate1 >= vectorAll.HitRate1,
+                $"Hibrit ({hybridAll.HitRate1:F3}) tek basina vektorden ({vectorAll.HitRate1:F3}) kotu.");
         }
     }
 
     private static async Task SaveRunAsync(
-        string connectionString, string name, RetrievalMode mode, int rrfK,
+        string connectionString, string name, string? rerankerModel, int rrfK,
         RetrievalEvaluator.EvalResult result)
     {
         await using var db = new SqlConnection(connectionString);
@@ -117,11 +167,8 @@ public sealed class RetrievalEvalTests(ITestOutputHelper output)
 
         cmd.Parameters.AddWithValue("@Yapilandirma", name);
         cmd.Parameters.AddWithValue("@GommeModeli", "multilingual-e5-base");
-        cmd.Parameters.AddWithValue("@RerankModeli",
-            mode == RetrievalMode.HybridRerank
-                ? "seroe/mmarco-mMiniLMv2-L12-turkish"
-                : (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@RrfK", rrfK == 0 ? DBNull.Value : rrfK);
+        cmd.Parameters.AddWithValue("@RerankModeli", (object?)rerankerModel ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@RrfK", rrfK);
         cmd.Parameters.AddWithValue("@SorguSayisi", result.QueryCount);
         cmd.Parameters.AddWithValue("@Isabet1", result.HitRate1);
         cmd.Parameters.AddWithValue("@Isabet3", result.HitRate3);
@@ -134,8 +181,7 @@ public sealed class RetrievalEvalTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Baglanti dizesi: ortam degiskeni, sonra AiWorker'in Local.json'i.
-    /// Test sabit bir sir tasimaz.
+    /// Baglanti dizesi: ortam degiskeni, sonra Local.json. Test sabit sir tasimaz.
     /// </summary>
     private static string? ResolveConnectionString()
     {
@@ -158,6 +204,7 @@ public sealed class RetrievalEvalTests(ITestOutputHelper output)
 
             var config = new ConfigurationBuilder().AddJsonFile(candidate).Build();
             var value = BkmDenetimConnection.TryResolve(config);
+
             if (!string.IsNullOrWhiteSpace(value))
             {
                 return value;
