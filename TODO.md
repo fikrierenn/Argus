@@ -50,8 +50,8 @@ Boş tablolar "kullanılmıyor" değil, **yazılmıyor** demek. Her biri bir bug
 
 ## FAZ B — Bu Oturumda Kurulanı Tamamla
 
-- [ ] **B1. Semantik katmanı AI context'ine bağla** — `BuildSkillVariablesAsync` içinden `sem.sp_Context_Build` çağrılsın. Şu an semantik katman dolu ama LLM'e ulaşmıyor.
-- [ ] **B2. 10 denetim skill'ini uçtan uca koş** — her biri için gerçek kayıtla bir çalıştırma + çıktı kalitesi değerlendirmesi. Zayıf çıktı veren prompt'u revize et (`ai.sp_Skill_Upsert` yeni sürüm üretir).
+- [x] ✅ 2026-08-21 (commit 2b1ebfb, 5e21147) **B1. Semantik katmanı AI context'ine bağla** — `BuildSkillVariablesAsync` içinden `sem.sp_Context_Build` çağrılsın. Şu an semantik katman dolu ama LLM'e ulaşmıyor.
+- [x] ✅ 2026-08-21 (commit 5e21147) **B2. 10 denetim skill'ini uçtan uca koş** — her biri için gerçek kayıtla bir çalıştırma + çıktı kalitesi değerlendirmesi. Zayıf çıktı veren prompt'u revize et (`ai.sp_Skill_Upsert` yeni sürüm üretir).
 - [ ] **B4. `sem.vw_Stale` curator akışı** — `session-handoff` sırasında 7 günde bir bayat kayıt taraması.
 - [ ] **B5. Skill yönetim ekranı** — `ai.Skills`/`SkillVersions` için Razor sayfası (prompt görüntüle, sürüm geçmişi, aktif/pasif). Şu an sadece SQL'den yönetilebiliyor. `Policies.AdminOnly`.
 
