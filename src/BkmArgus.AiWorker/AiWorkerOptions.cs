@@ -7,13 +7,33 @@ public sealed class AiWorkerOptions
 
     // Gunluk risk ETL'i sonrasi otomatik AI kuyruklama. Esik kodda sabit
     // birakilmaz (ai-layer.md §6) — maliyeti dogrudan bu deger belirler.
+    // Yerel embedding modeli. Ollama'ya bagimlilik kalkti: model surec icinde
+    // ONNX ile calisir, boylece metin makineden cikmaz (KVKK) ve 16 GB'lik bir
+    // makinede ayri servis ayakta tutmak gerekmez.
+    public string EmbeddingModelPath { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                     "BkmArgus", "models", "multilingual-e5-base");
+    public int  EmbeddingMaxTokens { get; set; } = 512;
+    public int  VectorSyncBatchSize { get; set; } = 200;
+    public bool SemanticMemoryEnabled { get; set; } = true;
+
     public bool PostRiskEtlTriggerEnabled { get; set; } = true;
     public int  PostRiskEtlRiskEsik { get; set; } = 85;
     public int BatchSize { get; set; } = 20;
     public int SemanticTop { get; set; } = 500;
+    // MUTLAK esik artik kabul karari vermez — bkz. SemanticMemoryService.
+    // Geriye uyumluluk icin duruyor; yeni kod SimilarityFloor + SimilarityMargin kullanir.
     public double SimilarityThreshold { get; set; } = 0.85;
+
+    // Taban: bunun altindaki benzerlik "eslesme yok" sayilir.
+    // e5 ailesi 0.75-0.90 arasinda sikisir; 0.85 gibi bir taban her seyi reddederdi.
+    public double SimilarityFloor { get; set; } = 0.80;
+
+    // Marj: en iyi eslesme ikinciyi bu kadar gecmezse karar verilmez.
+    // Olcumde yanlis getirdigimiz tek vakada aradaki fark 0.0003'tu.
+    public double SimilarityMargin { get; set; } = 0.02;
     public string OllamaBaseUrl { get; set; } = "http://localhost:11434";
-    public string EmbeddingModel { get; set; } = "mxbai-embed-large";
+    public string EmbeddingModel { get; set; } = "multilingual-e5-base";
     public int EmbeddingTimeoutSeconds { get; set; } = 30;
     public string LlmProvider { get; set; } = "ollama";
     public string LlmModel { get; set; } = "mistral:7b-instruct-v0.3-q4_1";

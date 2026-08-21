@@ -5,20 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 
-if (args.Length > 0)
-{
-    if (args[0] == "test-embedding")
-    {
-        await TestEmbedding.RunTest();
-        return;
-    }
-    if (args[0] == "test-db")
-    {
-        await DbTest.RunTest();
-        return;
-    }
-}
-
 IHost host = Host.CreateDefaultBuilder(args)
     // Sirlar kaynak kodda tutulmaz: appsettings.Local.json (gitignore) veya ortam degiskeni.
     .ConfigureAppConfiguration((context, config) =>
@@ -33,7 +19,7 @@ IHost host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
     {
         services.AddSingleton<Db>();
-        services.AddSingleton<EmbeddingService>();
+        services.AddSingleton<LocalEmbeddingService>();
         services.AddSingleton<SemanticMemoryService>();
         services.AddSingleton<LlmService>();
         services.AddSingleton<LmRules>();

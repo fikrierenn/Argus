@@ -6,185 +6,193 @@ using Microsoft.Extensions.Options;
 
 namespace BkmArgus.AiWorker;
 
-public sealed class SemanticMemoryService
+/// <summary>
+/// Semantik hafiza — gecmis DOF, denetim bulgusu ve AI analizleri arasinda
+/// anlamca benzer kayitlari bulur.
+///
+/// Kabul karari MUTLAK ESIKLE verilmez. Onceki surum `hamBenzerlik * Agirlik`
+/// carpimini 0.85 ile kiyasliyordu; e5 gibi sikisik araliktaki modellerde ham
+/// benzerlik 0.80 civarinda kalir, 0.85 agirlikla carpilinca 0.68 eder ve esik
+/// HICBIR ZAMAN gecilmez. Hafiza sessizce hep bos doner.
+///
+/// Yerine iki kapili bir kural: en iyi eslesme (a) bir tabani gecmeli ve
+/// (b) ikinciyi belirgin bir marjla gecmeli. Ikinci kosul kritik — olcumde
+/// yanlis sonuc getirdigimiz tek vakada aradaki fark 0.0003'tu; marj kurali
+/// orada "emin degilim" diyerek dogru davranirdi.
+///
+/// Agirlik (Weight) yalniz SIRALAMADA kullanilir: kapanmis ve etkinligi
+/// dogrulanmis bir DOF, acik bir bulgudan onceliklidir. Kabul esigini
+/// bulandirmamasi icin karsilastirmaya girmez.
+/// </summary>
+public sealed class SemanticMemoryService(
+    Db db,
+    LocalEmbeddingService embedding,
+    IOptions<AiWorkerOptions> options,
+    ILogger<SemanticMemoryService> logger)
 {
-    private readonly Db _db;
-    private readonly EmbeddingService _embedding;
-    private readonly AiWorkerOptions _options;
-    private readonly ILogger<SemanticMemoryService> _logger;
+    private readonly AiWorkerOptions _options = options.Value;
 
-    public SemanticMemoryService(
-        Db db,
-        EmbeddingService embedding,
-        IOptions<AiWorkerOptions> options,
-        ILogger<SemanticMemoryService> logger)
-    {
-        _db = db;
-        _embedding = embedding;
-        _options = options.Value;
-        _logger = logger;
-    }
-
+    /// <summary>
+    /// En iyi tek eslesme. Emin olunamayan durumda null doner — yanlis eslesme
+    /// vermektense eslesme vermemek yeglenir (halusinasyon kapisi).
+    /// </summary>
     public async Task<SemanticMatch?> FindBestMatchAsync(string text, CancellationToken token)
     {
-        if (!_embedding.IsReady)
+        var scored = await ScoreAllAsync(text, token);
+        if (scored.Count == 0)
         {
             return null;
         }
 
-        var vector = await _embedding.TryEmbedAsync(text, token);
-        if (vector is null || vector.Length == 0)
+        var best = scored[0];
+
+        // Taban kontrolu: hicbir sey yeterince benzemiyorsa eslesme yok
+        if (best.RawSimilarity < _options.SimilarityFloor)
         {
             return null;
         }
 
-        await using var connection = _db.CreateConnection();
-        var rows = await connection.QueryAsync<SemanticVectorRow>(
-            "ai.sp_SemanticVector_ListWeighted",
-            new { Top = _options.SemanticTop, KritikMi = true },
-            commandType: CommandType.StoredProcedure);
-
-        double best = 0;
-        SemanticVectorRow? bestRow = null;
-
-        foreach (var row in rows)
+        // Marj kontrolu: ikinciyle arasi acik degilse karar veremiyoruz demektir
+        if (scored.Count > 1)
         {
-            if (string.IsNullOrWhiteSpace(row.VectorJson))
+            var runnerUp = scored[1].RawSimilarity;
+            if (best.RawSimilarity - runnerUp < _options.SimilarityMargin)
             {
-                continue;
-            }
-
-            float[]? other;
-            try
-            {
-                other = JsonSerializer.Deserialize<float[]>(row.VectorJson);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Vektor json parse edilemedi. SourceId={SourceId}", row.SourceId);
-                continue;
-            }
-
-            if (other is null || other.Length == 0)
-            {
-                continue;
-            }
-
-            var rawSim = CosineSimilarity(vector, other);
-            var weightedScore = rawSim * row.Weight;
-            if (weightedScore > best)
-            {
-                best = weightedScore;
-                bestRow = row;
+                logger.LogDebug(
+                    "Semantik eslesme belirsiz: en iyi {Ilk:F4}, ikinci {Ikinci:F4}, marj yetersiz.",
+                    best.RawSimilarity, runnerUp);
+                return null;
             }
         }
 
-        if (bestRow is null || best < _options.SimilarityThreshold)
-        {
-            return null;
-        }
-
-        return new SemanticMatch
-        {
-            SourceId = bestRow.SourceId,
-            DofId = bestRow.DofId,
-            Title = string.IsNullOrWhiteSpace(bestRow.Title) ? "Gecmis kayit" : bestRow.Title,
-            Similarity = best,
-            IsCritical = bestRow.IsCritical
-        };
+        return best.Match;
     }
 
-    public async Task<IReadOnlyList<SemanticMatch>> FindTopEvidenceAsync(string text, int top, CancellationToken token)
+    /// <summary>
+    /// LLM'e kanit olarak verilecek en benzer N kayit. Tekil karar
+    /// verilmedigi icin marj kurali uygulanmaz, yalniz taban gecerli.
+    /// </summary>
+    public async Task<IReadOnlyList<SemanticMatch>> FindTopEvidenceAsync(
+        string text, int top, CancellationToken token)
     {
-        if (!_embedding.IsReady)
-        {
-            return Array.Empty<SemanticMatch>();
-        }
+        var scored = await ScoreAllAsync(text, token);
 
-        var vector = await _embedding.TryEmbedAsync(text, token);
-        if (vector is null || vector.Length == 0)
-        {
-            return Array.Empty<SemanticMatch>();
-        }
-
-        await using var connection = _db.CreateConnection();
-        var rows = await connection.QueryAsync<SemanticVectorRow>(
-            "ai.sp_SemanticVector_ListWeighted",
-            new { Top = _options.SemanticTop, KritikMi = (bool?)null },
-            commandType: CommandType.StoredProcedure);
-
-        var matches = new List<SemanticMatch>();
-
-        foreach (var row in rows)
-        {
-            if (string.IsNullOrWhiteSpace(row.VectorJson))
-            {
-                continue;
-            }
-
-            float[]? other;
-            try
-            {
-                other = JsonSerializer.Deserialize<float[]>(row.VectorJson);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Vektor json parse edilemedi. SourceId={SourceId}", row.SourceId);
-                continue;
-            }
-
-            if (other is null || other.Length == 0)
-            {
-                continue;
-            }
-
-            var rawSim = CosineSimilarity(vector, other);
-            var weightedScore = rawSim * row.Weight;
-            if (weightedScore <= 0)
-            {
-                continue;
-            }
-
-            matches.Add(new SemanticMatch
-            {
-                SourceId = row.SourceId,
-                DofId = row.DofId,
-                Title = string.IsNullOrWhiteSpace(row.Title) ? "Gecmis kayit" : row.Title,
-                Similarity = weightedScore,
-                IsCritical = row.IsCritical
-            });
-        }
-
-        return matches
-            .OrderByDescending(x => x.Similarity)
+        return scored
+            .Where(s => s.RawSimilarity >= _options.SimilarityFloor)
             .Take(top)
+            .Select(s => s.Match)
             .ToList();
     }
 
+    /// <summary>
+    /// Tum arsivi puanlar ve agirlikli skora gore siralar.
+    /// Yalniz AYNI modelle uretilmis vektorler karsilastirilir — farkli
+    /// modellerin vektorleri ayni uzayda degildir, karistirmak anlamsiz
+    /// benzerlik uretir.
+    /// </summary>
+    private async Task<List<ScoredMatch>> ScoreAllAsync(string text, CancellationToken token)
+    {
+        if (!_options.SemanticMemoryEnabled)
+        {
+            return [];
+        }
+
+        var vector = await embedding.TryEmbedQueryAsync(text, token);
+        if (vector is null || vector.Length == 0)
+        {
+            return [];
+        }
+
+        await using var connection = db.CreateConnection();
+        var rows = await connection.QueryAsync<SemanticVectorRow>(
+            new CommandDefinition(
+                "ai.sp_SemanticVector_ListWeighted",
+                new { ModelAdi = embedding.ModelName, Top = _options.SemanticTop },
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: token));
+
+        var scored = new List<ScoredMatch>();
+
+        foreach (var row in rows)
+        {
+            var other = TryParseVector(row);
+            if (other is null)
+            {
+                continue;
+            }
+
+            // Boyut uyusmazligi = farkli model. Sessizce yanlis skor uretmektense atla.
+            if (other.Length != vector.Length)
+            {
+                logger.LogWarning(
+                    "Vektor boyutu uyusmuyor (kayit {Boyut}, sorgu {Beklenen}). SourceId={SourceId} atlandi.",
+                    other.Length, vector.Length, row.SourceId);
+                continue;
+            }
+
+            var raw = CosineSimilarity(vector, other);
+
+            scored.Add(new ScoredMatch(
+                RawSimilarity: raw,
+                WeightedScore: raw * row.Weight,
+                Match: new SemanticMatch
+                {
+                    SourceId = row.SourceId,
+                    DofId = row.DofId,
+                    Title = string.IsNullOrWhiteSpace(row.Title) ? "Gecmis kayit" : row.Title,
+                    Similarity = raw,
+                    IsCritical = row.IsCritical
+                }));
+        }
+
+        // Siralama agirlikli skora gore: dogrulanmis vaka one cikar.
+        // Kabul karari ise ham benzerlige bakar (yukaridaki iki kapi).
+        scored.Sort((a, b) => b.WeightedScore.CompareTo(a.WeightedScore));
+        return scored;
+    }
+
+    private float[]? TryParseVector(SemanticVectorRow row)
+    {
+        if (string.IsNullOrWhiteSpace(row.VectorJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<float[]>(row.VectorJson);
+            return parsed is { Length: > 0 } ? parsed : null;
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "Vektor json parse edilemedi. SourceId={SourceId}", row.SourceId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Kosinus benzerligi. Vektorler L2-normalize uretildigi icin nokta carpimi
+    /// yeterli olurdu; yine de normalize edilmemis bir kayit gelirse dogru
+    /// calissin diye tam formul kullaniliyor.
+    /// </summary>
     private static double CosineSimilarity(float[] a, float[] b)
     {
-        var len = Math.Min(a.Length, b.Length);
-        if (len == 0)
-        {
-            return 0;
-        }
+        double dot = 0, na = 0, nb = 0;
 
-        double dot = 0;
-        double normA = 0;
-        double normB = 0;
-
-        for (var i = 0; i < len; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dot += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
+            na += a[i] * a[i];
+            nb += b[i] * b[i];
         }
 
-        if (normA == 0 || normB == 0)
+        if (na <= double.Epsilon || nb <= double.Epsilon)
         {
             return 0;
         }
 
-        return dot / (Math.Sqrt(normA) * Math.Sqrt(normB));
+        return dot / (Math.Sqrt(na) * Math.Sqrt(nb));
     }
+
+    private readonly record struct ScoredMatch(double RawSimilarity, double WeightedScore, SemanticMatch Match);
 }

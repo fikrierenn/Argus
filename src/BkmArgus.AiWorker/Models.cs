@@ -138,3 +138,16 @@ public sealed record ApprovedExample
     public string SkillId { get; init; } = string.Empty;
     public string? InputContext { get; init; }
 }
+
+// ai.sp_SemanticVector_SourceList ciktisi — DOF, denetim sonucu ve AI analizi
+// ayni sekle indirgenir; Weight kaynagin guvenilirligini tasir.
+public sealed record VectorSourceRow
+{
+    public string Source { get; init; } = string.Empty;
+    public long SourceId { get; init; }
+    public long? DofId { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public string? SummaryText { get; init; }
+    public bool IsCritical { get; init; }
+    public double Weight { get; init; } = 1.0;
+}

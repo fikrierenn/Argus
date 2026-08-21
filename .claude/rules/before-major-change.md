@@ -50,3 +50,42 @@ Büyük çaplı değişikliklerde tek bir devasa commit yerine **aşamalara böl
 4. Emin olmadığın davranışı varsayma — Grep ile çağıranları tara.
 
 **Gerekçe:** Okumadan yapılan ilk edit, var olan pattern'i kırar ve sessiz regresyon üretir. "Dosya küçük, direkt yazarım" istisna değildir.
+
+---
+
+## 5. Şema Varsayma — SOR (2026-08-21 dersi)
+
+Bir DB nesnesine referans veren SQL veya C# yazmadan **önce** gerçek şemayı sorgula. Tahmin etme.
+
+Tek oturumda dört kez varsayıp dört kez yanıldık:
+
+| Varsayım | Gerçek | Sonuç |
+|---|---|---|
+| `audit.AuditItems.Title` var | Kolon `ItemText` | Migration patladı |
+| `sys.columns.max_length = 400` → 400 karakter | **Bayt** cinsinden; nvarchar'da 200 karakter | "String or binary data truncated" |
+| `ai.LlmResults.PromptText` opsiyonel | `NOT NULL` | Her yazma başarısız |
+| SP çağrılarını regex ile konumdan eşleştir | Ollama metoduna Gemini adı yazıldı | Yanlış sağlayıcı kaydı |
+
+**Kural:** aşağıdakileri yazmadan önce sorgula —
+
+```sql
+-- Kolon adlari, tipleri, NULL kabulu, GERCEK karakter uzunlugu
+SELECT c.name, ty.name AS Tip,
+       CASE WHEN ty.name LIKE 'n%char' THEN c.max_length/2 ELSE c.max_length END AS Karakter,
+       c.is_nullable, dc.definition AS Varsayilan
+FROM sys.columns c
+JOIN sys.types ty ON ty.user_type_id = c.user_type_id
+LEFT JOIN sys.default_constraints dc ON dc.object_id = c.default_object_id
+WHERE c.object_id = OBJECT_ID('sema.Tablo')
+ORDER BY c.column_id;
+```
+
+`nvarchar`/`nchar` için `max_length` **bayttır** — karakter sayısı yarısıdır. `varchar` için eşittir. `-1` = `max`.
+
+SP değiştirmeden önce mevcut tanımı oku:
+```sql
+SELECT m.definition FROM sys.sql_modules m
+JOIN sys.objects o ON o.object_id = m.object_id WHERE o.name = 'sp_Adi';
+```
+
+**Regex ile toplu kod değişikliği yasak** — birden fazla çağrı noktası varsa her birini ayrı ayrı, kapsayan metodu doğrulayarak değiştir. Konumdan eşleştirme sessiz yanlış üretir.

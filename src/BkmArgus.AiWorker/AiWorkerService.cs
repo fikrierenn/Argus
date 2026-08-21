@@ -15,7 +15,7 @@ public sealed class AiWorkerService : BackgroundService
 {
     private const int MaxErrorLength = 2000;
     private readonly Db _db;
-    private readonly EmbeddingService _embedding;
+    private readonly LocalEmbeddingService _embedding;
     private readonly SemanticMemoryService _semantic;
     private readonly LlmService _llm;
     private readonly LmRules _rules;
@@ -30,7 +30,7 @@ public sealed class AiWorkerService : BackgroundService
 
     public AiWorkerService(
         Db db,
-        EmbeddingService embedding,
+        LocalEmbeddingService embedding,
         SemanticMemoryService semantic,
         LlmService llm,
         LmRules rules,
@@ -209,7 +209,7 @@ OUTPUT
 
     private async Task SyncVectorsIfNeededAsync(CancellationToken token)
     {
-        if (!_embedding.IsReady)
+        if (!_options.SemanticMemoryEnabled)
         {
             return;
         }
@@ -221,11 +221,21 @@ OUTPUT
         }
 
         _lastVectorSyncUtc = now;
+
         await using var connection = _db.CreateConnection();
-        var sources = await connection.QueryAsync<DofRecordRow>(
-            "ai.sp_SemanticVector_SourceList",
-            new { Top = 200 },
-            commandType: CommandType.StoredProcedure);
+
+        // Kaynak yalniz kapanmis DOF degil: acik bulgular, saha denetim sonuclari
+        // ve gecmis AI analizleri de hafizaya girer. Her biri kendi agirligiyla
+        // gelir (SP hesaplar) — dogrulanmis vaka ile ham gozlem esit sayilmaz.
+        var sources = await connection.QueryAsync<VectorSourceRow>(
+            new CommandDefinition(
+                "ai.sp_SemanticVector_SourceList",
+                new { Top = _options.VectorSyncBatchSize, ModelAdi = _embedding.ModelName },
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: token));
+
+        var written = 0;
+        var skipped = 0;
 
         foreach (var source in sources)
         {
@@ -234,36 +244,51 @@ OUTPUT
                 break;
             }
 
-            var text = BuildDofText(source);
-            var vector = await _embedding.TryEmbedAsync(text, token);
+            var text = string.IsNullOrWhiteSpace(source.SummaryText) ? source.Title : source.SummaryText;
+
+            // Arsivlenen metin "passage:" onekiyle gomulur; arama tarafi "query:" kullanir
+            var vector = await _embedding.TryEmbedPassageAsync(text, token);
             if (vector is null || vector.Length == 0)
             {
+                skipped++;
                 continue;
-            }
-
-            var critical = source.RiskSeviyesi >= 3;
-            var summary = string.IsNullOrWhiteSpace(source.Aciklama) ? source.Baslik : $"{source.Baslik}. {source.Aciklama}";
-            if (summary.Length > 500)
-            {
-                summary = summary[..500];
             }
 
             await connection.ExecuteAsync(
                 "ai.sp_SemanticVector_Upsert",
                 new
                 {
-                    RiskId = source.DofId,
-                    DofId = source.DofId,
-                    Baslik = source.Baslik,
-                    OzetMetin = summary,
-                    KritikMi = critical,
-                    VektorJson = JsonSerializer.Serialize(vector)
+                    KaynakTipi = source.Source,
+                    KaynakId   = source.SourceId,
+                    DofId      = source.DofId,
+                    Baslik     = Truncate(source.Title, 500),
+                    OzetMetin  = Truncate(text, 4000),
+                    Kritik     = source.IsCritical,
+                    VektorJson = JsonSerializer.Serialize(vector),
+                    Agirlik    = source.Weight,
+                    ModelAdi   = _embedding.ModelName,
+                    Boyut      = vector.Length
                 },
                 commandType: CommandType.StoredProcedure);
+
+            written++;
         }
 
-        await SyncDocVectorsAsync(connection, token);
+        // Sessiz senkron yasak — sifir da bir sonuctur
+        if (written > 0 || skipped > 0)
+        {
+            _logger.LogInformation(
+                "Semantik hafiza: {Yazilan} vektor yazildi, {Atlanan} atlandi ({Model}).",
+                written, skipped, _embedding.ModelName);
+        }
+
         await SyncGoldenVectorsAsync(connection, token);
+    }
+
+    private static string Truncate(string? value, int max)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        return value.Length <= max ? value : value[..max];
     }
 
     private async Task SyncGoldenVectorsAsync(IDbConnection connection, CancellationToken token)
@@ -290,7 +315,7 @@ OUTPUT
                 continue;
             }
 
-            var vector = await _embedding.TryEmbedAsync(item.ApprovedOutput, token);
+            var vector = await _embedding.TryEmbedPassageAsync(item.ApprovedOutput, token);
             if (vector is null || vector.Length == 0)
             {
                 continue;
@@ -361,7 +386,7 @@ OUTPUT
             }
 
             var clean = NormalizeDocText(content, _options.DocsMaxChars);
-            var vector = await _embedding.TryEmbedAsync(clean, token);
+            var vector = await _embedding.TryEmbedPassageAsync(clean, token);
             if (vector is null || vector.Length == 0)
             {
                 continue;
