@@ -6,19 +6,19 @@ namespace BkmArgus.AiWorker;
 /// <summary>
 /// Bellek ici BM25 anahtar kelime indeksi.
 ///
-/// Neden gerekli: saf vektor aramasi tanimlayici terimlerde coker. Azure'un
-/// olcumunde kisa/tanimlayici sorgularda keyword 79,2 alirken vektor 11,7'ye
-/// dusuyor. Bizim alanimizda "Ozluce", "yangin tupu", DOF numarasi, urun kodu
-/// tam olarak bu tur terimler — e5 bunlari anlamca yakin baska bir seye
-/// benzetip kaciriyor.
+/// Neden gerekli — KENDI OLCUMUMUZ (30 sorgu, ai.RetrievalEvalSet):
+///   yalniz vektor : HitRate@1 0,533
+///   yalniz BM25   : HitRate@1 0,700
+///   hibrit (RRF)  : HitRate@1 0,767
+/// BM25 tek basina vektoru geciyor. Sebep korpusun dogasi: kayitlar kontrol
+/// maddesi metni, sorgular ayni terminolojiyi paylasiyor. Vektor ise
+/// "Ozluce", urun kodu, DOF numarasi gibi tanimlayici terimlerde kayboluyor.
 ///
-/// Neden SQL Server FULLTEXT degil: sunucuda Full-Text Search KURULU DEGIL
-/// (FULLTEXTSERVICEPROPERTY('IsFullTextInstalled') = 0). Kurulum instance
-/// seviyesinde bir degisiklik ve yeniden baslatma gerektirebilir. Ayrica
-/// FREETEXTTABLE'in dondurdugu RANK degeri Microsoft'un kendi ifadesiyle
-/// sorgular arasi anlamsizdir, yani zaten yalniz SIRA olarak kullanilabilirdi —
-/// ki bu da bizim RRF yaklasimimizla ayni. 189 kayitlik bir korpus icin
-/// sunucu degisikligi beklemenin karsiligi yok.
+/// Neden SQL Server FULLTEXT degil: sunucuda Full-Text Search KURULU DEGIL —
+/// olculdu, FULLTEXTSERVICEPROPERTY('IsFullTextInstalled') = 0
+/// (SQL Server 15.0.2110.4 Standard). Kurulum instance seviyesinde bir
+/// degisiklik ve yeniden baslatma gerektirir. 189 kayitlik bir korpus icin
+/// sunucu degisikligi beklemenin karsiligi yok; BM25 burada 120 satir.
 ///
 /// Indeks her vektor senkronundan sonra yeniden kurulur; 189 kayitta maliyeti
 /// olculemeyecek kadar dusuk.
@@ -104,7 +104,8 @@ public sealed class KeywordIndex
 
             // Okapi IDF. 189 kayitlik korpusta bu istatistik gurultulu —
             // tek belgede gecen terim buyuk agirlik alir. RRF sira kullandigi
-            // icin bu sismenin siralamaya zarari sinirli kalir.
+            // icin sismenin siralamaya zarari sinirli; olcumde BM25 tek basina
+            // HitRate@1 0,700 verdi, yani gurultu isi bozmuyor.
             var idf = Math.Log(1 + (_docCount - posting.Count + 0.5) / (posting.Count + 0.5));
 
             foreach (var (docId, tf) in posting)

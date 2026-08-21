@@ -21,6 +21,7 @@ Bu dosya **kimlik ve fihrist**tir. Davranış kuralları `.claude/rules/` altın
 | `plan-first.md` | **Tier 1/2/3** — Tier 3'te plan zorunlu |
 | `phase-review-gate.md` | Faz kapanış zinciri: build → review → SQL → güvenlik → fresh-DB → smoke |
 | `footprint-ladder.md` | Yeni yetenek en dar basamakta |
+| `evidence-discipline.md` | **Uydurma yasak** — ölç, doğrula veya "doğrulanmadı" de; alt-ajan çıktısı kanıt değil |
 | `todo-verification.md` | TODO hipotezdir — file:line ile doğrula |
 | `commit-discipline.md` | 15 dosya eşiği, commit-split, zararlı komut yasağı |
 | `session-protocol.md` · `session-memory.md` | Oturum başı/sonu ritüeli, bilgi katmanları |

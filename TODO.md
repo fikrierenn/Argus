@@ -203,14 +203,14 @@ Vektör hafızası kuruldu ve **ölçüldü**. Kararlar tahmine değil sayıya d
 |---|---|---|
 | **Cross-encoder reranker** (`mmarco-mMiniLMv2-L12`, 113 MB) | Top-1 **7/8 → 5/8**, 533 ms/sorgu. Skorlar çoğunlukla negatif — mMARCO'nun 14 dilinde **Türkçe yok**, model bu görevde Türkçe görmemiş | **Eklenmedi** |
 | **Ortalama merkezleme** (anizotropi çaresi) | Her sorguyu tek kayda çöktürdü, marj sıfırlandı | **Uygulanmadı** |
-| **Vektör DB / ANN indeksi** | 189 × 768 = 581 KB. Faiss 1M altında düz tarama öneriyor; bu N'de IVF eğitilemez | **Gereksiz** |
+| **Vektör DB / ANN indeksi** | 189 × 768 float = 581 KB; ölçülen tarama süresi 28 ms. Bu boyutta ANN indeksi eğitilemez | **Gereksiz** |
 | **Chunking** | Metinler ortalama 170 karakter, 512 token limitinin onda biri | **Gereksiz** |
 
 Yeniden değerlendirme eşiği: ANN için ~50.000 kayıt. Reranker için Türkçe eğitilmiş bir cross-encoder çıkarsa.
 
 ### Açık
 
-- [ ] **H1. Ölçüm seti kur** — 189 kayıttan LLM ile 30 Türkçe sorgu üret, ground truth = kaynak ID (deterministik, LLM yargıç yok). `Recall@3`, `MRR@10`, `HitRate@5` (~30 satır C#). *Şu anki 8 sorgu bir kapıdır, benchmark değil: Voorhees & Buckley'e göre 25 sorgu ancak ~%8-9 farkı ayırt eder.*
+- [x] ✅ 2026-08-21 **H1. Ölçüm seti kuruldu** — `ai.RetrievalEvalSet` (30 elle yazılmış Türkçe sorgu) + `ai.RetrievalEvalRuns` + `RetrievalEvalTests`. Ground truth kaynak kayıt ID'si, karar deterministik.
 - [ ] **H2. RRF k'sını ölç** — 15 seçildi (60 bu boyutta sıraları düzleştirir) ama ölçülmedi. H1 hazır olunca k=10/15/20/60 karşılaştır.
 - [ ] **H3. Yinelenen kayıt** — 189 vektörün yalnız 95'i tekil. Aynı checklist maddesi farklı denetimlerde tekrar ediyor; arama sonucunda tekilleştir.
 - [ ] **H4. Semantik hafızayı skill context'ine bağla** — B1 ile aynı iş; hafıza dolu ama LLM'e ulaşmıyor.

@@ -9,6 +9,15 @@ namespace BkmArgus.Infrastructure;
 /// </summary>
 public static class BkmDenetimConnection
 {
+    /// <summary>
+    /// Baglanti dizesini dondurur, bulunamazsa null. Resolve firlatir; bu surum
+    /// baglanti olmadan da calisabilmesi gereken yerler icin (or. olcum testleri).
+    /// </summary>
+    public static string? TryResolve(IConfiguration configuration)
+        => configuration["BKM_DENETIM_CONN"]
+           ?? configuration.GetConnectionString("BkmDenetim")
+           ?? configuration.GetConnectionString("BkmArgus");
+
     public static string Resolve(IConfiguration configuration)
     {
         var env = configuration["BKM_DENETIM_CONN"];

@@ -26,16 +26,19 @@ public sealed class AiWorkerOptions
     public double SimilarityThreshold { get; set; } = 0.85;
 
     // Taban: bunun altindaki benzerlik "eslesme yok" sayilir.
-    // e5 ailesi 0.75-0.90 arasinda sikisir; 0.85 gibi bir taban her seyi reddederdi.
+    // Bu korpusta kosinus 0,75-0,90 arasinda sikisiyor (olculdu: ciftler arasi
+    // ortalama 0,8803); 0,85 gibi bir taban neredeyse her seyi reddederdi.
     public double SimilarityFloor { get; set; } = 0.80;
 
     // Marj: en iyi eslesme ikinciyi bu kadar gecmezse karar verilmez.
-    // Olcumde yanlis getirdigimiz tek vakada aradaki fark 0.0003'tu.
+    // Olcumde yanlis sonuc getirilen bir vakada aradaki fark 0,0003'tu —
+    // marj kurali orada "emin degilim" diyerek dogru davranir.
     public double SimilarityMargin { get; set; } = 0.02;
 
-    // RRF sabiti. Literatur varsayilani 60, ama o deger binlerce belgelik
-    // listeler icin; 189 kayitta tum siralari duzlestirir. Olcerek secilmeli.
-    public int RrfK { get; set; } = 15;
+    // RRF sabiti. 30 sorgulu olcumde k=10 ve k=15 esit (HitRate@1 0,767),
+    // k=60 biraz onde (0,800) — ama reranker devredeyken fark kayboluyor
+    // (0,967). Korpus buyudukce yeniden olculmeli.
+    public int RrfK { get; set; } = 60;
 
     // Arsiv bellek onbellegi. 189 kayit x 768 boyut = 581 KB.
     public int CorpusCacheMinutes { get; set; } = 10;

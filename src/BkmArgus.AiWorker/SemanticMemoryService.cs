@@ -99,14 +99,15 @@ public sealed class SemanticMemoryService(
     /// <summary>
     /// Hibrit arama: anlamsal (vektor) + anahtar kelime (BM25), RRF ile birlestirilir.
     ///
-    /// Neden ikisi birden: vektor "sayim farki" ile "stok tutarsizligi"ni
-    /// eslestirir ama "Ozluce" veya bir urun kodunu kacirir. BM25 tam tersi.
-    /// Azure'un olcumunde kisa/tanimlayici sorgularda keyword 79,2 / vektor 11,7.
+    /// Neden ikisi birden — 30 sorgulu kendi olcumumuz (ai.RetrievalEvalRuns):
+    ///   yalniz vektor 0,533 | yalniz BM25 0,700 | hibrit 0,767 (HitRate@1)
+    /// Vektor "sayim farki" ile "stok tutarsizligi"ni eslestirir ama tanimlayici
+    /// terimleri kacirir; BM25 tam tersi. Ikisinin hatalari ortusmuyor.
     ///
     /// Neden RRF, neden agirlikli toplam degil: iki skor ayni olcekte degil
-    /// (kosinus 0.75-0.90 arasinda sikisik, BM25 sinirsiz). Normalize etmek
-    /// korpus degistikce kayar. RRF yalniz SIRA kullanir, olcek sorunu kalkar
-    /// (Cormack ve ark., SIGIR 2009).
+    /// (kosinus bu korpusta 0,75-0,90 arasinda sikisik — olculdu, ciftler arasi
+    /// ortalama 0,8803; BM25 sinirsiz). Normalize etmek korpus degistikce kayar.
+    /// RRF yalniz SIRA kullanir, olcek sorunu ortadan kalkar.
     /// </summary>
     private async Task<List<ScoredMatch>> ScoreAllAsync(string text, CancellationToken token)
     {
@@ -162,8 +163,9 @@ public sealed class SemanticMemoryService(
             keywordRank[keywordOrdered[r].Key] = r + 1;
         }
 
-        // RRF birlestirme. k kucuk secildi: 60 gibi bir deger 189 kayitlik
-        // listede tum siralari duzlestirir (1. ile 20. arasi yalnizca %31 fark).
+        // RRF birlestirme. k varsayilani olcumle secilmeli: bu korpusta
+        // k=10 ve k=15 esit (HitRate@1 0,767), k=60 ise biraz daha iyi (0,800).
+        // "Kucuk k daha ayristirici" beklentisi burada DOGRULANMADI.
         var k = _options.RrfK;
         var fused = new Dictionary<int, double>();
 
@@ -216,8 +218,8 @@ public sealed class SemanticMemoryService(
 
     /// <summary>
     /// Arsivi bellege alir ve anahtar kelime indeksini kurar.
-    /// 189 kayit x 768 boyut = 581 KB; ayri bir vektor veritabani gerekmiyor.
-    /// Faiss'in kendi rehberi 1M altinda duz tarama oneriyor.
+    /// 189 kayit x 768 float = 581 KB; ayri bir vektor veritabani gerekmiyor.
+    /// Olculen tarama maliyeti: 30 sorguda ortalama 28 ms (vektor tarafi).
     /// </summary>
     private async Task EnsureCorpusAsync(CancellationToken token)
     {
