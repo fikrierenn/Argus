@@ -762,7 +762,8 @@ OUTPUT
                         CiktiJson = result.Output,
                         ModelAdi = result.ModelName,
                         GuvenSkoru = result.ConfidenceScore,
-                        HataMesaji = result.Error
+                        HataMesaji = result.Error,
+                        SurumNo = result.SkillVersionNo
                     },
                     commandType: CommandType.StoredProcedure);
 
@@ -796,6 +797,142 @@ OUTPUT
                     },
                     commandType: CommandType.StoredProcedure);
             }
+        }
+    }
+
+    /// <summary>
+    /// sem.* katmanindan konuya uygun sema baglamini yukler ve
+    /// {{SemantikBaglam}} degiskenine yazar.
+    ///
+    /// Konu, skill kimligi ve varlik tipinden turetilir; sem.sp_Context_Build
+    /// coklu result set dondurur (ipuclari, varliklar, kopruler, metrikler,
+    /// golden sorgular). Hepsi tek metne cevrilir cunku prompt template'i
+    /// tek degisken bekler.
+    ///
+    /// Basarisiz olursa degisken BOS kalir ve skill yine calisir — semantik
+    /// baglam bir iyilestirmedir, zorunluluk degil.
+    /// </summary>
+    /// <summary>
+    /// Skill prompt degiskenlerini ai.sp_SkillContext_Build'den yukler.
+    ///
+    /// SP (Ad, Deger) satirlari dondurur; her satir bir prompt degiskenidir.
+    /// Degisken adlarinin TEK tanim yeri o SP'dir — burada isim gecmez, boylece
+    /// C# ile prompt sozlugu bir daha ayrisamaz.
+    ///
+    /// Basarisiz olursa eski yukleyicilerin doldurdugu kismi baglamla devam
+    /// edilir; skill calismaya devam eder.
+    /// </summary>
+    private async Task AddSkillContextAsync(
+        IDbConnection connection, SkillExecutionQueueRow item, Dictionary<string, string> variables)
+    {
+        try
+        {
+            var rows = await connection.QueryAsync<SkillContextRow>(
+                "ai.sp_SkillContext_Build",
+                new { SkillId = item.SkillId, VarlikTipi = item.EntityType, VarlikId = item.EntityId },
+                commandType: CommandType.StoredProcedure);
+
+            var sayac = 0;
+
+            foreach (var row in rows)
+            {
+                if (string.IsNullOrWhiteSpace(row.Ad))
+                {
+                    continue;
+                }
+
+                variables[row.Ad] = row.Deger ?? string.Empty;
+                sayac++;
+            }
+
+            _logger.LogInformation(
+                "Skill baglami yuklendi: {Adet} degisken ({Skill}/{VarlikTipi}#{VarlikId}).",
+                sayac, item.SkillId, item.EntityType, item.EntityId);
+        }
+        catch (Exception ex)
+        {
+            // Baglam eksik kalirsa skill yine calisir; sessiz gecmiyoruz
+            _logger.LogWarning(ex, "Skill baglami yuklenemedi ({Skill}).", item.SkillId);
+        }
+    }
+
+    /// <summary>ai.sp_SkillContext_Build satiri: bir prompt degiskeni.</summary>
+    private sealed class SkillContextRow
+    {
+        public string Ad { get; init; } = string.Empty;
+        public string? Deger { get; init; }
+    }
+
+    private async Task AddSemanticContextAsync(
+        IDbConnection connection, SkillExecutionQueueRow item, Dictionary<string, string> variables)
+    {
+        try
+        {
+            var topic = string.Join(" ", new[]
+            {
+                item.SkillId,
+                item.EntityType,
+                variables.GetValueOrDefault("UrunAdi"),
+                variables.GetValueOrDefault("MekanAdi"),
+                variables.GetValueOrDefault("Baslik")
+            }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
+            if (string.IsNullOrWhiteSpace(topic))
+            {
+                return;
+            }
+
+            using var grid = await connection.QueryMultipleAsync(
+                "sem.sp_Context_Build",
+                new { Konu = topic, MinGuven = 0.70m, TopHer = _options.SemanticContextTopPerSection },
+                commandType: CommandType.StoredProcedure);
+
+            var sections = new List<string>();
+
+            while (!grid.IsConsumed)
+            {
+                var rows = (await grid.ReadAsync()).ToList();
+                if (rows.Count == 0)
+                {
+                    continue;
+                }
+
+                foreach (var row in rows)
+                {
+                    // Result set sekilleri farkli; dinamik satiri ad: deger
+                    // ciftlerine cevirip tek satira indiriyoruz.
+                    var fields = ((IDictionary<string, object>)row)
+                        .Where(kv => kv.Value is not null && !string.IsNullOrWhiteSpace(kv.Value.ToString()))
+                        .Select(kv => $"{kv.Key}={kv.Value}");
+
+                    sections.Add("- " + string.Join(" | ", fields));
+                }
+            }
+
+            if (sections.Count == 0)
+            {
+                return;
+            }
+
+            var context = string.Join("\n", sections);
+
+            // Prompt butcesini korumak icin ust sinir; kesilirse acikca belirt
+            if (context.Length > _options.SemanticContextMaxChars)
+            {
+                context = context[.._options.SemanticContextMaxChars]
+                          + "\n- (baglam kisaltildi)";
+            }
+
+            variables["SemantikBaglam"] = context;
+
+            _logger.LogInformation(
+                "Semantik baglam eklendi: {Satir} kayit, {Karakter} karakter ({Skill}).",
+                sections.Count, context.Length, item.SkillId);
+        }
+        catch (Exception ex)
+        {
+            // Baglam yoksa skill yine calisir — sessiz gecmiyoruz ama durdurmuyoruz
+            _logger.LogWarning(ex, "Semantik baglam yuklenemedi ({Skill}).", item.SkillId);
         }
     }
 
@@ -836,8 +973,24 @@ OUTPUT
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "BuildSkillVariables context load failed for {EntityType}/{EntityId} — proceeding with partial context", item.EntityType, item.EntityId);
+            _logger.LogWarning(ex,
+                "Skill baglami yuklenemedi ({VarlikTipi}/{VarlikId}) — kismi baglamla devam ediliyor.",
+                item.EntityType, item.EntityId);
         }
+
+        // Skill degisken sozlugu: ai.sp_SkillContext_Build TEK kaynak.
+        // Yukaridaki eski yukleyiciler kendi adlandirmalariyla (failedItemsList,
+        // productList...) kalir; SP'nin urettikleri onlarin UZERINE yazilir.
+        // Sebep: prompt'lar ile yukleyiciler bagimsiz iki sozluk kullaniyordu ve
+        // 47 degisken slotundan yalnizca 5'i doluyordu — LLM bos veriye bakip
+        // "bulgu yok" diyordu. Artik adlar tek yerde tanimli.
+        await AddSkillContextAsync(connection, item, variables);
+
+        // Semantik katman: sema sozlugu ve LLM'in uyduramayacagi tuzaklar.
+        // "stkKod barkod DEGIL", "urnTip=0 zorunlu", DMY tarih formati gibi
+        // bilgiler yalnizca bilinebilir; modelin tahmin etmesi beklenemez.
+        // Bu olmadan LLM makul gorunen ama yanlis sema uydurur.
+        await AddSemanticContextAsync(connection, item, variables);
 
         return variables;
     }

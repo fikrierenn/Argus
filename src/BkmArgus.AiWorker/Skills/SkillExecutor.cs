@@ -1,8 +1,10 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace BkmArgus.AiWorker.Skills;
 
-public class SkillExecutor
+public partial class SkillExecutor
 {
     private readonly SkillRegistry _registry;
     private readonly LlmService _llm;
@@ -42,14 +44,16 @@ public class SkillExecutor
             if (result.Error is not null)
                 return SkillResult.Fail(result.Error);
 
+            var cikti = result.Result?.RawJson ?? result.Result?.ExecutiveSummary ?? "";
+
             return new SkillResult
             {
                 Success = true,
                 SkillId = skillId,
                 SkillVersionNo = skill.VersionNo,
-                Output = result.Result?.RawJson ?? result.Result?.ExecutiveSummary ?? "",
+                Output = cikti,
                 ModelName = result.Result?.ModelName ?? "unknown",
-                ConfidenceScore = result.Result?.ConfidenceScore ?? 0,
+                ConfidenceScore = result.Result?.ConfidenceScore ?? GuvenSkoruOku(cikti),
                 ExecutedAt = DateTime.UtcNow
             };
         }
@@ -59,6 +63,52 @@ public class SkillExecutor
             return SkillResult.Fail(ex.Message);
         }
     }
+
+    /// <summary>
+    /// Skill ciktisindaki "guvenSkoru" alanini okur ve 0-100 olcegine cevirir.
+    ///
+    /// Iki ayri hata vardi: alan hic parse edilmiyordu VE olcek uyusmuyordu —
+    /// model 0-1 arasi ondalik yaziyor (0.95), kolon int, yani parse edilse
+    /// bile 0.95 sifira yuvarlanacakti. Olculdu: model 0.1 / 0.4 / 0.6 / 0.95
+    /// gibi anlamli degerler uretiyor, DB'de hepsi 0 duruyordu.
+    ///
+    /// Bu deger halusinasyon kapisinin girdisi (ai-layer.md): dusuk guvenli
+    /// cikti kullaniciya "dusuk guven" etiketiyle gosterilir. Hepsi 0 ise
+    /// kapi anlamsizdir.
+    ///
+    /// Okunamazsa null doner — 0 DEGIL. Sifir "model emin degil" demek;
+    /// null "olculemedi" demek. Ikisi karistirilmaz.
+    /// </summary>
+    private static int? GuvenSkoruOku(string cikti)
+    {
+        if (string.IsNullOrWhiteSpace(cikti))
+        {
+            return null;
+        }
+
+        var eslesme = GuvenDeseni().Match(cikti);
+
+        if (!eslesme.Success ||
+            !double.TryParse(eslesme.Groups[1].Value, NumberStyles.Float,
+                             CultureInfo.InvariantCulture, out var ham))
+        {
+            return null;
+        }
+
+        // Model bazen 0-1, bazen 0-100 yaziyor; 1'in ustu zaten yuzdedir.
+        //
+        // TAM 1 BELIRSIZ: hem 1.0 (=%100) hem "100 uzerinden 1" (=%1) olabilir
+        // ve degerin kendisinden ayirt edilemez. Bu prompt kumesinin urettigi
+        // degerler olculdu (0.1 / 0.4 / 0.6 / 0.95 / 1) — hepsi 0-1 olceginde,
+        // bu yuzden 1 = %100 kabul ediliyor. Prompt'lar olcegi acikca
+        // soyleyecek sekilde revize edilirse bu heuristik kaldirilmalidir.
+        var yuzde = ham <= 1.0 ? ham * 100.0 : ham;
+
+        return (int)Math.Round(Math.Clamp(yuzde, 0, 100));
+    }
+
+    [GeneratedRegex("""\"guvenSkoru\"\s*:\s*([0-9]*\.?[0-9]+)""", RegexOptions.IgnoreCase)]
+    private static partial Regex GuvenDeseni();
 
     private static string RenderTemplate(string template, Dictionary<string, string> variables)
     {

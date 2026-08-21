@@ -15,6 +15,25 @@ public sealed class AiWorkerOptions
                      "BkmArgus", "models", "multilingual-e5-base");
     public int  EmbeddingMaxTokens { get; set; } = 512;
     public int  VectorSyncBatchSize { get; set; } = 200;
+
+    // Cross-encoder yeniden siralama. Olcumde HitRate@1 0,800 -> 0,967 ama
+    // aday basina ~130 ms. Bu yuzden varsayilan KAPALI; LLM'e kanit hazirlanan
+    // yolda acilir, her aramada degil (ai-layer.md kademeli maliyet).
+    // Semantik baglam: sem.* katmanindan skill prompt'una tasinan sema bilgisi.
+    // Ust sinir prompt butcesini korur — baglam buyudukce asil veriye yer kalmaz.
+    public int SemanticContextTopPerSection { get; set; } = 8;
+    public int SemanticContextMaxChars { get; set; } = 6000;
+
+    public bool   RerankerEnabled { get; set; }
+    public string RerankerModel { get; set; } = "seroe/mmarco-mMiniLMv2-L12-turkish";
+    public string RerankerModelPath { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                     "BkmArgus", "models", "turkish-reranker");
+    // XLM-R tabanli modellerde "xlmr", BERT tabanlilarda "bert".
+    // Yanlis deger hata vermez, sessizce bozuk skor uretir.
+    public string RerankerTokenStyle { get; set; } = "xlmr";
+    public int    RerankerTopN { get; set; } = 10;
+    public int    RerankerMaxTokens { get; set; } = 512;
     public bool SemanticMemoryEnabled { get; set; } = true;
 
     public bool PostRiskEtlTriggerEnabled { get; set; } = true;
