@@ -184,6 +184,56 @@ Kazanç: yeni ERP'ye geçişte eşleme maliyeti düşer, dış denetçiye veri t
 
 ---
 
+## FAZ H — Semantik Hafıza (2026-08-21 ölçümleri)
+
+Vektör hafızası kuruldu ve **ölçüldü**. Kararlar tahmine değil sayıya dayanıyor.
+
+### Yapıldı
+
+- [x] ✅ Yerel ONNX embedding (`multilingual-e5-base`, 768 boyut, 74 ms/kayıt) — Ollama bağımlılığı kalktı, veri makineden çıkmıyor (G9/KVKK kapandı)
+- [x] ✅ Kaynak havuzu 2 → **189** (DÖF + saha denetimi + AI analizi, ağırlıklı)
+- [x] ✅ Hibrit arama: vektör + C# BM25, RRF ile birleştirme (k=15) — **6/6** (tek başına vektör 5/6, BM25 5/6)
+- [x] ✅ Ağırlık çarpan olmaktan çıktı — `ham × ağırlık` sıralaması içeriği eziyordu
+- [x] ✅ Şablon öneki gömme metninden çıkarıldı
+- [x] ✅ `sp_SemanticVector_UpsertGolden` onarıldı (parametre adları + `EmbeddingModel`)
+
+### Ölçülüp REDDEDİLENLER — tekrar denemeden önce oku
+
+| Deneme | Sonuç | Karar |
+|---|---|---|
+| **Cross-encoder reranker** (`mmarco-mMiniLMv2-L12`, 113 MB) | Top-1 **7/8 → 5/8**, 533 ms/sorgu. Skorlar çoğunlukla negatif — mMARCO'nun 14 dilinde **Türkçe yok**, model bu görevde Türkçe görmemiş | **Eklenmedi** |
+| **Ortalama merkezleme** (anizotropi çaresi) | Her sorguyu tek kayda çöktürdü, marj sıfırlandı | **Uygulanmadı** |
+| **Vektör DB / ANN indeksi** | 189 × 768 = 581 KB. Faiss 1M altında düz tarama öneriyor; bu N'de IVF eğitilemez | **Gereksiz** |
+| **Chunking** | Metinler ortalama 170 karakter, 512 token limitinin onda biri | **Gereksiz** |
+
+Yeniden değerlendirme eşiği: ANN için ~50.000 kayıt. Reranker için Türkçe eğitilmiş bir cross-encoder çıkarsa.
+
+### Açık
+
+- [ ] **H1. Ölçüm seti kur** — 189 kayıttan LLM ile 30 Türkçe sorgu üret, ground truth = kaynak ID (deterministik, LLM yargıç yok). `Recall@3`, `MRR@10`, `HitRate@5` (~30 satır C#). *Şu anki 8 sorgu bir kapıdır, benchmark değil: Voorhees & Buckley'e göre 25 sorgu ancak ~%8-9 farkı ayırt eder.*
+- [ ] **H2. RRF k'sını ölç** — 15 seçildi (60 bu boyutta sıraları düzleştirir) ama ölçülmedi. H1 hazır olunca k=10/15/20/60 karşılaştır.
+- [ ] **H3. Yinelenen kayıt** — 189 vektörün yalnız 95'i tekil. Aynı checklist maddesi farklı denetimlerde tekrar ediyor; arama sonucunda tekilleştir.
+- [ ] **H4. Semantik hafızayı skill context'ine bağla** — B1 ile aynı iş; hafıza dolu ama LLM'e ulaşmıyor.
+- [ ] **H5. Geri bildirim döngüsü** — `ai.Feedback` hâlâ 0 satır. Onaylanan çıktı GOLDEN vektöre dönüşüyor (hat artık çalışıyor) ama besleyen yok.
+
+### ⚠️ Asıl darboğaz: veri yok
+
+| Alan | Dolu |
+|---|---|
+| `AuditResults.Remark` (denetçi gözlemi) | **0 / 91** |
+| `Findings.EffectivenessNote` ("nasıl çözüldü") | **0 / 84** |
+| `Findings.Description` | 84/84 ama ortalama 75 karakter, otomatik iskelet |
+
+Arşivin tamamı **checklist sorusu**. "Benzer durumda geçmişte ne yapıldı" sorusunun kaynağı sistemde yok. Çiftler arası benzerlik ortalaması **0.8803** — 189 tane "X yapılıyor mu?" gerçekten birbirine benziyor.
+
+Hiçbir retrieval mimarisi bunu çözmez. Çözüm veri yakalamada:
+
+- [ ] **H6. Denetim ekranı** — madde "HAYIR" işaretlenince `Remark` zorunlu
+- [ ] **H7. DÖF kapanışı** — `EffectivenessNote` zorunlu (ne yapıldı, sonuç ne)
+- [ ] **H8. DÖF açılışı** — otomatik iskeletin yanına serbest metin alanı
+
+---
+
 ## Tamamlananlar
 
 - [x] ✅ 2026-08-20 Sır temizliği — 4 API key + 2 DB şifresi tüm geçmişten kaldırıldı (`git filter-repo`)
