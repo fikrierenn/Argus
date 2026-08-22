@@ -45,40 +45,39 @@ norm=$(echo "$path" | tr '\\' '/')
 MARKS=".git/bkm-advisor-marks"
 mkdir -p "$MARKS"
 
-alan=""
-danisman=""
-gerekce=""
+# ESLEME DOSYADAN OKUNUR — mekanizma ortak, esleme projeye ozel.
+# Operax'a tasirken ogrenildi: BkmArgus'un 'bkmargus-*' danismanlari orada
+# yok, hook kapi olmayan bir danismani isaret ediyordu. Mekanizmayi core,
+# eslemeyi local yapan ayrim buradan dogdu.
+MAP=".claude/advisor-map.conf"
 
-case "$norm" in
-  sql/*.sql|*/sql/*.sql)
-    alan="sql"
-    danisman="sql-migration-writer  (yeni migration/sema)  ·  bkmargus-sp-first  (SP yazimi)"
-    gerekce="Idempotency, ileri bagimlilik, acik transaction, THROW araligi, Turkce parametre sozlesmesi."
-    ;;
-  *BkmArgus.AiWorker/*|*/Skills/*|*ai_*.sql|*learning*.sql|*skill*.sql)
-    alan="ai"
-    danisman="bkmargus-ai-worker"
-    gerekce="Kademeli maliyet (LLM son care), prompt DB'de, halusinasyon kapisi, insan onayi, job idempotency."
-    ;;
-  *Features/*.cshtml|*Features/*.cshtml.cs)
-    alan="ekran"
-    danisman="screen-ux-standard"
-    gerekce="Form akisi, bos durum, hata geri bildirimi, [Authorize] policy, Turkce UI."
-    ;;
-  *etl*|*Etl*|*rpt_*|*_snapshot*)
-    alan="etl"
-    danisman="bkmargus-etl"
-    gerekce="Gunluk snapshot kurali, idempotency kaniti, src.* alias, ehAltDepo=0, veri kalitesi kapisi."
-    ;;
-  *risk*|*Risk*)
-    alan="risk"
-    danisman="bkmargus-risk-model"
-    gerekce="Esik/agirlik, yanlis pozitif-negatif dengesi, eskalasyon, geriye donuk karsilastirilabilirlik."
-    ;;
-  *)
-    exit 0
-    ;;
-esac
+[ -f "$MAP" ] || exit 0   # esleme yoksa kapi calismaz (sessiz gecer)
+
+alan=""; danisman=""; gerekce=""
+
+while IFS= read -r satir; do
+  case "$satir" in ""|\#*) continue ;; esac
+
+  a=${satir%%::*};            kalan=${satir#*::}
+  desenler=${kalan%%::*};     kalan=${kalan#*::}
+  d=${kalan%%::*};            g=${kalan#*::}
+
+  # set -f: dosya adi genislemesini KAPAT. Kapatilmazsa kabuk 'sql/*.sql'
+  # desenini sql/ altindaki 77 gercek dosyaya acar ve desen olarak eslesmez.
+  # '*' ile baslayan desenler eslesme bulamadigi icin duz kaliyordu — yani
+  # kapi kazara calisiyordu. Test etmeseydim gorunmezdi.
+  eski=$IFS; IFS=','; set -f
+  for desen in $desenler; do
+    IFS=$eski
+    case "$norm" in
+      $desen) alan="$a"; danisman="$d"; gerekce="$g"; break 2 ;;
+    esac
+    IFS=','
+  done
+  IFS=$eski; set +f
+done < "$MAP"
+
+[ -z "$alan" ] && exit 0
 
 # Bu alana bu oturumda zaten danisildiysa gec
 [ -f "$MARKS/$alan" ] && exit 0

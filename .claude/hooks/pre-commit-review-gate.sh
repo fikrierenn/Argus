@@ -55,28 +55,31 @@ if ! echo "$staged" | grep -qvE '\.(md|txt)$|^docs/|^plans/'; then
   exit 0
 fi
 
+# ESLEME DOSYADAN OKUNUR — mekanizma ortak, esleme projeye ozel.
+# Her projenin klasor yapisi ve denetci kadrosu farkli: Operax'ta
+# ai-pipeline-reviewer ve etl-validator yok, klasorler src/ site/ tools/.
+MAP=".claude/review-map.conf"
+
+[ -f "$MAP" ] || exit 0
+
 gerekli=""
 neden=""
 
-ekle() {
-  case " $gerekli " in *" $1 "*) ;; *) gerekli="$gerekli $1"; neden="$neden
-  - $1: $2" ;; esac
-}
+while IFS= read -r satir; do
+  case "$satir" in ""|\#*) continue ;; esac
 
-echo "$staged" | grep -qE '^sql/.*\.sql$' && \
-  ekle "sql-sp" "SP/sema degisti — transaction, idempotency, ileri bagimlilik, THROW araligi"
+  etiket=${satir%%::*};   kalan=${satir#*::}
+  desen=${kalan%%::*};    aciklama=${kalan#*::}
 
-echo "$staged" | grep -qE '\.(cs|cshtml)$' && \
-  ekle "code" "kod degisti — Turkce yorum, 80 satir, magic string, guard clause"
-
-echo "$staged" | grep -qE 'Features/.*\.cshtml(\.cs)?$|Program\.cs$|Security/' && \
-  ekle "security" "yeni yuzey/yetki — RBAC, CSRF, IDOR, XSS, sir sizintisi"
-
-echo "$staged" | grep -qE 'AiWorker/|Skills/|sql/.*ai_|sql/.*learning|sql/.*skill' && \
-  ekle "ai-pipeline" "AI hatti — kademeli maliyet, halusinasyon kapisi, insan onayi"
-
-echo "$staged" | grep -qiE 'etl|snapshot|rpt_' && \
-  ekle "etl" "ETL/snapshot — idempotency kaniti, gun seviyesi tarih, src.* alias"
+  if echo "$staged" | grep -qE "$desen"; then
+    case " $gerekli " in
+      *" $etiket "*) ;;
+      *) gerekli="$gerekli $etiket"
+         neden="$neden
+  - $etiket: $aciklama" ;;
+    esac
+  fi
+done < "$MAP"
 
 [ -z "$gerekli" ] && exit 0
 
@@ -96,11 +99,7 @@ Staged dosyalar su denetcileri ZORUNLU kiliyor (phase-review-gate.md):
 $neden
 
 Agent tool ile kosulacaklar:$gerekli
-  sql-sp      -> sql-sp-reviewer       (opus)
-  code        -> code-reviewer         (sonnet)
-  security    -> security-reviewer     (opus)
-  ai-pipeline -> ai-pipeline-reviewer  (opus)
-  etl         -> etl-validator         (opus)
+(etiket -> ajan eslemesi icin .claude/review-map.conf)
 
 Bagimsiz olanlari TEK mesajda paralel baslat.
 
