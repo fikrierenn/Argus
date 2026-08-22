@@ -93,3 +93,7 @@ echo "- Guvenlik: .claude/rules/security-principles.md (RBAC, sir yonetimi)"
 echo "- Is dongusu: .claude/rules/work-protocol.md (Danis -> Yap -> Kontrol -> Smoke)"
 
 exit 0
+
+# Danisman isaretlerini temizle — her oturum yeniden danisilir.
+# Isaretler .git altinda: commit'e girmez, klon basina ayridir.
+rm -rf .git/bkm-advisor-marks 2>/dev/null || true

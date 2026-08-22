@@ -45,6 +45,19 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/pre-commit-antipattern.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-commit-review-gate.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-edit-advisor-gate.sh"
           }
         ]
       }

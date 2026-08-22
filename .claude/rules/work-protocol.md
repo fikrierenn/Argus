@@ -2,6 +2,11 @@
 
 **Her substantive iş bu 4 adımlı döngüden geçer.** Kod, SP, şema, ekran, ETL, AI hattı, migration — istisnasız. `paths:` yok — compact sonrası da geçerli. Tier 1 trivial (typo/label) hariç.
 
+> **Bu protokol artık hook'la zorlanıyor** (2026-08-22). `pre-edit-advisor-gate.sh`
+> adım 1'i, `pre-commit-review-gate.sh` adım 3'ü bloklar. Sebep: protokol
+> metin olarak vardı ve atlandı; atlanan denetimler sonradan koşulduğunda bir
+> sır sızdırma yolu ve iki kritik SQL hatası buldu.
+
 ## 1. ÖNCE DANIŞ (üretimden ÖNCE)
 
 İş bir danışman alanına giriyorsa, üretmeden önce eşleşen danışmana danış (`advisor-skills.md` kataloğu):
@@ -11,6 +16,7 @@
 - AI katmanı: prompt, skill, sağlayıcı zinciri, maliyet → **`bkmargus-ai-worker`**
 - Risk skorlama / eşik / eskalasyon → **`bkmargus-risk-model`**
 - Denetim süreci / DÖF yaşam döngüsü / SLA modelleme → **`denetim-surec-danismani`** (agent)
+- Veri tutarsızlığı/anomali tespiti, bulgu üretimi, AI denetçi → **`bkmargus-tespit`**
 - Ekran akışı / UX / boş durum / hata geri bildirimi → **`screen-ux-standard`**
 - BKM kurumsal DB keşfi (DerinSIS*, BKMDATA) → **`bkm-db-explorer`**
 - Yeni mimari/yön kararı, yüksek belirsizlik → **`llm-council`** · **`code-architect`** (agent)
