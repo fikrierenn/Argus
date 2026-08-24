@@ -16,13 +16,18 @@ Bu danışman o kararı **ölçüye** bağlar.
 
 | İşaret | Anlamı |
 |---|---|
-| 📐 **ÖLÇÜM** | 2026-08-22/23'te `D:\Dev` üzerinde gerçekten ölçüldü, sayı gerçek |
+| 📐 **ÖLÇÜM** | Gerçek bir portföyde ölçülmüş **örnek vaka**. Yöntem senin için geçerli, sayılar değil — kendi portföyünde yeniden ölç |
 | 🔧 **SEZGİ** | Bu skill'in yazarının çıkarımı. Makul ama **doğrulanmadı**, eşikler tartışmaya açık |
 | 📚 **YERLEŞİK** | Sektörde bilinen desen, kaynağı belirtildi |
 
 Bu ayrım olmadan yazılan ilk sürümde ölçülmüş sayılarla uydurulmuş eşikler
 aynı güvenle yan yana duruyordu — `evidence-discipline.md`'nin tam da
 yasakladığı şey.
+
+**Örnek vakalar 2026-08 tarihli bir .NET portföyünden (92 klasör, 23 .NET
+projesi) alındı.** Onları kanıt değil **yöntem gösterimi** olarak oku: aynı
+ölçümü kendi portföyünde yaptığında sayılar farklı çıkacak, karar da farklı
+olabilir.
 
 ---
 
@@ -101,9 +106,21 @@ Ters sırada yaparsan, henüz uzlaşmamış üç şeyi zorla birleştirmiş olur
 
 ---
 
-## 4. Aktif tüketici koşulu (çatıları asıl öldüren şey)  📐 ÖLÇÜM
+## 4. Aktif tüketici koşulu (ortak katmanları asıl öldüren şey)
 
-Ölçülmüş vaka: `claude-context-template` v1.3.0. Mimarisi **doğruydu** — `_universal` / `stacks` / `project` ayrımı yerindeydi, bootstrap çalışıyordu, dokümantasyonu vardı. 11 Haziran'dan itibaren **0 commit**.
+**Yöntem — her portföyde uygulanır:**
+
+Merkezî bir katmanın canlı olup olmadığı, mimarisinden değil **commit akışından**
+anlaşılır. Ölç: merkez deposu ile onu kullanan projelerin aynı dönemdeki commit
+sayıları. Merkez belirgin şekilde geriden geliyorsa katman fiilen ölüdür —
+"güncelle" komutu artık projeleri geriye alacağı için kimse çalıştırmaz.
+
+```
+merkez_commit / donem   vs   proje_commit / donem
+```
+
+**Örnek vaka** 📐 (bu portföyde ölçüldü, senin sayıların farklı olacak):
+`claude-context-template` v1.3.0. Mimarisi **doğruydu** — `_universal` / `stacks` / `project` ayrımı yerindeydi, bootstrap çalışıyordu, dokümantasyonu vardı. 11 Haziran'dan itibaren **0 commit**.
 
 Aynı dönemde projeler: pusula 48, Operax 35, reporthub 28 commit.
 
@@ -117,11 +134,14 @@ Kontrol listesi:
 
 ---
 
-## 5. Mekanizma ile eşlemeyi ayır  📐 ÖLÇÜM
+## 5. Mekanizma ile eşlemeyi ayır
 
-Bir yeteneği ikinci projeye taşırken kırılan ilk şey, projeye özel bilgiyi gövdeye gömmüş olmandır.
+**Yöntem:** Bir yeteneği ikinci projeye taşırken kırılan ilk şey, projeye özel
+bilgiyi gövdeye gömmüş olmandır. Ayrım şu soruyla bulunur: *"bu satır her
+projede aynı mı kalır, yoksa projeye göre mi değişir?"* Değişenler gövdeden
+çıkıp bir yapılandırma dosyasına iner.
 
-Ölçülmüş vaka: danışman kapısı hook'u BkmArgus'un kendi danışmanlarını `case` içine gömmüştü. Operax'ta o danışmanlar yok — kapı bloklayıp **var olmayan** bir danışmanı işaret edecekti.
+**Örnek vaka** 📐: danışman kapısı hook'u BkmArgus'un kendi danışmanlarını `case` içine gömmüştü. Operax'ta o danışmanlar yok — kapı bloklayıp **var olmayan** bir danışmanı işaret edecekti.
 
 ```
 hooks/*.sh            mekanizma  -> ortak, sync edilir
@@ -145,11 +165,11 @@ Strangler modeli, "N projeyi taşımak pahalı" itirazını ortadan kaldırır. 
 
 ---
 
-## 7. Platform zaten veriyor mu  📐 ÖLÇÜM
+## 7. Platform zaten veriyor mu
 
-Kendi soyutlamanı yazmadan önce standardın ne verdiğine bak. Yeniden yazmanın meşru sebebi genelde **depolama**dır, davranış değil.
+**Yöntem:** Kendi soyutlamanı yazmadan önce standardın ne verdiğine bak. Yeniden yazmanın meşru sebebi genelde **depolama**dır, davranış değil.
 
-Ölçülmüş vaka: Operax `DapperUserStore` ile ASP.NET Core Identity'nin `IUserStore` / `IUserPasswordStore` / `IUserRoleStore` / `IUserClaimStore` arayüzlerini Dapper üzerinde uyguluyor, `AddIdentity` standart kalıyor.
+**Örnek vaka** 📐: Operax `DapperUserStore` ile ASP.NET Core Identity'nin `IUserStore` / `IUserPasswordStore` / `IUserRoleStore` / `IUserClaimStore` arayüzlerini Dapper üzerinde uyguluyor, `AddIdentity` standart kalıyor.
 
 Sonuç: şifre hash'leme, lockout, claim, cookie auth Microsoft'ta kalıyor; yalnız depolama sende. Elle yazılmış bir `AuthService`'ten hem daha az kod hem daha güvenli.
 
@@ -157,9 +177,13 @@ Soru: *"davranışı mı yeniden yazıyorum, yoksa yalnız depolamayı mı?"* Da
 
 ---
 
-## 8. En olgun uygulamadan çıkar, en tanıdıktan değil  📐 ÖLÇÜM
+## 8. En olgun uygulamadan çıkar, en tanıdıktan değil
 
-Ölçülmüş vaka: kimlik dilimi için BkmArgus (170 satır, elle yazılmış) tanıdık olandı; Operax (`DapperUserStore` 332 satır, standarda uyumlu, yetki ekranı + denetim izi ekranı var) olgun olandı.
+**Yöntem:** Aynı dilimin birden çok uygulaması varsa referansı **ölçerek** seç:
+satır sayısı, uyguladığı standart arayüz sayısı, çevresindeki ekran/araç
+varlığı. En çok zaman geçirdiğin proje en iyi çözüme sahip olan olmayabilir.
+
+**Örnek vaka** 📐: kimlik dilimi için BkmArgus (170 satır, elle yazılmış) tanıdık olandı; Operax (`DapperUserStore` 332 satır, standarda uyumlu, yetki ekranı + denetim izi ekranı var) olgun olandı.
 
 Referans uygulamayı **ölçerek** seç. En çok zaman geçirdiğin proje en iyi çözüme sahip olan olmayabilir.
 
@@ -192,6 +216,24 @@ Bu danışmana danışıldığında şu üçü **sayıyla** cevaplanmalı:
 Ve bir de: **ilk tüketici kim, bugün.**
 
 ---
+
+## Manzara — nereye bakılır
+
+Bir ortak katman kurmadan önce **aynı sorunu çözmüş olanlara** bakılır. ABP ve
+XAF akla ilk gelenler olabilir ama manzarayı daraltmasınlar:
+
+| Tür | Örnekler | Ne öğretir |
+|---|---|---|
+| Uygulama çatısı | ABP, Orchard Core, XAF, Umbraco | Modül sınırı, yaşam döngüsü, eklenti ekosistemi |
+| **Şablon** (çatı değil) | Ardalis CleanArchitecture, Jason Taylor CleanArchitecture | Neyin şablonda kalıp neyin pakete gireceği — **çoğu portföy için doğru cevap budur** |
+| Kompozisyon | .NET Aspire (`ServiceDefaults`) | "Her projede aynı log/health/telemetry kurulumu" sorununun güncel cevabı |
+| Tek-amaçlı paket ailesi | Serilog, MassTransit, Polly, FluentValidation, `Microsoft.Extensions.*` | Paket sınırı, sürümleme, `AddXxx()` konvansiyonu |
+| Ekosistem dışı | Spring Boot **starter**, Django apps, Rails engines, Laravel service providers | Bir paketin hem bağımlılığı hem varsayılan yapılandırmayı getirmesi |
+| Monorepo aracı | Nx, Turborepo, changesets | Paket sınırı ve sürüm otomasyonu |
+
+**Ölmüş olanlara da bak.** SharpArchitecture, NLayerApp gibi bir zamanlar
+yaygın .NET çatılarının neden terk edildiği, yaşayanların neden yaşadığından
+daha öğretici olabilir.
 
 ## Eksik — doldurulacak
 
