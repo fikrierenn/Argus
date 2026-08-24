@@ -29,7 +29,7 @@ Bu dosya **kimlik ve fihrist**tir. Davranış kuralları `.claude/rules/` altın
 
 **Ajanlar** (`.claude/agents/`, 15): `code-reviewer` · `security-reviewer` · `sql-sp-reviewer` · `ai-pipeline-reviewer` · `etl-validator` · `denetim-surec-danismani` · `silent-failure-hunter` · `code-architect` · `code-explorer` · `planner` · `build-validator` · `test-runner` · `db-schema-checker` · `commit-splitter` · `reference-researcher`
 
-**Skill'ler** (`.claude/skills/`, 15): `bkmargus-sp-first` · `bkmargus-ai-worker` · `bkmargus-tespit` · `sql-migration-writer` · `bkm-db-explorer` · `impl-spec` · `plan-tracker` · `session-handoff` · `code-quality-checklist` · `feature-completeness-audit` · `screen-ux-standard` · `llm-council` · `yetenek-uret`
+**Skill'ler** (`.claude/skills/`, 16): `bkmargus-sp-first` · `bkmargus-ai-worker` · `bkmargus-tespit` · `cati-degerlendirme` · `sql-migration-writer` · `bkm-db-explorer` · `impl-spec` · `plan-tracker` · `session-handoff` · `code-quality-checklist` · `feature-completeness-audit` · `screen-ux-standard` · `llm-council` · `yetenek-uret`
 
 **Hook'lar** (`.claude/hooks/`): `pre-edit-advisor-gate` (danışman kapısı, **bloklar**) · `pre-commit-review-gate` (denetçi kapısı, **bloklar**) · `session-start` (oturum özeti + sır taraması + kod sağlığı) · `pre-commit-antipattern` (commit **bloklar**) · `post-edit-antipattern` (uyarır) · `post-commit-journal` · `pre-compact`
 

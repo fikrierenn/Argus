@@ -21,6 +21,7 @@ BkmArgus'ta belirli iş türlerine dokunmadan **ÖNCE** ilgili **danışman (adv
 | Kod yazarken yaygın hata önleme (yazım sırasında, son doğrulama değil) | **`code-quality-checklist`** | her kod dokunuşunda |
 | Modül gerçekten çalışıyor mu — 4 katman trace, dead-end avı | **`feature-completeness-audit`** | "tamlık", "çalışıyor mu" |
 | Yüksek belirsizlik + yüksek maliyet karar (mimari/yön) | **`llm-council`** | "council this", "pressure-test" |
+| Dış çatı inceleme, ortak katman/framework kurma kararı, kopya ölçümü | **`cati-degerlendirme`** | proje-üstü |
 
 ### Modelleme kararı → AJAN (skill değil)
 
