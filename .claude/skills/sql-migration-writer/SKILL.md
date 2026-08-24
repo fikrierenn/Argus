@@ -62,7 +62,7 @@ BEGIN
         CreatedByUserId   int            NULL,
         UpdatedByUserId   int            NULL,
         CONSTRAINT PK_Attachments PRIMARY KEY CLUSTERED (Id),
-        CONSTRAINT FK_Attachments_Findings FOREIGN KEY (DofId) REFERENCES dof.Findings(Id)
+        CONSTRAINT FK_Attachments_Findings FOREIGN KEY (DofId) REFERENCES dof.Findings(DofId)
     );
 END
 GO
@@ -104,7 +104,7 @@ BEGIN
         BEGIN TRANSACTION;
 
         -- Is kurali: kapanmis DOF'a ek eklenemez
-        IF EXISTS (SELECT 1 FROM dof.Findings WHERE Id = @DofId AND Status = 'KAPANDI')
+        IF EXISTS (SELECT 1 FROM dof.Findings WHERE DofId = @DofId AND Status = 'CLOSED')
             THROW 50010, N'Kapanmis DOF kaydina ek eklenemez.', 1;
 
         INSERT INTO dof.Attachments (DofId, FileName, FilePath, FileSize, CreatedByUserId)
