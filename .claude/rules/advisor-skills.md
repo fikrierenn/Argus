@@ -22,6 +22,7 @@ BkmArgus'ta belirli iş türlerine dokunmadan **ÖNCE** ilgili **danışman (adv
 | Modül gerçekten çalışıyor mu — 4 katman trace, dead-end avı | **`feature-completeness-audit`** | "tamlık", "çalışıyor mu" |
 | Yüksek belirsizlik + yüksek maliyet karar (mimari/yön) | **`llm-council`** | "council this", "pressure-test" |
 | Dış çatı inceleme, ortak katman/framework kurma kararı, kopya ölçümü | **`cati-degerlendirme`** | proje-üstü |
+| Paket sürümleme, changelog, kırıcı değişiklik, NuGet yayını | **`surum-disiplini`** | proje-üstü |
 
 ### Modelleme kararı → AJAN (skill değil)
 
