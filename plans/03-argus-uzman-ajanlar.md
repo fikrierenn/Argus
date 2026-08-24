@@ -1,6 +1,6 @@
 # Plan 03 — Argus İçi Uzman Ajanlar + Kademeli Özerklik
 
-**Durum:** onay bekliyor
+**Durum:** Faz 0 ✅ tamam (2026-08-22) · Faz 1 devam
 **Tier:** 3 (yeni pattern + şema + AI maliyet yüzeyi + kullanıcı-görünür)
 **Tarih:** 2026-08-22
 
@@ -18,7 +18,7 @@ BkmArgus'ta AI şu an **tepkisel**: bir kayıt için elle kuyruğa atılır, ski
 
 ## Engelleyici bulgu (plandan önce çözülmeli)
 
-Altı SP, `dof.Findings`'te **hiç bulunmayan** `'KAPANDI'` statüsünü arıyor. Gerçek dağılım:
+Beşi gerçekten bozuk olmak üzere altı SP, `dof.Findings`'te **hiç bulunmayan** `'KAPANDI'` statüsünü arıyor. Gerçek dağılım:
 
 ```
 DRAFT 67 · IN_PROGRESS 5 · OPEN 5 · PENDING_VALIDATION 5 · CLOSED 2
@@ -29,7 +29,7 @@ DRAFT 67 · IN_PROGRESS 5 · OPEN 5 · PENDING_VALIDATION 5 · CLOSED 2
 | `rpt.sp_DashboardOverview_Kpi` | "açık DÖF" KPI — kapalı olanlar da açık sayılıyor |
 | `rpt.sp_Dashboard_Kpi` | aynı |
 | `dof.sp_Dashboard_Dof_List` | DÖF liste filtresi |
-| `ai.sp_SemanticVector_SourceList` | semantik hafıza kaynağı — kapanmış DÖF hiç gelmiyor (**TODO A6'nın açıklaması**) |
+| `ai.sp_SemanticVector_SourceList` | **bozuk DEĞİLDİ** — `IN ('CLOSED','KAPANDI')` yazıyordu, CLOSED'u yakalıyordu. Yalnız ölü değer temizlendi. (Önce bunu A6'nın açıklaması sandım, yanlıştı.) |
 | `audit.sp_Analysis_DofEffectiveness` | etkinlik ölçümü — ayrıca `SourceKey LIKE '%ItemId:%'` bekliyor, gerçek format `AUDIT_2_RESULT_94` (**çifte ölü**) |
 
 Hiçbiri hata vermiyor; hepsi sıfır dönüyor ve "sorun yok" gibi görünüyor. **Ajan 4 (Kapanış Etkinliği) bu mekanizmanın üzerine kurulacak** — önce onarılmalı.
@@ -40,33 +40,103 @@ Hiçbiri hata vermiyor; hepsi sıfır dönüyor ve "sorun yok" gibi görünüyor
 
 ## Kapsam
 
-### Faz 0 — Onarım (ajanlardan ÖNCE)
+### Faz 0 — Onarım ✅ TAMAM (`sql/77`, 2026-08-22)
 - `'KAPANDI'` → `'CLOSED'` tekilleştirmesi, 5 SP
-- `sp_Analysis_DofEffectiveness` SourceKey eşleştirmesi `AUDIT_{AuditId}_RESULT_{ResultId}` formatına
-- **Done kriteri:** düzeltme sonrası "açık DÖF" KPI'ı ve etkinlik sayısı **DEĞİŞMELİ**. Değişmiyorsa düzeltme uygulanmamıştır.
+- `sp_Analysis_DofEffectiveness` SourceKey eşleştirmesi gerçek formata (`AUDIT_{AuditId}_RESULT_{ResultId}`)
+- **Kanıt:** `BEKLEYEN_DOF` 84 → **82** · etkinlik SP'si eşleşen kapalı DÖF 0 → **2**
+- Yöntem: gövdeler canlı tanımdan alınıp yalnız ilgili satırlar değiştirildi (gövde uzunlukları arttı, budanma yok)
+- Kalan: `sql/55` semantik katmana `'KAPANDI'/'IPTAL'` içeren golden sorgu yazmış — AI'a yanlış statü öğretiyor, Faz 1'de düzeltilecek
 
-### Faz 1 — Ajan kayıt katmanı
-- `ai.AgentConfig`'e özerklik kolonları: `AutonomyLevel` (`ONERI` | `OTOMATIK`), `PromotionThreshold`, `MinSampleSize`, `EvaluationWindowDays`
-- `ai.AgentExecutions`'a her koşum: bulunan/önerilen/onaylanan sayısı, süre, hata
-- `ai.sp_Agent_Register` / `_List` / `_SetAutonomy`
+### Faz 1 — Ölçülebilirlik ve onay mimarisi (ajanlardan ÖNCE)
 
-### Faz 2 — Beş uzman ajan
+Danışman bulgusu: **terfi eşiği bugün ölçülemez.** `ai.ProactiveInsights.IsActioned`
+onayı ve reddi aynı bayrakta topluyor — isabetin **paydası yok**. Bu düzelmeden
+hiçbir kademe kararı anlamlı değil. Bu yüzden Faz 1 artık ajan kaydıyla değil,
+ölçülebilirlikle başlıyor.
 
-| # | Ajan | Katman | Veri |
-|---|---|---|---|
-| 1 | Veri Kalitesi Müfettişi | deterministik SQL | mevcut `sp_Consistency_Scan` — sadece kaydedilecek |
-| 2 | Sistemik Bulgu Avcısı | deterministik + LLM anlatı | 91 sonuç, `ItemText` eşleşmesi |
-| 3 | ERP–Saha Çapraz Denetçisi | deterministik | 65.960 risk satırı + saha bulguları |
-| 4 | Kapanış Etkinliği Denetçisi | deterministik | Faz 0'a bağımlı |
-| 5 | Eşik Bekçisi (yanlış negatif) | deterministik | eşik altı tekrar eden, DÖF açılmamış |
+1. **Onay/red ayrımı** — `ai.ProactiveInsights`'a karar boyutu: `ONAYLANDI` /
+   `REDDEDILDI` / `BEKLIYOR` + gerekçe + karar veren + karar zamanı
+2. **Üç dik boyut** (tek kolona sıkıştırmak yasak — kombinatoryal patlama):
 
-Hepsi: sayı SQL'den, anlatı LLM'den (`ai-layer.md §3` halüsinasyon kapısı).
+   | Boyut | Ne cevaplar | Değerler |
+   |---|---|---|
+   | Kanal | hangi veri yolu | `ERP` / `SAHA` / `IHBAR` (mevcut `SourceSystemCode`) |
+   | **Üretim yöntemi** | nasıl doğdu | `INSAN` / `KURAL` / `AI_ONERI` |
+   | **Onay yolu** | hangi kapıdan geçti | `VAKA_ONAYI` / `KURAL_ONAYI` / `SESSIZ_ONAY` / `OTOMATIK` |
 
-### Faz 3 — Kademeli özerklik
-- Başlangıç: **hepsi `ONERI`** — insan onayından geçer
-- Terfi: ölçülmüş isabet oranı eşiği aşarsa `OTOMATIK` önerilir; **terfiyi insan onaylar**, ajan kendini terfi ettiremez
-- Geri düşme: isabet düşerse otomatik `ONERI`'ye iner
-- Detay `denetim-surec-danismani` çıktısına göre kesinleşecek (eşik değeri, örneklem, pencere, hangi ajan asla otomatikleşmemeli)
+   Bugün otomatik açılan DÖF `CreatedByUserId=1`, adı `'Sistem'` — makine üretimi
+   bir kayıt, "Sistem" adlı birinin elle açtığından **ayırt edilemiyor**.
+3. **Eşik ve kural versiyonu dondurma** — bulgu anındaki eşik kayda yazılır.
+   Eşik sonradan değişirse eski bulgu kendi eşiğiyle savunulur.
+4. `sql/55` golden sorgusundaki yanlış statü değerleri düzeltilir
+
+### Faz 2 — Uzman ajanlar (revize)
+
+Danışman kapsam düzeltmeleri:
+- **#1 Veri Kalitesi** hedefi DÖF **değil** — `etl.DataQualityIssues` / öğrenme
+  kuyruğu. Veri kalitesi sorunu denetim bulgusu değil sistem arızasıdır; DÖF'e
+  çevirmek havuzu kirletir ve "açık DÖF" metriğini anlamsızlaştırır
+- **#4 ve #5 birleşiyor** → tek "Tekrar Zinciri Denetçisi", iki çıktı dalı
+  (DÖF açılmış-kapanmış-tekrarladı / hiç DÖF açılmamış-tekrarlıyor)
+- **#4 yeni DÖF açmaz** — eskinin `IsEffective` alanını işaretler, yeniden açılmayı
+  önerir. Yeni DÖF tekrar zincirini koparır, kök sebep izini kaybettirir
+- **#2 sistemik** mevcut `sp_Analysis_DetectSystemic` ile çakışıyor — ajan tespiti
+  değil tespitin **yorumunu** üretir
+- **YENİ #6 Kapsam/Örtüşme Denetçisi** — en büyük boşluk buydu: hangi mekan/kontrol
+  maddesi ne zamandır hiç denetlenmedi. #3 yalnız ERP sinyali *olan* yere bakıyor;
+  sinyali de olmayan denetlenmemiş yer tamamen kör
+- **YENİ #7 Kapanış Kalitesi Denetçisi** — kapanış anındaki kanıt yeterliliği.
+  Altı ay tekrar beklemeye gerek yok, kanıt bugün belli. Otomatikleşmeye **en uygun
+  aday budur**, listedeki beşi değil
+
+### Faz 3 — Kademeli özerklik (revize)
+
+**Otonomi ekseni isabet oranı DEĞİL, kararın türü.** Onay vakadan kurala taşınır:
+isimli yönetici, versiyonlu ve **sona erme tarihli** olarak "şu koşulda DÖF açılır"
+kuralını önceden onaylar. İsabet oranı bir ön koşul, terfi sebebi değil.
+
+Neden isabet oranı tek başına yetmez:
+- Onaylayan ajanın önerisini görerek karar veriyor → çıpalama; oran zamanla
+  ajanın iyileştiğini değil onaylayanın yorulduğunu ölçer
+- **Yanlış negatif hiç ölçülmüyor** — ajanın hiç bahsetmediği vaka metriğe girmez,
+  yani dar kapsam ödüllendirilir
+- Aynı kök sebepten doğan 40 bulgu 40 kanıt değildir (kümelenme)
+
+Ölçüm mekanizmaları:
+- **Kör doğrulama örneklemi** — bulguların bir kısmı, ajanın önerisi gizlenerek
+  bağımsız denetçiye verilir; **yalnız bu alt küme terfi ölçütüdür**. Çıpalamayı
+  kıran tek mekanizma
+- **Yanlış negatif tahmini** — ajanın "temiz" dediklerinden rastgele örnek, elle inceleme
+- **`REJECTED` oranı** — reddi başka kişi, sonradan, gerçek maliyet görülünce verir
+- Eşik nokta tahmini değil **tek taraflı alt güven sınırı** üzerinden → küçük
+  örneklemi kendiliğinden cezalandırır
+
+Kademe merdiveni:
+
+| # | Kademe | Ne olur |
+|---|---|---|
+| 0 | **Gölge** | Üretir, kimse görmez, sadece ölçülür. En çok atlanan basamak |
+| 1 | Öneri | İnsan tek tek onaylar |
+| 2 | Toplu onay | Verim artar, dikkat düşer → kör örneklem burada zorunlu |
+| 3 | **Sessiz onay** | `DRAFT` açar, X iş günü itiraz gelmezse `OPEN`. **TAVAN BU** |
+| 4 | Otomatik | Doğrudan `OPEN`. Şimdilik hiçbir ajan aday değil |
+
+**Terfi ajana değil `ai.SkillVersions` sürümüne bağlanır** — prompt değişince
+otonomi sıfırlanır. Kayan pencere, kümülatif değil. Geri düşme asimetrik:
+tek ağır yanlış (yanlış isnat, dışarı gitmiş rapor) oranı ne olursa olsun sıfırlar.
+Otonominin **sona erme tarihi** vardır, sessiz yenileme yok.
+
+**Asla otomatikleşmeyecekler:** kök sebep/kasıt/ihmal ima eden · personel
+performansına dokunan · suistimal şüphesi · sistemik nitelendirme · kanıtı
+*yokluk* üzerine kurulu · eşiğin kendisini tartışan bulgular.
+
+Beş ajandan **hiçbiri** bugün otomatik DÖF açmaya uygun değil.
+
+### Faz 3.5 — Hile sinyali ayrımı (yeni)
+
+ERP–saha uyuşmazlığı klasik hile göstergesidir. Normal DÖF akışına düşerse
+**şüpheliye haber verilmiş olur**. Hile şüphesi tetiklendiğinde akış ayrılmalı,
+görünürlük kısıtlanmalı.
 
 ### Faz 4 — Ekran
 - Ajan panosu: her ajanın alanı, son koşum, ürettiği/onaylanan sayısı, isabet oranı, özerklik seviyesi
@@ -101,6 +171,10 @@ Hepsi: sayı SQL'den, anlatı LLM'den (`ai-layer.md §3` halüsinasyon kapısı)
 | Ajanlar çelişir (bugün 5why vs classify yaşandı) | Orta | Çelişki bir tespit türü — Veri Kalitesi Müfettişi'nin kapsamında |
 | Kolay bulgularla isabet biriktirip zor alanda otomatikleşme | Yüksek | Terfi ölçütü alan bazlı; danışman çıktısına göre kesinleşecek |
 | LLM maliyeti | Orta | Yalnız anlatı; deterministik katman ücretsiz |
+| Yanlış mağazaya isnat | **Yüksek** | Korelasyon `LocationName LIKE '%MekanAd%'` bulanık (`sql/40:67`); otomatik DÖF öncesi kesin eşleştirme şart |
+| Hile şüphelisine ihbar | **Yüksek** | Faz 3.5 — ayrı akış, kısıtlı görünürlük |
+| DÖF havuzunun boğulması | Yüksek | Kaynak ayrımı boyutu **önceden** eklenir, yoksa geçmişe dönük ayrıştırma imkânsız |
+| Terfi kaçağı (prompt değişti, otonomi kaldı) | Yüksek | Terfi `SkillVersions` sürümüne bağlı |
 
 ---
 

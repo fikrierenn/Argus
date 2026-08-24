@@ -1,4 +1,4 @@
-# Plan 04 — Bkm.* Ortak Katman (kütüphane kümesi, çatı değil)
+# Plan 04 — Solum.* Ortak Katman (kütüphane kümesi, çatı değil)
 
 **Durum:** onay bekliyor
 **Tier:** 3 (proje-üstü, yeni pattern, kullanıcı-görünür değil ama geri alınması zor)
@@ -43,22 +43,22 @@ claim, cookie auth Microsoft'ta kalıyor; yalnız depolama bizde.
 
 ## Sıra
 
-### 1. `Bkm.SqlTools` — tasarım işi yok
+### 1. `Solum.SqlTools` — tasarım işi yok
 sqlcli çekirdeği (`SqlExecutor`, `ConnectionResolver`, `OutputFormatter`,
 `ConfigStore`). %100 kopya, MIMBAL ve fifo referans verip kendi kopyalarını siler.
 **Done:** 3 kopya → 1 kaynak, üç proje de derleniyor.
 
-### 2. `Bkm.Identity` — Operax'tan genelleştirme
+### 2. `Solum.Identity` — Operax'tan genelleştirme
 `DapperUserStore` taşınır. Tek genelleştirme noktası: tablo/kolon adları projeye
 göre değişiyor → SQL bir sözleşmeden gelsin, gövde sabit kalsın.
 **Done:** Operax kendi kopyasını silip pakete referans verir ve çalışmaya devam eder.
 Sonra BkmArgus ikinci tüketici olur, `AuthService` emekliye ayrılır.
 
-### 3. `Bkm.Audit` — iki uygulamanın birleşimi
+### 3. `Solum.Audit` — iki uygulamanın birleşimi
 Operax `AuditLog` + BkmArgus `audit.AuditLog`. BkmArgus'ta **A1'i kapatır**.
 KVKK erişim kaydı bunun üstüne biner.
 
-### 4. `Bkm.Kvkk` — sıfırdan
+### 4. `Solum.Kvkk` — sıfırdan
 Veri envanteri, saklama süresi, rıza, silme talebi, veri sahibi erişimi.
 Hiçbir çatının vermediği parça.
 
@@ -86,9 +86,9 @@ Hiçbir çatının vermediği parça.
 
 ## Done kriterleri
 
-- [ ] `Bkm.SqlTools`: 3 projede kopya silindi, hepsi derleniyor
-- [ ] `Bkm.Identity`: Operax kopyasını silip pakete geçti, login çalışıyor
-- [ ] `Bkm.Audit`: BkmArgus A1 kapandı, denetim izi yazıyor
+- [ ] `Solum.SqlTools`: 3 projede kopya silindi, hepsi derleniyor
+- [ ] `Solum.Identity`: Operax kopyasını silip pakete geçti, login çalışıyor
+- [ ] `Solum.Audit`: BkmArgus A1 kapandı, denetim izi yazıyor
 - [ ] Her paket bağımsız sürümleniyor; birini güncellemek diğerini kırmıyor
 
 ---
