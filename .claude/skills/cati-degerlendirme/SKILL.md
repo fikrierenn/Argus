@@ -10,7 +10,19 @@ model: inherit
 
 Birden çok projede aynı şeyi yeniden yazdığını fark ettiğinde çıkan soru: *"ABP gibi bir çatı mı kursam?"*
 
-Bu danışman o kararı **ölçüye** bağlar. İçindeki her kural 2026-08-22'de `D:\Dev` üzerinde yapılan gerçek ölçümden çıktı; hiçbiri varsayım değil.
+Bu danışman o kararı **ölçüye** bağlar.
+
+**Dayanak ayrımı — okurken buna dikkat et:**
+
+| İşaret | Anlamı |
+|---|---|
+| 📐 **ÖLÇÜM** | 2026-08-22/23'te `D:\Dev` üzerinde gerçekten ölçüldü, sayı gerçek |
+| 🔧 **SEZGİ** | Bu skill'in yazarının çıkarımı. Makul ama **doğrulanmadı**, eşikler tartışmaya açık |
+| 📚 **YERLEŞİK** | Sektörde bilinen desen, kaynağı belirtildi |
+
+Bu ayrım olmadan yazılan ilk sürümde ölçülmüş sayılarla uydurulmuş eşikler
+aynı güvenle yan yana duruyordu — `evidence-discipline.md`'nin tam da
+yasakladığı şey.
 
 ---
 
@@ -31,6 +43,8 @@ Karar vermeden önce dört sayı gerekir. Hiçbiri tahminle doldurulamaz.
 
 Aynı adlı dosyaların **var olması** ortak kod olduğunu göstermez. Ölçüm:
 
+📐 **ÖLÇÜM** — `difflib.SequenceMatcher`, aynı adlı dosyalar çift çift:
+
 ```
 SqlExecutor.cs          MIMBAL ~ fifo   %100      -> gerçek kopya
 ConnectionResolver.cs   MIMBAL ~ fifo   %100      -> gerçek kopya
@@ -39,7 +53,12 @@ NotificationService.cs  en yüksek       %13.8     -> aynı kavram, farklı kod
 AuthService.cs          en yüksek        %8.3     -> yalnızca ad ortak
 ```
 
-Eşikler:
+Eşikler — 🔧 **SEZGİ**, ölçülmedi:
+
+Aşağıdaki yüzdeler bu skill'in yazarının koyduğu ayrım noktalarıdır; bir
+literatüre ya da ölçüme dayanmıyor. Gözlenen dağılım iki uçta kümelendiği için
+(%100 ve %8-25) arada geniş bir boşluk vardı ve eşik oraya kondu. Kendi
+verinde farklı bir dağılım görürsen eşiği taşı.
 
 - **%80+** → gerçek kopya. Çıkarım = paketleme. Tasarım işi yok, bugün yapılır.
 - **%30–80** → yakınsıyor. Bir şekil seçilebilir, ama hangisinin kazanacağı karardır.
@@ -49,7 +68,7 @@ Düşük benzerlik bir başarısızlık değil, **bilgidir**: sorun *"kütüphan
 
 ---
 
-## 2. Çatı mı, kütüphane kümesi mi
+## 2. Çatı mı, kütüphane kümesi mi  🔧 SEZGİ
 
 | | Çatı (framework) | Kütüphane kümesi |
 |---|---|---|
@@ -64,7 +83,7 @@ Tek geliştiricinin baktığı, alanları birbirinden uzak bir portföyde **küt
 
 ---
 
-## 3. Kütüphane yakınsamayı İZLER, yaratmaz
+## 3. Kütüphane yakınsamayı İZLER, yaratmaz  🔧 SEZGİ + 📚 YERLEŞİK
 
 Sıra bu:
 
@@ -76,9 +95,13 @@ Ters sırada yaparsan, henüz uzlaşmamış üç şeyi zorla birleştirmiş olur
 
 **Kural: bir şey üç projede kullanıldığı KANITLANINCA çıkarılır, önce değil.**
 
+📚 Bu "rule of three" adıyla bilinen yerleşik bir kural (Martin Fowler,
+*Refactoring*; ayrıca WET/DRY tartışmasında yaygın). Sıralamanın kendisi
+("önce konvansiyon, sonra paket") 🔧 bu skill'in çıkarımı.
+
 ---
 
-## 4. Aktif tüketici koşulu (çatıları asıl öldüren şey)
+## 4. Aktif tüketici koşulu (çatıları asıl öldüren şey)  📐 ÖLÇÜM
 
 Ölçülmüş vaka: `claude-context-template` v1.3.0. Mimarisi **doğruydu** — `_universal` / `stacks` / `project` ayrımı yerindeydi, bootstrap çalışıyordu, dokümantasyonu vardı. 11 Haziran'dan itibaren **0 commit**.
 
@@ -94,7 +117,7 @@ Kontrol listesi:
 
 ---
 
-## 5. Mekanizma ile eşlemeyi ayır
+## 5. Mekanizma ile eşlemeyi ayır  📐 ÖLÇÜM
 
 Bir yeteneği ikinci projeye taşırken kırılan ilk şey, projeye özel bilgiyi gövdeye gömmüş olmandır.
 
@@ -109,16 +132,20 @@ Genel kural: **taşınabilirlik testi ancak ikinci projede geçilir.** Tek proje
 
 ---
 
-## 6. Göç modeli maliyeti belirler
+## 6. Göç modeli maliyeti belirler  📚 YERLEŞİK
 
 - **Büyük göç** (hepsini taşı) → pahalı, riskli, genellikle yarım kalır
 - **Strangler** (yeni işler çatıda doğar, eskiler *zaten dokunulduğunda* geçer) → maliyet zaten yapılacak işin içine dağılır
+
+📚 Strangler Fig deseni Martin Fowler'a ait
+(martinfowler.com/bliki/StranglerFigApplication.html). Portföy ölçeğine
+uygulanması 🔧 bu skill'in çıkarımı.
 
 Strangler modeli, "N projeyi taşımak pahalı" itirazını ortadan kaldırır. Düşük kod benzerliği de bu modelde sorun olmaktan çıkar: birleştirmiyorsun, **bundan sonrası için bir şekil seçiyorsun**.
 
 ---
 
-## 7. Platform zaten veriyor mu
+## 7. Platform zaten veriyor mu  📐 ÖLÇÜM
 
 Kendi soyutlamanı yazmadan önce standardın ne verdiğine bak. Yeniden yazmanın meşru sebebi genelde **depolama**dır, davranış değil.
 
@@ -130,7 +157,7 @@ Soru: *"davranışı mı yeniden yazıyorum, yoksa yalnız depolamayı mı?"* Da
 
 ---
 
-## 8. En olgun uygulamadan çıkar, en tanıdıktan değil
+## 8. En olgun uygulamadan çıkar, en tanıdıktan değil  📐 ÖLÇÜM
 
 Ölçülmüş vaka: kimlik dilimi için BkmArgus (170 satır, elle yazılmış) tanıdık olandı; Operax (`DapperUserStore` 332 satır, standarda uyumlu, yetki ekranı + denetim izi ekranı var) olgun olandı.
 
@@ -165,6 +192,19 @@ Bu danışmana danışıldığında şu üçü **sayıyla** cevaplanmalı:
 Ve bir de: **ilk tüketici kim, bugün.**
 
 ---
+
+## Eksik — doldurulacak
+
+Bu skill'in ilk sürümü **dış kaynak araştırması yapılmadan** yazıldı; içeriğin
+yarısı bugünkü ölçüm, yarısı yazarın sentezi. `reference-researcher` ile ABP,
+XAF ve çok-paketli .NET kütüphane aileleri (Serilog, MassTransit, Polly,
+Microsoft.Extensions.*) incelendiğinde şu başlıklar **kaynaklı** hale gelmeli:
+
+- Paket sınırı nasıl çizilir, bağımlılık yönü kuralları
+- Bağımsız vs lockstep sürümleme — tek geliştirici için hangisi
+- DI kayıt konvansiyonu (`AddXxx`), Options pattern, `ValidateOnStart`
+- Şema/tablo adlarını ayarlanabilir yapma desenleri
+- Aileleri batıran somut hatalar (aşırı paket bölme, sürüm cehennemi)
 
 ## İlişkili
 
