@@ -25,6 +25,9 @@ public class DashboardModel : PageModel
     public string SistemDurumClass { get; private set; } = "text-emerald-600";
     public string TrendPoints { get; private set; } = "0,90 400,90";
 
+    /// <summary>Gunluk ortalama risk skoru serisi — trend deltasi bundan turetilir.</summary>
+    public IReadOnlyList<decimal> TrendSerisi { get; private set; } = [];
+
     public IReadOnlyList<RiskRow> RiskPano { get; private set; } = Array.Empty<RiskRow>();
     public IReadOnlyList<DofRow> DofList { get; private set; } = Array.Empty<DofRow>();
     public IReadOnlyList<HealthRow> HealthChecks { get; private set; } = Array.Empty<HealthRow>();
@@ -59,6 +62,7 @@ public class DashboardModel : PageModel
 
         var trendRows = await _db.QueryAsync<TrendRow>("rpt.sp_Dashboard_RiskTrend");
         TrendPoints = BuildTrendPoints(trendRows);
+        TrendSerisi = trendRows.Select(r => r.OrtalamaSkor).ToList();
 
         var riskRows = await _db.QueryAsync<RiskRowRaw>("rpt.sp_Dashboard_TopRisk", new { Top = 10 });
         RiskPano = riskRows.Select(r => new RiskRow(

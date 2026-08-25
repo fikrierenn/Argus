@@ -102,3 +102,31 @@
 .argus-status-dot { width: 8px; height: 8px; border-radius: 50%; }
 .argus-status-ok { background: var(--solum-good); }
 .argus-status-down { background: var(--solum-bad); }
+
+/* ── Sekme seridi — Solum'da YOK (tek kullanim, uc-urun esigine takiliyor) ── */
+.argus-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: var(--solum-gap); }
+.argus-tab {
+  padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--solum-line); background: var(--solum-surface);
+  color: var(--solum-text); text-decoration: none; font-size: var(--solum-text-sm);
+}
+.argus-tab:hover { background: var(--solum-surface-alt); color: var(--solum-ink); }
+.argus-tab:focus-visible { outline: 2px solid var(--solum-accent); outline-offset: 2px; }
+.argus-tab-active {
+  background: var(--solum-accent); border-color: var(--solum-accent);
+  color: var(--solum-accent-ink); font-weight: 600;
+}
+
+/* ── Pano duzeni — Solum'da bilerek YOK (duzen tuketicide kalir) ─────────── */
+.argus-split, .argus-split-equal { display: grid; gap: var(--solum-gap); margin-bottom: var(--solum-gap); }
+.argus-split { grid-template-columns: 2fr 1fr; }
+.argus-split-equal { grid-template-columns: 1fr 1fr; }
+@media (max-width: 1100px) {
+  .argus-split, .argus-split-equal { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Denetim sekmesi: alti esit agirlikli olcum -> 6 kolon (Solum degiskeni). */
+.argus-kpi-6 .solum-kpi-grid { --solum-kpi-cols: 6; }
+
+/* Kart ve izgara arasi bosluk — .solum-card kendi margin'ini tasimiyor. */
+.solum-card, .solum-kpi-grid { margin-bottom: var(--solum-gap); }

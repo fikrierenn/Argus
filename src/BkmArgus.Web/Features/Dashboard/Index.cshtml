@@ -1,504 +1,292 @@
 @page
 @model DashboardModel
 @attribute [Authorize]
+@using Solum.Web.Components
+@inject IKpiRenderer KpiRenderer
+@*
+    Dashboard. Gorunum ilkelleri Solum'dan: .solum-card / .solum-row / .solum-kpi /
+    SolumTable / _SolumEmpty (plan: 04, Faz 3). Elle yazilmis 7 sinif-uretici
+    fonksiyon ve 24 kart kabi kaldirildi; sunum haritasi DashboardView.cs'te.
+
+    Yerel kalan tek ilkel: sekme seridi (.argus-tabs) — tek kullanim oldugu icin
+    Solum'un uc-urun esigine takiliyor, bilerek pakete alinmadi.
+*@
 @{
     ViewData["Title"] = "Dashboard";
-    ViewData["Subtitle"] = "Sabah kahvesi ekrani";
+    ViewData["Subtitle"] = "Sabah kahvesi ekranı";
 
-    string TabClass(string tab) => string.Equals(Model.Tab, tab, StringComparison.OrdinalIgnoreCase)
-        ? "rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
-        : "rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600";
-
-    string DofBadge(string status) => status switch
-    {
-        "Aksiyon" => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
-        "Bekliyor" => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
-        _ => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
-    };
-
-    string HealthBadge(string status) => status switch
-    {
-        "PASS" => "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700",
-        "WARN" => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
-        _ => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red"
-    };
-
-    string ComplianceBadgeClass(decimal rate) => rate >= 90m
-        ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
-        : rate >= 70m
-            ? "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
-            : "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red";
-
-    string ComplianceTextClass(decimal rate) => rate >= 90m
-        ? "text-emerald-600"
-        : rate >= 70m
-            ? "text-amber-600"
-            : "text-bkm-red";
+    var trendDelta = DashboardView.TrendDeltasi(Model.TrendSerisi);
 }
 
-<!-- Tab Navigation -->
-<div class="mb-6 flex gap-2">
-    <a class="@TabClass("risk")" asp-page="/Dashboard/Index" asp-route-tab="risk">ERP Risk</a>
-    <a class="@TabClass("audit")" asp-page="/Dashboard/Index" asp-route-tab="audit">Saha Denetim</a>
-    <a class="@TabClass("ai")" asp-page="/Dashboard/Index" asp-route-tab="ai">AI</a>
-</div>
+<nav class="argus-tabs" aria-label="Pano sekmeleri">
+    <a class="argus-tab @(Model.Tab == "risk" ? "argus-tab-active" : "")"
+       asp-page="/Dashboard/Index" asp-route-tab="risk">ERP Risk</a>
+    <a class="argus-tab @(Model.Tab == "audit" ? "argus-tab-active" : "")"
+       asp-page="/Dashboard/Index" asp-route-tab="audit">Saha Denetim</a>
+    <a class="argus-tab @(Model.Tab == "ai" ? "argus-tab-active" : "")"
+       asp-page="/Dashboard/Index" asp-route-tab="ai">AI</a>
+</nav>
 
 @if (Model.Tab == "risk")
 {
-<div class="grid gap-4 lg:grid-cols-4">
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Kritik risk</div>
-        <div class="mt-2 text-2xl font-semibold text-bkm-red">@Model.KritikRiskDeger</div>
-        <div class="mt-1 text-xs text-slate-500">@Model.KritikRiskNot</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Bekleyen DOF</div>
-        <div class="mt-2 text-2xl font-semibold text-slate-900">@Model.BekleyenDofDeger</div>
-        <div class="mt-1 text-xs text-slate-500">@Model.BekleyenDofNot</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Taranan stok</div>
-        <div class="mt-2 text-2xl font-semibold text-slate-900">@Model.TarananStokDeger</div>
-        <div class="mt-1 text-xs text-slate-500">@Model.TarananStokNot</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Sistem sagligi</div>
-        <div class="mt-2 text-2xl font-semibold @Model.SistemDurumClass">@Model.SistemDurum</div>
-        <div class="mt-1 text-xs text-slate-500">@Model.SistemNot</div>
-    </div>
-</div>
+    @KpiRenderer.RenderGrid(DashboardView.RiskKpileri(Model))
 
-<div class="grid gap-4 xl:grid-cols-[2fr_1fr]">
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <div class="flex items-start justify-between">
-            <div>
-                <div class="text-sm font-semibold">Risk trendi</div>
-                <div class="text-xs text-slate-500">Son 30 gun ortalama skor</div>
-            </div>
-            <button class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" type="button">Rapor</button>
-        </div>
-        <div class="mt-4 h-44">
-            <svg class="h-full w-full" viewBox="0 0 400 120" preserveAspectRatio="none">
-                <polyline fill="none" stroke="#E30613" stroke-width="3" points="@Model.TrendPoints"></polyline>
-                <line x1="0" y1="100" x2="400" y2="100" stroke="#E2E8F0" stroke-width="1"></line>
-            </svg>
-        </div>
-    </div>
-
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <div class="text-sm font-semibold">Saglik kontrolleri</div>
-        <div class="mt-4 space-y-3">
-            @foreach (var row in Model.HealthChecks)
-            {
-                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                    <div>
-                        <div class="text-sm font-medium">@row.Kod</div>
-                        <div class="text-xs text-slate-500">@row.Not</div>
-                    </div>
-                    <span class="@HealthBadge(row.Durum)">@row.Durum</span>
+    <div class="argus-split">
+        <section class="solum-card">
+            <div class="solum-card-head">
+                <div>
+                    <h3 class="solum-card-title">Risk trendi</h3>
+                    <div class="solum-card-sub">Son 30 gün ortalama skor</div>
                 </div>
-            }
-        </div>
-    </div>
-</div>
-
-<div class="rounded-xl border border-slate-200 bg-white p-5">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-            <div class="text-sm font-semibold">En yuksek riskli 10 urun</div>
-            <div class="text-xs text-slate-500">Magaza bazli inceleme listesi</div>
-        </div>
-        <button class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" type="button">Excel indir</button>
-    </div>
-    <div class="mt-4 overflow-x-auto">
-        <table class="min-w-full text-left text-sm">
-            <thead class="text-xs uppercase text-slate-400">
-                <tr>
-                    <th class="pb-2">Mekan</th>
-                    <th class="pb-2">Urun</th>
-                    <th class="pb-2">Donem</th>
-                    <th class="pb-2">Skor</th>
-                    <th class="pb-2">Flag</th>
-                    <th class="pb-2">Aksiyon</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                @foreach (var row in Model.RiskPano)
+                @if (trendDelta is not null)
                 {
-                    <tr class="text-slate-700">
-                        <td class="py-3">@row.Mekan</td>
-                        <td class="py-3">@row.Urun</td>
-                        <td class="py-3">@row.Donem</td>
-                        <td class="py-3">
-                            <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red">@row.Skor</span>
-                        </td>
-                        <td class="py-3">@row.Flag</td>
-                        <td class="py-3">
-                            <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" asp-page="/Urun/Index" asp-route-id="@row.UrunId" asp-route-mekanId="@row.MekanId">Incele</a>
-                        </td>
-                    </tr>
+                    @* Ok hareketten, renk YARGIDAN gelir: risk dususu iyidir
+                       (KpiPolarity.LowerIsBetter), yani asagi ok yesil olabilir. *@
+                    var yargi = trendDelta.Judge();
+                    <div class="solum-row-side">
+                        <span class="solum-kpi-delta solum-kpi-@(yargi.ToString().ToLowerInvariant())-judge">
+                            <span aria-hidden="true">@DashboardView.HareketOku(trendDelta.Movement)</span>
+                            @trendDelta.Text
+                            <span class="solum-sr-only">@DashboardView.DeltaErisim(trendDelta)</span>
+                            <span class="solum-kpi-hint">@trendDelta.Note</span>
+                        </span>
+                    </div>
                 }
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<div class="grid gap-4 xl:grid-cols-2">
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-sm font-semibold">DOF akisi</div>
-                <div class="text-xs text-slate-500">Acik aksiyonlar ve SLA</div>
             </div>
-            <button class="rounded-full bg-bkm-red px-4 py-2 text-sm font-semibold text-white" type="button">Yeni DOF</button>
-        </div>
-        <div class="mt-4 space-y-3">
-            @foreach (var item in Model.DofList)
+            @* Renk CSS'ten gelir (.solum-spark -> currentColor / --solum-accent);
+               eski surumdeki iki ciplak hex bu sayede kaldirildi. *@
+            <svg class="solum-spark" viewBox="0 0 400 120" preserveAspectRatio="none" role="img"
+                 aria-label="Son 30 günün ortalama risk skoru eğrisi">
+                <line class="solum-spark-base" x1="0" y1="100" x2="400" y2="100" />
+                <polyline points="@Model.TrendPoints" />
+            </svg>
+        </section>
+
+        <section class="solum-card">
+            <div class="solum-card-head">
+                <h3 class="solum-card-title">Sağlık kontrolleri</h3>
+            </div>
+            @if (Model.HealthChecks.Count == 0)
             {
-                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                    <div>
-                        <div class="text-sm font-medium">@item.Title</div>
-                        <div class="text-xs text-slate-500">Sorumlu: @item.Sorumlu</div>
+                <partial name="/Pages/Shared/_SolumEmpty.cshtml" model="@(("Sağlık kaydı yok.", (string?)"Job çalıştıktan sonra dolar."))" />
+            }
+            else
+            {
+                @foreach (var satir in Model.HealthChecks)
+                {
+                    <div class="solum-row">
+                        <div class="solum-row-main">
+                            <div class="solum-row-label">@satir.Kod</div>
+                            <div class="solum-row-desc">@satir.Not</div>
+                        </div>
+                        <div class="solum-row-side">
+                            <span class="@DashboardView.RozetSinifi(satir.Durum)">@satir.Durum</span>
+                        </div>
                     </div>
-                    <div class="text-xs text-slate-500">SLA: @item.SLA</div>
-                    <span class="@DofBadge(item.Status)">@item.Status</span>
+                }
+            }
+        </section>
+    </div>
+
+    <section class="solum-card">
+        <div class="solum-card-head">
+            <div>
+                <h3 class="solum-card-title">En yüksek riskli 10 ürün</h3>
+                <div class="solum-card-sub">Mağaza bazlı inceleme listesi — satıra tıklayın</div>
+            </div>
+            <div class="solum-row-side">
+                <a class="solum-btn" asp-page="/Risk/Index">Risk gezginine git</a>
+            </div>
+        </div>
+        @Html.SolumTable(DashboardView.RiskTablosu(Model.RiskPano))
+    </section>
+
+    <div class="argus-split-equal">
+        <section class="solum-card">
+            <div class="solum-card-head">
+                <div>
+                    <h3 class="solum-card-title">DÖF akışı</h3>
+                    <div class="solum-card-sub">Açık aksiyonlar ve SLA</div>
+                </div>
+                <div class="solum-row-side">
+                    <a class="solum-btn solum-btn-primary" asp-page="/Dof/Index">DÖF panosu</a>
+                </div>
+            </div>
+            @if (Model.DofList.Count == 0)
+            {
+                <partial name="/Pages/Shared/_SolumEmpty.cshtml" model="@(("Açık DÖF yok.", (string?)null))" />
+            }
+            else
+            {
+                @foreach (var oge in Model.DofList)
+                {
+                    <div class="solum-row">
+                        <div class="solum-row-main">
+                            <div class="solum-row-label">@oge.Title</div>
+                            <div class="solum-row-desc">Sorumlu: @oge.Sorumlu · SLA: @oge.SLA</div>
+                        </div>
+                        <div class="solum-row-side">
+                            <span class="@DashboardView.RozetSinifi(oge.Status)">@oge.Status</span>
+                        </div>
+                    </div>
+                }
+            }
+        </section>
+
+        <section class="solum-card">
+            <div class="solum-card-head">
+                <div>
+                    <h3 class="solum-card-title">Tanımlar özeti</h3>
+                    <div class="solum-card-sub">İşlem kalitesini besleyen parametreler</div>
+                </div>
+                <div class="solum-row-side">
+                    <a class="solum-btn" asp-page="/Ref/Index">Tanımlara git</a>
+                </div>
+            </div>
+            @foreach (var satir in Model.RefNotes)
+            {
+                <div class="solum-row">
+                    <div class="solum-row-main">
+                        <div class="solum-row-label">@satir.Baslik</div>
+                        <div class="solum-row-desc">@satir.Not</div>
+                    </div>
+                    <div class="solum-row-side">
+                        <span class="solum-badge">@satir.Deger</span>
+                    </div>
                 </div>
             }
-        </div>
+        </section>
     </div>
-
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-sm font-semibold">Tanimlar ozeti</div>
-                <div class="text-xs text-slate-500">Islem kalitesini besleyen parametreler</div>
-            </div>
-            <a class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" asp-page="/Ref/Index">Tanimlara git</a>
-        </div>
-        <div class="mt-4 space-y-3">
-            @foreach (var row in Model.RefNotes)
-            {
-                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                    <div>
-                        <div class="text-sm font-medium">@row.Baslik</div>
-                        <div class="text-xs text-slate-500">@row.Not</div>
-                    </div>
-                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">@row.Deger</span>
-                </div>
-            }
-        </div>
-    </div>
-</div>
 }
 
 @if (Model.Tab == "audit")
 {
-var kpi = Model.AuditKpi;
+    @* Alti esit agirlikli olcum: 4+2 kirilmasi "ilk dort onemli" izlenimi verir,
+       o yuzden izgara 6 kolona ayarlanir (Solum --solum-kpi-cols degiskeni). *@
+    <div class="argus-kpi-6">
+        @KpiRenderer.RenderGrid(DashboardView.DenetimKpileri(Model))
+    </div>
 
-<!-- Field Audit KPI Cards -->
-<div class="grid gap-4 lg:grid-cols-6">
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Toplam Denetim</div>
-        <div class="mt-2 text-2xl font-semibold text-slate-900">@(kpi?.TotalAudits ?? 0)</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Bu Ay</div>
-        <div class="mt-2 text-2xl font-semibold text-slate-900">@(kpi?.ThisMonthAudits ?? 0)</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Uyum Orani</div>
-        <div class="mt-2 text-2xl font-semibold @ComplianceTextClass(kpi?.AvgComplianceRate ?? 0)">
-            %@((kpi?.AvgComplianceRate ?? 0).ToString("0.0"))
+    <section class="solum-card">
+        <div class="solum-card-head">
+            <div>
+                <h3 class="solum-card-title">Son denetimler</h3>
+                <div class="solum-card-sub">En son yapılan 5 saha denetimi — satıra tıklayın</div>
+            </div>
+            <div class="solum-row-side">
+                <a class="solum-btn" asp-page="/Audit/Index">Tüm denetimler</a>
+            </div>
         </div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Tekrar Eden</div>
-        <div class="mt-2 text-2xl font-semibold text-amber-600">@(kpi?.RepeatingFindingCount ?? 0)</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Sistemik</div>
-        <div class="mt-2 text-2xl font-semibold text-bkm-red">@(kpi?.SystemicCount ?? 0)</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Bekleyen DOF</div>
-        <div class="mt-2 text-2xl font-semibold text-slate-900">@(kpi?.PendingDofCount ?? 0)</div>
-    </div>
-</div>
+        @Html.SolumTable(DashboardView.SonDenetimler(Model.RecentAudits))
+    </section>
 
-<!-- Son Denetimler -->
-<div class="rounded-xl border border-slate-200 bg-white p-5">
-    <div class="text-sm font-semibold">Son Denetimler</div>
-    <div class="text-xs text-slate-500">En son yapilan 5 saha denetimi</div>
-    <div class="mt-4 overflow-x-auto">
-        <table class="min-w-full text-left text-sm">
-            <thead class="text-xs uppercase text-slate-400">
-                <tr>
-                    <th class="pb-2">Lokasyon</th>
-                    <th class="pb-2">Tarih</th>
-                    <th class="pb-2">Uyum</th>
-                    <th class="pb-2">Durum</th>
-                    <th class="pb-2">Aksiyon</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                @foreach (var row in Model.RecentAudits)
-                {
-                    <tr class="text-slate-700">
-                        <td class="py-3">@row.LocationName</td>
-                        <td class="py-3">@row.AuditDate.ToString("dd.MM.yyyy")</td>
-                        <td class="py-3">
-                            <span class="@ComplianceBadgeClass(row.ComplianceRate)">%@row.ComplianceRate.ToString("0.0")</span>
-                        </td>
-                        <td class="py-3">
-                            @if (row.IsFinalized)
-                            {
-                                <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Kesin</span>
-                            }
-                            else
-                            {
-                                <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Taslak</span>
-                            }
-                        </td>
-                        <td class="py-3">
-                            <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" asp-page="/Denetimler/Detay" asp-route-id="@row.Id">Detay</a>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
+    <section class="solum-card">
+        <div class="solum-card-head">
+            <div>
+                <h3 class="solum-card-title">En riskli bulgular</h3>
+                <div class="solum-card-sub">En çok başarısız olan denetim maddeleri</div>
+            </div>
+        </div>
+        @Html.SolumTable(DashboardView.RiskliBulgular(Model.TopRiskFindings))
+    </section>
 
-<!-- En Riskli Bulgular -->
-<div class="rounded-xl border border-slate-200 bg-white p-5">
-    <div class="text-sm font-semibold">En Riskli Bulgular</div>
-    <div class="text-xs text-slate-500">En cok basarisiz olan denetim maddeleri</div>
-    <div class="mt-4 overflow-x-auto">
-        <table class="min-w-full text-left text-sm">
-            <thead class="text-xs uppercase text-slate-400">
-                <tr>
-                    <th class="pb-2">Madde</th>
-                    <th class="pb-2">Basarisiz</th>
-                    <th class="pb-2">Lokasyon</th>
-                    <th class="pb-2">Ort. Risk</th>
-                    <th class="pb-2">Sistemik</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                @foreach (var row in Model.TopRiskFindings)
-                {
-                    <tr class="text-slate-700">
-                        <td class="py-3 max-w-xs truncate" title="@row.ItemText">@row.ItemText</td>
-                        <td class="py-3">
-                            <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red">@row.FailureCount</span>
-                        </td>
-                        <td class="py-3">@row.DistinctLocations</td>
-                        <td class="py-3">
-                            <span class="@ComplianceBadgeClass(100m - row.AvgRiskScore)">@row.AvgRiskScore.ToString("0.0")</span>
-                        </td>
-                        <td class="py-3">
-                            @if (row.IsSystemic)
-                            {
-                                <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red">Evet</span>
-                            }
-                            else
-                            {
-                                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Hayir</span>
-                            }
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Magaza Skorlari -->
-<div class="rounded-xl border border-slate-200 bg-white p-5">
-    <div class="text-sm font-semibold">Magaza Skorlari</div>
-    <div class="text-xs text-slate-500">Lokasyon bazli denetim performansi</div>
-    <div class="mt-4 overflow-x-auto">
-        <table class="min-w-full text-left text-sm">
-            <thead class="text-xs uppercase text-slate-400">
-                <tr>
-                    <th class="pb-2">Lokasyon</th>
-                    <th class="pb-2">Denetim</th>
-                    <th class="pb-2">Ort. Uyum</th>
-                    <th class="pb-2">Son Denetim</th>
-                    <th class="pb-2">Tekrar Eden</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                @foreach (var row in Model.LocationScores)
-                {
-                    <tr class="text-slate-700">
-                        <td class="py-3">@row.LocationName</td>
-                        <td class="py-3">@row.AuditCount</td>
-                        <td class="py-3">
-                            <span class="@ComplianceBadgeClass(row.AvgComplianceRate)">%@row.AvgComplianceRate.ToString("0.0")</span>
-                        </td>
-                        <td class="py-3">@(row.LastAuditDate?.ToString("dd.MM.yyyy") ?? "-")</td>
-                        <td class="py-3">
-                            @if (row.RepeatingFindingCount > 0)
-                            {
-                                <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">@row.RepeatingFindingCount</span>
-                            }
-                            else
-                            {
-                                <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">0</span>
-                            }
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
+    <section class="solum-card">
+        <div class="solum-card-head">
+            <div>
+                <h3 class="solum-card-title">Mağaza skorları</h3>
+                <div class="solum-card-sub">Lokasyon bazlı denetim performansı</div>
+            </div>
+        </div>
+        @Html.SolumTable(DashboardView.MagazaSkorlari(Model.LocationScores))
+    </section>
 }
 
 @if (Model.Tab == "ai")
 {
-var aiKpi = Model.AiKpi;
+    @KpiRenderer.RenderGrid(DashboardView.AiKpileri(Model))
 
-string SeverityBadge(string severity) => (severity ?? "").ToUpperInvariant() switch
-{
-    "KRITIK" => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
-    "YUKSEK" => "rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700",
-    "ORTA" => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
-    _ => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
-};
-
-string SkillStatusBadge(string status) => (status ?? "").ToUpperInvariant() switch
-{
-    "DONE" => "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700",
-    "RUNNING" => "rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700",
-    "ERROR" => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
-    "QUEUED" => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600",
-    _ => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
-};
-
-<!-- AI KPI Cards -->
-<div class="grid gap-4 lg:grid-cols-4">
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Aktif Insight</div>
-        <div class="mt-2 text-2xl font-semibold text-slate-900">@(aiKpi?.ActiveInsights ?? 0)</div>
-        <div class="mt-1 text-xs text-slate-500">Proaktif oneriler</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Onay Orani</div>
-        <div class="mt-2 text-2xl font-semibold text-emerald-600">%@((aiKpi?.ApprovalRate ?? 0).ToString("0.0"))</div>
-        <div class="mt-1 text-xs text-slate-500">Kabul edilen oneriler</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Haftalik Calisma</div>
-        <div class="mt-2 text-2xl font-semibold text-slate-900">@(aiKpi?.WeeklyExecutions ?? 0)</div>
-        <div class="mt-1 text-xs text-slate-500">Son 7 gun skill calisma</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs uppercase tracking-wide text-slate-400">Ort. Guven</div>
-        <div class="mt-2 text-2xl font-semibold text-slate-900">%@((aiKpi?.AvgConfidence ?? 0).ToString("0.0"))</div>
-        <div class="mt-1 text-xs text-slate-500">AI guven skoru</div>
-    </div>
-</div>
-
-<!-- Proactive Insights -->
-<div class="rounded-xl border border-slate-200 bg-white p-5">
-    <div class="flex items-center justify-between">
-        <div>
-            <div class="text-sm font-semibold">Proaktif Oneriler</div>
-            <div class="text-xs text-slate-500">AI tarafindan tespit edilen aktif oneriler</div>
+    <section class="solum-card">
+        <div class="solum-card-head">
+            <div>
+                <h3 class="solum-card-title">Proaktif öneriler</h3>
+                <div class="solum-card-sub">AI tarafından tespit edilen aktif öneriler</div>
+            </div>
+            <div class="solum-row-side">
+                <a class="solum-btn" asp-page="/Ai/Index" asp-route-tab="insights">Tümünü gör</a>
+            </div>
         </div>
-        <a class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" asp-page="/Ai/Index" asp-route-tab="insights">Tumunu gor</a>
-    </div>
-    <div class="mt-4 space-y-3">
         @if (Model.ProactiveInsights.Count == 0)
         {
-            <div class="text-sm text-slate-500">Aktif oneri bulunamadi.</div>
+            <partial name="/Pages/Shared/_SolumEmpty.cshtml" model="@(("Aktif öneri bulunamadı.", (string?)"AI işleri çalıştıkça öneriler burada birikir."))" />
         }
         else
         {
-            @foreach (var insight in Model.ProactiveInsights)
+            @foreach (var oneri in Model.ProactiveInsights)
             {
-                var dashEntityType = (string)(insight.EntityType ?? "");
-                var dashEntityId = (int?)insight.EntityId;
-                var dashEntityName = (string)(insight.EntityName ?? "");
-                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <span class="@SeverityBadge((string)(insight.Severity ?? ""))">@(insight.Severity ?? "-")</span>
-                            <span class="text-sm font-medium truncate">@(insight.Title ?? "-")</span>
+                var varlikTipi = (string)(oneri.EntityType ?? "");
+                var varlikId = (int?)oneri.EntityId;
+                var varlikAd = (string)(oneri.EntityName ?? "");
+                <div class="solum-row">
+                    <div class="solum-row-main">
+                        <div class="solum-row-label">
+                            <span class="@DashboardView.RozetSinifi((string)(oneri.Severity ?? ""))">@(oneri.Severity ?? "-")</span>
+                            @(oneri.Title ?? "-")
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(dashEntityName))
-                        {
-                            <div class="text-xs text-slate-400">@dashEntityType: <span class="font-medium text-slate-600">@dashEntityName</span></div>
-                        }
-                        <div class="mt-1 text-xs text-slate-500 truncate">@(insight.Description ?? "")</div>
+                        <div class="solum-row-desc">
+                            @if (!string.IsNullOrWhiteSpace(varlikAd))
+                            {
+                                <span>@varlikTipi: @varlikAd · </span>
+                            }
+                            @(oneri.Description ?? "")
+                        </div>
                     </div>
-                    <div class="ml-3 shrink-0 flex flex-col gap-1">
-                        @if (dashEntityType == "MEKAN" && dashEntityId.HasValue)
+                    <div class="solum-row-side">
+                        @if (varlikTipi == "MEKAN" && varlikId.HasValue)
                         {
-                            <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600"
-                               href="/Risk?mekan=@dashEntityId">Urunleri Gor</a>
+                            <a class="solum-btn" href="/Risk?mekan=@varlikId">Ürünleri gör</a>
                         }
-                        <a class="rounded-full bg-bkm-red px-3 py-1 text-xs font-semibold text-white"
-                           asp-page="/Dof/Index">Aksiyona Al</a>
+                        <a class="solum-btn solum-btn-primary" asp-page="/Dof/Index">Aksiyona al</a>
                     </div>
                 </div>
             }
         }
-    </div>
-</div>
+    </section>
 
-<!-- Recent Skill Executions -->
-<div class="rounded-xl border border-slate-200 bg-white p-5">
-    <div class="flex items-center justify-between">
-        <div>
-            <div class="text-sm font-semibold">Son Skill Calismalari</div>
-            <div class="text-xs text-slate-500">AI skill calisma gecmisi</div>
+    <section class="solum-card">
+        <div class="solum-card-head">
+            <div>
+                <h3 class="solum-card-title">Son skill çalışmaları</h3>
+                <div class="solum-card-sub">AI skill çalışma geçmişi</div>
+            </div>
+            <div class="solum-row-side">
+                <a class="solum-btn" asp-page="/Ai/Index" asp-route-tab="skills">Tümünü gör</a>
+            </div>
         </div>
-        <a class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" asp-page="/Ai/Index" asp-route-tab="skills">Tumunu gor</a>
-    </div>
-    <div class="mt-4 overflow-x-auto">
-        <table class="min-w-full text-left text-sm">
-            <thead class="text-xs uppercase text-slate-400">
-                <tr>
-                    <th class="pb-2">Skill</th>
-                    <th class="pb-2">Baslatma</th>
-                    <th class="pb-2">Sure</th>
-                    <th class="pb-2">Durum</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                @if (Model.AiSkillHistory.Count == 0)
-                {
-                    <tr>
-                        <td class="py-3 text-sm text-slate-500" colspan="4">Kayit bulunamadi.</td>
-                    </tr>
-                }
-                else
-                {
-                    @foreach (var row in Model.AiSkillHistory)
-                    {
-                        <tr class="text-slate-700">
-                            <td class="py-3">
-                                <div class="text-sm font-medium">@(row.SkillName ?? "-")</div>
-                                <div class="text-xs text-slate-500">@(row.SkillVersion ?? "")</div>
-                            </td>
-                            <td class="py-3 text-xs text-slate-500">
-                                @{
-                                    var startedAt = (DateTime?)row.StartedAt;
-                                }
-                                @(startedAt?.ToString("dd.MM.yyyy HH:mm") ?? "-")
-                            </td>
-                            <td class="py-3 text-xs text-slate-500">@(row.DurationMs != null ? $"{row.DurationMs}ms" : "-")</td>
-                            <td class="py-3">
-                                <span class="@SkillStatusBadge((string)(row.Status ?? ""))">@(row.Status ?? "-")</span>
-                            </td>
-                        </tr>
-                    }
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
+        @if (Model.AiSkillHistory.Count == 0)
+        {
+            <partial name="/Pages/Shared/_SolumEmpty.cshtml" model="@(("Kayıt bulunamadı.", (string?)null))" />
+        }
+        else
+        {
+            @* SP cikisi dynamic oldugu icin SolumTable (generic, tipli) kullanilmiyor;
+               satir ilkeli tipsiz veriyle de calisir. *@
+            @foreach (var satir in Model.AiSkillHistory)
+            {
+                var baslangic = (DateTime?)satir.StartedAt;
+                <div class="solum-row">
+                    <div class="solum-row-main">
+                        <div class="solum-row-label">@(satir.SkillName ?? "-")</div>
+                        <div class="solum-row-desc">
+                            @(satir.SkillVersion ?? "") ·
+                            @(baslangic?.ToString("dd.MM.yyyy HH:mm") ?? "-") ·
+                            @(satir.DurationMs != null ? $"{satir.DurationMs} ms" : "-")
+                        </div>
+                    </div>
+                    <div class="solum-row-side">
+                        <span class="@DashboardView.RozetSinifi((string)(satir.Status ?? ""))">@(satir.Status ?? "-")</span>
+                    </div>
+                </div>
+            }
+        }
+    </section>
 }

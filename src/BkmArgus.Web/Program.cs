@@ -66,6 +66,7 @@ builder.Services.AddScoped<Solum.Core.Permissions.IPermissionChecker, ArgusPermi
 builder.Services.AddScoped<Solum.Web.Menu.IMenuBuilder, Solum.Web.Menu.MenuBuilder>();
 builder.Services.AddSingleton<Solum.Web.Menu.IMenuContributor, BkmArgus.Web.Features.ArgusMenu>();
 builder.Services.AddSingleton<Solum.Web.Components.ITableRenderer, Solum.Web.Components.HtmlTableRenderer>();
+builder.Services.AddSingleton<Solum.Web.Components.IKpiRenderer, Solum.Web.Components.HtmlKpiRenderer>();
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<NotificationService>();

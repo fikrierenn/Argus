@@ -138,6 +138,23 @@ ona bağlı. Faz 4'te preflight sıfırlamasının Solum kabuğunu bozmadığı 
 - 🟡 **Executor:** Pazartesi ilk adım = Faz 1: 3 proje referansı + 4 adaptör, **hiç
   görsel değişiklik yok**, derleme yeşil. Geri alması tek commit.
 
+### Faz 3 öncesi Solum durumu (doğrulandı — Solum `9c27533`)
+
+Ölçülmüş ihtiyaç listemizin **dördü de** pakete girdi; `solum.css` içinde satır satır teyit edildi:
+
+| İhtiyaç | Karşılığı | Satır |
+|---|---|---|
+| Panel kabı + başlık şeridi (24 tekrar) | `.solum-card` + `-head`/`-title`/`-sub`/`-foot`, head zaten `space-between` | 166, 190-196 |
+| Sağa yaslı eylem grubu | `.solum-row-side` | 186 |
+| Liste satırı (4 tekrar) | `.solum-row` + `-main`(`min-width:0`)/`-label`/`-desc` | 178-183 |
+| KPI 6 kolon | `--solum-kpi-cols` (değişken; kırılmada yarıya düşer 6→3→1) | 212-224 |
+| Grafik rengi (2 çıplak hex) | `.solum-spark` (`currentColor` + `--solum-accent`), `-base`, `-area` | 310 |
+| KPI durum/yargı | `.solum-kpi-good/bad/flat-judge` + ton kenarı + `-missing`/`-hint` | 269-323 |
+
+**Sonuç:** `argus-theme.css`'te planlanan `argus-kpi` / `argus-panel` **yazılmayacak** — hepsi `solum-*` karşılığından gelecek. **Yerel kalan tek şey: sekme şeridi** (`argus-tabs`) — tek kullanım, üç-ürün eşiğine takılır, Solum bilerek almadı.
+
+Faz 3'te Solum'a geri dönecek 4 kanıt: `UrlGuard` meşru drill adreslerini reddetmiyor · gruplu menü (boş-grup dalı + alt öğe tam-yol çağrısı) · `_SolumEmpty` tablo içinde · `KpiDelta`/`Judge()` canlı veriyle.
+
 ## Riskler
 
 | Risk | Etki | Önlem |
@@ -181,10 +198,20 @@ ona bağlı. Faz 4'te preflight sıfırlamasının Solum kabuğunu bozmadığı 
       · **DOĞRULANMADI:** oturum açmış kabuk (kullanıcı kartuşu, bildirim çanı, ADMIN/YÖNETİCİ menü öğeleri) — kimlik bilgisi yok, elle giriş gerekiyor.
       · **Önceden var olan 3 kırık** (eski `_Layout`'tan taşındı, düzeltilmedi): `assets/bkmkitap-logo.png` **404** (dosya repoda hiç yok) · `js/tailwind.config.js` CDN'den ÖNCE yükleniyor → `tailwind is not defined` (özel renkler aslında `app.css`'ten geliyor) · bildirim panelindeki `/Bildirimler` linki **404**
       · **Kaldırılan (onay bekliyor):** ust cubuktaki tarih + arama girdileri — `form`/`name`/JS bağı yoktu, işlevsizdi.
-- [ ] **Faz 3 — Dashboard yeniden tasarım.** KPI bandı (`argus-kpi`), 3 sekme,
-      Risk/DOF/Sağlık/Mekan listeleri `SolumTable`, durumlar `solum-badge`, boş durumlar
-      `_SolumEmpty`. Kanıt: `Index.cshtml` ≤ 300 satır, 5 sınıf-üretici fonksiyon → 0,
-      satır içi `style=` 0.
+- [x] **Faz 3 — Dashboard yeniden tasarım.** ✅ 2026-08-25 · Solum `0411b67`+ (çalışma ağacı)
+      Yeni: `Features/Dashboard/DashboardView.cs` (sunum haritası, 266 satır) ·
+      `tests/BkmArgus.Tests/DashboardViewTests.cs` (17 test) · `argus-tabs`/`argus-split`/`argus-kpi-6` CSS.
+      Ölçüm: `Index.cshtml` **504 → 292** · sınıf-üretici fonksiyon **7 → 0** · çıplak hex **2 → 0** ·
+      inline style 0 · Tailwind kart kabı **24 → 0** (`.solum-card`) · 4 tablo `SolumTable` ·
+      5 boş durum `_SolumEmpty` · 14 KPI `KpiCard` (`--solum-kpi-cols: 6` denetim sekmesinde).
+      **Test: 17/17 geçti** (`dotnet test --filter DashboardViewTests`). Kapsam:
+      polarite matrisi tüketici tarafında (`Decrease + LowerIsBetter = Good`) · delta yokluğunda
+      uydurma yok (seri <2 nokta → null) · `UrlGuard` drill adresini reddetmiyor ·
+      `solum-empty` + HTML kaçırma · rozet haritası · bilinmeyen durum kırmızı değil.
+      **DOĞRULANMADI:** tarayıcı görünümü — Dashboard `[Authorize]`, şifre girmek yasak (B9).
+      Not: `tests` projesine `BkmArgus.Web` referansı + `Microsoft.Data.SqlClient` 6.0.1→6.1.3
+      (NU1605 downgrade hatası). C9 riski gerçekleşti: Solum çalışma ağacı bir ara derlenmedi
+      (`RS0026` `ICrossCompanyScope.RunAsync`), test o yüzden gecikti — kendileri düzeltti.
 - [ ] **Faz 4 — Denetim + smoke.** `phase-review-gate.md` zinciri: build →
       `code-reviewer` → `security-reviewer` → tarayıcı smoke (3 sekme, boş durum, mobil
       menü, koyu tema). Solum tarafına dokunulduysa `solum-denetci` (Solum oturumunda).
