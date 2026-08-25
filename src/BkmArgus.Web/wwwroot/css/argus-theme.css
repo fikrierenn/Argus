@@ -1,0 +1,104 @@
+/* ─────────────────────────────────────────────────────────────────────
+   BkmArgus temasi — Solum kabugunu BKM paletine oturtur.
+
+   NEDEN DEGISKEN EZMESI, DOSYA GOLGELEME DEGIL: Solum'un olctugu sonuc,
+   golgelenen dosyanin guncelleme almayi BIRAKMASI. Degisken ezmek
+   guncellemeyi almaya devam eder (Solum degistirme merdiveni 1. basamak).
+
+   YUKLEME SIRASI ONEMLI: bu dosya solum.css'ten SONRA linklenir, yoksa
+   ezme calismaz (_Layout.cshtml).
+
+   IKI CSS BIR ARADA: solum.css yalniz .solum-* seciciyle calisir; sayfalar
+   Tailwind yardimci siniflarini kullanmaya devam eder. Solum bunu kendi
+   dosyasinda soyluyor: "ikisi cakismaz". Donusturulmemis 20 ekran hala
+   Tailwind CDN'e bagli oldugu icin ikisi bir arada duruyor.
+
+   KOYU YAN MENU: bugunku koyu menu (--bkm-dark) bu yolla korunAMIYOR —
+   Solum'da --solum-sidebar-bg degiskeni YOK, yan menu yuzeyi kart ve ust
+   cubukla paylasiliyor. Solum tarafi degiskeni eklemeyi kabul etti; geldigi
+   gun burada iki satirla koyu menuye donulur (plan 04, kullanici karari
+   2026-08-25: "acik menuyle cik").
+   ───────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Marka ve durum — app.css'teki BKM degiskenlerinden beslenir, hex tekrar yazilmaz. */
+  --solum-accent: var(--bkm-red);
+  --solum-accent-ink: #ffffff;
+  --solum-accent-soft: #fdecec;
+  --solum-bad: var(--bkm-red);
+  --solum-good: var(--bkm-safe);
+
+  /* Zemin */
+  --solum-bg: var(--bkm-canvas);
+
+  /* Tipografi — panelin geri kalani Inter kullaniyor, kabuk da kullansin. */
+  --solum-font: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Yan menu genisligi: eski kabuk lg:w-64 (16rem = 256px) idi, korunuyor. */
+  --solum-sidebar-w: 256px;
+}
+
+/* ── Marka blogu — logo + iki satir metin ────────────────────────────── */
+/* .solum-brand yuksekligi ust cubukla ayni olsun diye Solum degiskeni kullanilir. */
+.argus-brand-logo { height: 28px; width: auto; flex: none; }
+.argus-brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.argus-brand-text small { font-size: 11px; font-weight: 400; color: var(--solum-muted); }
+
+/* ── Ust cubuk: sayfa basligi + alt baslik ───────────────────────────── */
+.argus-page-title { font-size: 15px; font-weight: 600; color: var(--solum-ink); }
+.argus-page-subtitle { font-size: var(--solum-text-sm); color: var(--solum-muted); }
+
+/* ── Kullanici kartusu ───────────────────────────────────────────────── */
+.argus-user {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--solum-line); border-radius: 999px;
+  background: var(--solum-surface-alt); padding: 3px 10px 3px 4px;
+}
+.argus-user-initials {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 28px; width: 28px; border-radius: 50%;
+  background: var(--solum-line); color: var(--solum-ink);
+  font-size: 10px; font-weight: 600;
+}
+.argus-user-name { font-size: 12px; font-weight: 600; color: var(--solum-ink); }
+.argus-user-role { font-size: 10px; color: var(--solum-muted); }
+
+/* ── Bildirim cani ───────────────────────────────────────────────────── */
+.argus-bell { position: relative; }
+.argus-bell-badge {
+  position: absolute; top: -4px; right: -4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--solum-bad); color: #fff; font-size: 10px; font-weight: 700;
+}
+.argus-notif-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; width: 320px;
+  background: var(--solum-surface); border: 1px solid var(--solum-line);
+  border-radius: var(--solum-radius); box-shadow: 0 10px 30px rgb(0 0 0 / .12);
+}
+.argus-notif-panel[hidden] { display: none; }
+.argus-notif-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--solum-line);
+  font-size: var(--solum-text-sm); font-weight: 600; color: var(--solum-ink);
+}
+.argus-notif-list { max-height: 288px; overflow-y: auto; }
+.argus-notif-item {
+  display: flex; gap: 10px; padding: 10px 14px;
+  border-bottom: 1px solid var(--solum-line);
+  color: var(--solum-text); text-decoration: none;
+}
+.argus-notif-item:hover { background: var(--solum-surface-alt); }
+.argus-notif-item.argus-unread { background: var(--solum-accent-soft); }
+.argus-notif-title { font-size: 12px; font-weight: 500; color: var(--solum-ink); }
+.argus-notif-msg { font-size: 11px; color: var(--solum-muted); }
+.argus-notif-ago { font-size: 10px; color: var(--solum-muted); }
+.argus-notif-foot { padding: 8px; text-align: center; font-size: var(--solum-text-sm); }
+.argus-notif-ico { flex: none; width: 16px; height: 16px; }
+.argus-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--solum-accent); }
+
+/* ── Alt bilgi durum satiri ──────────────────────────────────────────── */
+.argus-status { display: flex; align-items: center; gap: 6px; }
+.argus-status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.argus-status-ok { background: var(--solum-good); }
+.argus-status-down { background: var(--solum-bad); }

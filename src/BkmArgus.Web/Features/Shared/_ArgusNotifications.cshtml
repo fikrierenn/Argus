@@ -1,0 +1,84 @@
+@inject BkmArgus.Web.Services.NotificationService NotifService
+@*
+    Bildirim cani. Solum kabugunda ust cubuga ek oge takmak icin YUVA (slot)
+    yok; bu yuzden BkmArgus kendi ust cubugunu kuruyor ve bu parcayi oraya
+    koyuyor. Gorunum solum.css degiskenlerinden besleniyor (argus-theme.css).
+*@
+@{
+    var okunmamis = 0;
+    var bildirimler = new List<BkmArgus.Web.Services.NotificationService.NotificationRow>();
+
+    // Is kurali: bildirim yalniz kimligi dogrulanmis kullanici icin okunur.
+    if (User.Identity?.IsAuthenticated == true &&
+        int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var kullaniciId))
+    {
+        okunmamis = await NotifService.GetUnreadCountAsync(kullaniciId);
+        bildirimler = await NotifService.GetLatestAsync(kullaniciId);
+    }
+}
+<div class="argus-bell" id="argusBell">
+    <button type="button" class="solum-btn" title="Bildirimler" aria-label="Bildirimler"
+            onclick="argusToggleNotif()">
+        <svg class="argus-notif-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        @if (okunmamis > 0)
+        {
+            <span class="argus-bell-badge">@(okunmamis > 99 ? "99+" : okunmamis.ToString())</span>
+        }
+    </button>
+
+    <div class="argus-notif-panel" id="argusNotifPanel" hidden>
+        <div class="argus-notif-head">
+            <span>Bildirimler</span>
+            @if (okunmamis > 0)
+            {
+                <button type="button" class="solum-btn" onclick="argusNotifTumunuOkundu()">Tümünü okundu işaretle</button>
+            }
+        </div>
+        <div class="argus-notif-list">
+            @if (bildirimler.Count == 0)
+            {
+                <partial name="/Pages/Shared/_SolumEmpty.cshtml" model="@(("Bildirim bulunmuyor", (string?)null))" />
+            }
+            else
+            {
+                @foreach (var b in bildirimler)
+                {
+                    // Tur -> durum rengi. Renk anlam tasir: risk/SLA kotu, denetim tamam iyi.
+                    var renk = b.Type switch
+                    {
+                        "RISK_CRITICAL" or "DOF_SLA" => "solum-badge-bad",
+                        "AUDIT_FINALIZED" => "solum-badge-good",
+                        _ => ""
+                    };
+                    var gecen = DateTime.Now - b.CreatedAt;
+                    var ne_zaman = gecen.TotalMinutes < 1 ? "şimdi"
+                        : gecen.TotalMinutes < 60 ? $"{(int)gecen.TotalMinutes}dk"
+                        : gecen.TotalHours < 24 ? $"{(int)gecen.TotalHours}sa"
+                        : $"{(int)gecen.TotalDays}g";
+                    <a class="argus-notif-item @(b.IsRead ? "" : "argus-unread")"
+                       href="@(b.Link ?? "#")" data-notif-id="@b.Id" onclick="argusNotifOkundu(this)">
+                        <span class="solum-badge @renk" aria-hidden="true"></span>
+                        <span style="flex:1;min-width:0">
+                            <span class="argus-notif-title">@b.Title</span>
+                            @if (!string.IsNullOrEmpty(b.Message))
+                            {
+                                <span class="argus-notif-msg" style="display:block">@b.Message</span>
+                            }
+                            <span class="argus-notif-ago" style="display:block">@ne_zaman</span>
+                        </span>
+                        @if (!b.IsRead)
+                        {
+                            <span class="argus-dot" aria-label="Okunmadı"></span>
+                        }
+                    </a>
+                }
+            }
+        </div>
+        <div class="argus-notif-foot">
+            <a href="/Bildirimler">Tüm bildirimler</a>
+        </div>
+    </div>
+</div>

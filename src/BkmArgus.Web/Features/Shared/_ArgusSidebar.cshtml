@@ -1,0 +1,29 @@
+@using Solum.Web.Menu
+@inject IMenuBuilder MenuBuilder
+@*
+    Yan menu. Menu AGACI Solum'un katki modelinden gelir (ArgusMenu.cs) ve
+    izinlere gore Solum tarafinda suzulur; cizimi Solum'un _SolumNav parcasi yapar.
+
+    NEDEN _SolumSidebar KULLANILMIYOR: o parca marka blogunu ViewData'dan
+    duz METIN olarak basiyor, bizim markamiz logo + iki satir. Solum kabuk
+    parcalarinda yuva (slot) olmadigi icin bu 6 satir burada duruyor —
+    _SolumNav (asil is) kutuphaneden akmaya devam ediyor.
+
+    DIKKAT: menuden gizlemek yetki DEGILDIR, yalniz gorunurluk. Asil kapi
+    sayfa attribute'u (security-principles.md §4).
+*@
+@{
+    var ogeler = await MenuBuilder.BuildAsync(Context.RequestAborted);
+}
+<aside class="solum-sidebar">
+    <div class="solum-brand">
+        <img class="argus-brand-logo" src="~/assets/bkmkitap-logo.png" alt="bkmkitap" />
+        <span class="argus-brand-text">
+            BKMKitap
+            <small>Denetim</small>
+        </span>
+    </div>
+    <nav class="solum-nav" aria-label="Ana menü">
+        <partial name="/Pages/Shared/_SolumNav.cshtml" model="ogeler" />
+    </nav>
+</aside>

@@ -53,6 +53,10 @@ Boş tablolar "kullanılmıyor" değil, **yazılmıyor** demek. Her biri bir bug
 - [x] ✅ 2026-08-21 (commit 2b1ebfb, 5e21147) **B1. Semantik katmanı AI context'ine bağla** — `BuildSkillVariablesAsync` içinden `sem.sp_Context_Build` çağrılsın. Şu an semantik katman dolu ama LLM'e ulaşmıyor.
 - [x] ✅ 2026-08-21 (commit 5e21147) **B2. 10 denetim skill'ini uçtan uca koş** — her biri için gerçek kayıtla bir çalıştırma + çıktı kalitesi değerlendirmesi. Zayıf çıktı veren prompt'u revize et (`ai.sp_Skill_Upsert` yeni sürüm üretir).
 - [ ] **B4. `sem.vw_Stale` curator akışı** — `session-handoff` sırasında 7 günde bir bayat kayıt taraması.
+- [x] ✅ 2026-08-25 **B6. Solum ortak katmanına bağlan (Faz 1)** — `Solum.Abstractions/Core/Web` proje referansı + 4 bağlam adaptörü (`Security/SolumContext.cs`, `Security/ArgusPermissionChecker.cs`). Kanıt: build 0 hata, publish yeşil, Development boot `ValidateOnBuild` geçti. `plans/04-solum-dashboard.md`
+- [x] ✅ 2026-08-25 **B7. Kabuk Solum'a taşındı (Faz 2)** — `_Layout` 406→56 satır, ~24 elle yazılmış menü anchor'ı → 12 `MenuItem` (`Features/ArgusMenu.cs`). Açık yan menü (kullanıcı kararı). Kanıt: `/Error` 200, `--solum-accent`=#E30613, mobil çekmece çalışıyor, izin süzmesi 12→5, konsol 0 hata. `plans/04-solum-dashboard.md`
+- [ ] **B8. Faz 3 — Dashboard'ı Solum tablo/KPI ilkelleriyle yeniden yaz** — `Features/Dashboard/Index.cshtml` 504 → ≤300 satır, 5 sınıf-üretici fonksiyon → 0. Solum tarafında `.solum-kpi` + `KpiDelta(Movement×Polarity→Judgement)` sözleşmesi hazır (Solum `0411b67`). `plans/04-solum-dashboard.md`
+- [ ] **B9. Oturum açmış kabuk smoke'u** — Faz 2'de DOĞRULANMADI: kullanıcı kartuşu, bildirim çanı, ADMIN/YÖNETİCİ menü öğeleri, doğru menü vurgusu (`aria-current` pozitif dalı). Kimlik bilgisi gerekiyor.
 - [ ] **B5. Skill yönetim ekranı** — `ai.Skills`/`SkillVersions` için Razor sayfası (prompt görüntüle, sürüm geçmişi, aktif/pasif). Şu an sadece SQL'den yönetilebiliyor. `Policies.AdminOnly`.
 
 ---
@@ -65,6 +69,8 @@ Boş tablolar "kullanılmıyor" değil, **yazılmıyor** demek. Her biri bir bug
 - [ ] **C4. Ölü dosyaları kaldır** — `TestDebug.cs` (ikinci `Main`, CS7022), `DbTest.cs`, `DebugTest.cs`, `TestEmbedding.cs` prod binary'sine giriyor.
 - [ ] **C5. `AiWorkerService.cs:726` inline SQL** — `log.Notifications` INSERT'i SP'ye taşı (kendi SP-first kuralımızın ihlali).
 - [ ] **C6. Kullanılmayan `timeoutMinutes`** — `AgentPipelineMonitorJob` ve `RiskPredictionJob`'da atanıp kullanılmıyor; timeout mantığı hiç yazılmamış.
+- [ ] **C8. Solum kabuk commit'lerinde denetçi koşumu borcu** — `plan 04` Faz 1+2 commit'leri `[review-skipped]` ile atıldı (`phase-review-gate.md` zinciri koşulmadı: `code-reviewer` + `security-reviewer`). Kapsam: `Security/SolumContext.cs`, `Security/ArgusPermissionChecker.cs`, `Features/ArgusMenu.cs`, 5 kabuk parçası, `Program.cs` DI bloğu. Faz 3 kapanışında birlikte koşulacak.
+- [ ] **C9. Solum referansı commit'siz çalışma ağacına bağlı** — `ProjectReference` `D:\Dev\solum` kaynağını derliyor; o repoda commit'lenmemiş bir değişiklik BkmArgus build'ini kırabilir ve BkmArgus commit'i "hangi Solum hâline karşı derlendi" bilgisini taşımıyor. Faz 1+2 doğrulaması Solum `0411b67`'ye karşı yapıldı. Kalıcı çözüm: yerel besleme/`.nupkg` veya submodule (kullanıcı kararı).
 - [ ] **C7. Eşikler config'e** — `ProactiveInsightJob` `RiskEsik`/`GunEsik` kodda sabit; `AiWorkerOptions`'a taşı (`ai-layer.md`).
 
 ---

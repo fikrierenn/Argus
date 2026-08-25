@@ -1,0 +1,37 @@
+@inject BkmArgus.Web.Data.SqlDb Db
+@inject IWebHostEnvironment Env
+@*
+    Alt bilgi. Eski kabukta bu bilgiler koyu yan menunun dibindeydi; Solum
+    kabugunda yan menunun alt yuvasi olmadigi icin alt bilgiye tasindi
+    (bilgi kaybi yok, yer degisti).
+*@
+@{
+    // Gelistirmede sunucu/veritabani adi da gosterilir; uretimde yalniz
+    // baglanti var/yok — ic yapi bilgisi sizmasin (security-principles.md §7).
+    BkmArgus.Web.Data.SqlDb.DbInfo? dbBilgi = null;
+    bool dbAcik;
+    if (Env.IsDevelopment())
+    {
+        dbBilgi = await Db.GetDbInfoAsync();
+        dbAcik = dbBilgi is not null;
+    }
+    else
+    {
+        dbAcik = await Db.CanConnectAsync();
+    }
+}
+<footer class="solum-footer">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px">
+        <span>BKM Denetim — Risk İzleme</span>
+        <span class="argus-status">
+            <span class="argus-status-dot @(dbAcik ? "argus-status-ok" : "argus-status-down")"></span>
+            <span>@(dbAcik ? "Bağlantı OK" : "Bağlantı yok")</span>
+        </span>
+        @if (Env.IsDevelopment() && dbBilgi is not null)
+        {
+            <span>DB: @dbBilgi.ServerName / @dbBilgi.DbName</span>
+        }
+        <span class="solum-spacer"></span>
+        <span>Sürüm 1.0.0</span>
+    </div>
+</footer>

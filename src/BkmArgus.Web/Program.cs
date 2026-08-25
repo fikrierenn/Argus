@@ -53,6 +53,20 @@ builder.Services.AddRazorPages(options =>
     options.RootDirectory = "/Features";
 });
 builder.Services.AddSingleton<BkmArgus.Web.Data.SqlDb>();
+
+// --- Solum ortak katmani (plan: 04) ---
+// Solum.Web'in kendi DI uzantisi (AddSolumWeb) henuz yok; kayitlar elle.
+// Kabuk her sayfada oldugu icin eksik kayit tum uygulamayi calisma aninda
+// dusurur — bu blok eksiksiz kalmali.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Solum.Abstractions.ICurrentUser, ArgusCurrentUser>();
+builder.Services.AddScoped<Solum.Abstractions.ICurrentCompany, ArgusCurrentCompany>();
+builder.Services.AddSingleton<Solum.Abstractions.IClock, ArgusClock>();
+builder.Services.AddScoped<Solum.Core.Permissions.IPermissionChecker, ArgusPermissionChecker>();
+builder.Services.AddScoped<Solum.Web.Menu.IMenuBuilder, Solum.Web.Menu.MenuBuilder>();
+builder.Services.AddSingleton<Solum.Web.Menu.IMenuContributor, BkmArgus.Web.Features.ArgusMenu>();
+builder.Services.AddSingleton<Solum.Web.Components.ITableRenderer, Solum.Web.Components.HtmlTableRenderer>();
+
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddSingleton<ExcelExportService>();

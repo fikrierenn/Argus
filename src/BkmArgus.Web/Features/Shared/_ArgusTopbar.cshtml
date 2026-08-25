@@ -1,0 +1,50 @@
+@*
+    Ust cubuk. Solum'un _SolumTopbar'i kullanilmiyor: sayfa basligi/alt basligi,
+    bildirim cani ve BkmArgus cikis akisi (/Account/Logout) icin yuva yok.
+    Gorunum solum.css siniflarindan gelir; ozel olanlar argus-theme.css'te.
+
+    Mobil menu dugmesi Solum'un solum.js'ine baglidir (data-solum-menu-toggle) —
+    eski kabuktaki AYRI mobil bagalanti satiri (12 kopya anchor) bu yuzden
+    kaldirildi; artik cekmece ayni menuyu gosteriyor.
+*@
+@{
+    var tamAd = User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? string.Empty;
+    var basHarfler = string.Join("", tamAd
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Take(2)
+        .Select(k => k[0])).ToUpperInvariant();
+    var rolEtiketi = BkmArgus.Web.Features.RoleLabel.For(
+        User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
+}
+<header class="solum-topbar">
+    <button type="button" class="solum-btn" data-solum-menu-toggle aria-label="Menüyü aç/kapat">☰</button>
+
+    <div>
+        <div class="argus-page-title">@ViewData["Title"]</div>
+        @if (ViewData["Subtitle"] is string altBaslik && !string.IsNullOrEmpty(altBaslik))
+        {
+            <div class="argus-page-subtitle">@altBaslik</div>
+        }
+    </div>
+
+    <span class="solum-spacer"></span>
+
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <partial name="_ArgusNotifications" />
+
+        <div class="argus-user">
+            <span class="argus-user-initials">@basHarfler</span>
+            <span>
+                <span class="argus-user-name" style="display:block">@tamAd</span>
+                <span class="argus-user-role" style="display:block">@rolEtiketi</span>
+            </span>
+        </div>
+
+        <a class="solum-btn" asp-page="/Account/Logout">Çıkış</a>
+    }
+    else
+    {
+        <a class="solum-btn solum-btn-primary" asp-page="/Account/Login">Giriş Yap</a>
+    }
+</header>
