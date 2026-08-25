@@ -16,6 +16,15 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
+  <!-- Solum ortak katmanı (plan: 04). Depo-arası göreli yol: D:\Dev\solum.
+       Yalnız Abstractions + Core + Web alınır; EntityFrameworkCore ve Identity
+       ALINMAZ — BkmArgus SP-first + Dapper (architecture.md §2/§3). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\solum\src\Solum.Abstractions\Solum.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\solum\src\Solum.Core\Solum.Core.csproj" />
+    <ProjectReference Include="..\..\..\solum\src\Solum.Web\Solum.Web.csproj" />
+  </ItemGroup>
+
   <!-- BKMDenetim bağlantı dizesi: BkmDenetim / BkmArgus appsettings uyumu (ortak dosya) -->
   <ItemGroup>
     <Compile Include="..\..\Shared\BkmDenetimConnection.cs" Link="Shared\BkmDenetimConnection.cs" />
