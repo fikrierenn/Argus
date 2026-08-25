@@ -11,10 +11,10 @@ namespace BkmArgus.Web.Features;
 /// attribute'udur (@attribute [Authorize(Policy = ...)]). Menude gizlemek
 /// yetki degildir (security-principles.md §4).
 ///
-/// Menu DUZ tutuldu (alt oge yok): Solum'un _SolumNav partial'i alt ogeleri
-/// isim-bazli ic ice partial cagrisiyla ciziyor; RootDirectory = "/Features"
-/// oldugu icin bu cozumleme dogrulanmadi. Grup ihtiyaci dogarsa once o
-/// dogrulanir.
+/// Menu DUZ (alt oge yok) — SEBEP OLCULDU: Solum.Web'de _ViewImports.cshtml
+/// yok, dolayisiyla kendi gorunumleri icindeki &lt;partial&gt; etiketi calismiyor.
+/// Gruplu menu denendi: grup basligi cizildi, alt ogeler HTML'e DUZ METIN olarak
+/// basildi (2026-08-25, Solum'a raporlandi). Solum duzeltince grup geri gelir.
 /// </summary>
 public sealed class ArgusMenu : IMenuContributor
 {
@@ -67,7 +67,11 @@ public sealed class ArgusMenu : IMenuContributor
         context.Add(new MenuItem("dof", "DÖF Yönetimi") { Url = "/Dof", Icon = IcoDof, Order = 40 });
         context.Add(new MenuItem("audit", "Saha Denetim") { Url = "/Audit", Icon = IcoAudit, Order = 50 });
 
-        // AI ve korelasyon LLM maliyeti uretir -> YONETICI ve ustu.
+        // AI ogeleri DUZ duruyor. Gruplu menu denendi ve GERI ALINDI:
+        // Solum.Web'de _ViewImports.cshtml / addTagHelper YOK, bu yuzden kendi
+        // gorunumleri icindeki <partial> etiketi CALISMIYOR — alt ogeler HTML'e
+        // duz metin olarak basiliyor, ekranda hicbir sey gorunmuyor (olculdu
+        // 2026-08-25, Solum'a raporlandi). Solum tarafi duzeltince grup geri gelir.
         context.Add(new MenuItem("ai", "AI Analiz")
         {
             Url = "/Ai", Icon = IcoAi, Order = 60, RequiredPermission = ArgusPermissions.Yonetim
@@ -76,15 +80,14 @@ public sealed class ArgusMenu : IMenuContributor
         {
             Url = "/Ai/Ogrenme", Icon = IcoLearn, Order = 70, RequiredPermission = ArgusPermissions.Yonetim
         });
+        context.Add(new MenuItem("ai-providers", "AI Sağlayıcıları")
+        {
+            Url = "/Ai/Providers", Icon = IcoProvider, Order = 75, RequiredPermission = ArgusPermissions.Admin
+        });
+
         context.Add(new MenuItem("correlation", "Korelasyon")
         {
             Url = "/Correlation", Icon = IcoCorrelation, Order = 80, RequiredPermission = ArgusPermissions.Yonetim
-        });
-
-        // Saglayici anahtarlari, referans tanimlari, kullanici yonetimi -> yalniz ADMIN.
-        context.Add(new MenuItem("ai-providers", "AI Sağlayıcıları")
-        {
-            Url = "/Ai/Providers", Icon = IcoProvider, Order = 90, RequiredPermission = ArgusPermissions.Admin
         });
         context.Add(new MenuItem("ref", "Tanımlar")
         {

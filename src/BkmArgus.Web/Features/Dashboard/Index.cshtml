@@ -15,7 +15,7 @@
     ViewData["Title"] = "Dashboard";
     ViewData["Subtitle"] = "Sabah kahvesi ekranı";
 
-    var trendDelta = DashboardView.TrendDeltasi(Model.TrendSerisi);
+    var trendDelta = DashboardView.TrendDelta(Model.TrendSerisi);
 }
 
 <nav class="argus-tabs" aria-label="Pano sekmeleri">
@@ -29,7 +29,7 @@
 
 @if (Model.Tab == "risk")
 {
-    @KpiRenderer.RenderGrid(DashboardView.RiskKpileri(Model))
+    @KpiRenderer.RenderGrid(DashboardView.RiskKpis(Model))
 
     <div class="argus-split">
         <section class="solum-card">
@@ -45,9 +45,9 @@
                     var yargi = trendDelta.Judge();
                     <div class="solum-row-side">
                         <span class="solum-kpi-delta solum-kpi-@(yargi.ToString().ToLowerInvariant())-judge">
-                            <span aria-hidden="true">@DashboardView.HareketOku(trendDelta.Movement)</span>
+                            <span aria-hidden="true">@DashboardView.MovementGlyph(trendDelta.Movement)</span>
                             @trendDelta.Text
-                            <span class="solum-sr-only">@DashboardView.DeltaErisim(trendDelta)</span>
+                            <span class="solum-sr-only">@DashboardView.DeltaScreenReaderText(trendDelta)</span>
                             <span class="solum-kpi-hint">@trendDelta.Note</span>
                         </span>
                     </div>
@@ -80,7 +80,7 @@
                             <div class="solum-row-desc">@satir.Not</div>
                         </div>
                         <div class="solum-row-side">
-                            <span class="@DashboardView.RozetSinifi(satir.Durum)">@satir.Durum</span>
+                            <span class="@DashboardView.BadgeClass(satir.Durum)">@satir.Durum</span>
                         </div>
                     </div>
                 }
@@ -98,7 +98,7 @@
                 <a class="solum-btn" asp-page="/Risk/Index">Risk gezginine git</a>
             </div>
         </div>
-        @Html.SolumTable(DashboardView.RiskTablosu(Model.RiskPano))
+        @Html.SolumTable(DashboardView.RiskTable(Model.RiskPano))
     </section>
 
     <div class="argus-split-equal">
@@ -126,7 +126,7 @@
                             <div class="solum-row-desc">Sorumlu: @oge.Sorumlu · SLA: @oge.SLA</div>
                         </div>
                         <div class="solum-row-side">
-                            <span class="@DashboardView.RozetSinifi(oge.Status)">@oge.Status</span>
+                            <span class="@DashboardView.BadgeClass(oge.Status)">@oge.Status</span>
                         </div>
                     </div>
                 }
@@ -164,7 +164,7 @@
     @* Alti esit agirlikli olcum: 4+2 kirilmasi "ilk dort onemli" izlenimi verir,
        o yuzden izgara 6 kolona ayarlanir (Solum --solum-kpi-cols degiskeni). *@
     <div class="argus-kpi-6">
-        @KpiRenderer.RenderGrid(DashboardView.DenetimKpileri(Model))
+        @KpiRenderer.RenderGrid(DashboardView.AuditKpis(Model))
     </div>
 
     <section class="solum-card">
@@ -177,7 +177,7 @@
                 <a class="solum-btn" asp-page="/Audit/Index">Tüm denetimler</a>
             </div>
         </div>
-        @Html.SolumTable(DashboardView.SonDenetimler(Model.RecentAudits))
+        @Html.SolumTable(DashboardView.RecentAuditsTable(Model.RecentAudits))
     </section>
 
     <section class="solum-card">
@@ -187,7 +187,7 @@
                 <div class="solum-card-sub">En çok başarısız olan denetim maddeleri</div>
             </div>
         </div>
-        @Html.SolumTable(DashboardView.RiskliBulgular(Model.TopRiskFindings))
+        @Html.SolumTable(DashboardView.TopFindingsTable(Model.TopRiskFindings))
     </section>
 
     <section class="solum-card">
@@ -197,13 +197,13 @@
                 <div class="solum-card-sub">Lokasyon bazlı denetim performansı</div>
             </div>
         </div>
-        @Html.SolumTable(DashboardView.MagazaSkorlari(Model.LocationScores))
+        @Html.SolumTable(DashboardView.LocationScoresTable(Model.LocationScores))
     </section>
 }
 
 @if (Model.Tab == "ai")
 {
-    @KpiRenderer.RenderGrid(DashboardView.AiKpileri(Model))
+    @KpiRenderer.RenderGrid(DashboardView.AiKpis(Model))
 
     <section class="solum-card">
         <div class="solum-card-head">
@@ -229,7 +229,7 @@
                 <div class="solum-row">
                     <div class="solum-row-main">
                         <div class="solum-row-label">
-                            <span class="@DashboardView.RozetSinifi((string)(oneri.Severity ?? ""))">@(oneri.Severity ?? "-")</span>
+                            <span class="@DashboardView.BadgeClass((string)(oneri.Severity ?? ""))">@(oneri.Severity ?? "-")</span>
                             @(oneri.Title ?? "-")
                         </div>
                         <div class="solum-row-desc">
@@ -283,7 +283,7 @@
                         </div>
                     </div>
                     <div class="solum-row-side">
-                        <span class="@DashboardView.RozetSinifi((string)(satir.Status ?? ""))">@(satir.Status ?? "-")</span>
+                        <span class="@DashboardView.BadgeClass((string)(satir.Status ?? ""))">@(satir.Status ?? "-")</span>
                     </div>
                 </div>
             }

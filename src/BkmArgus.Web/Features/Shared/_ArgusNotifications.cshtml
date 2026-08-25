@@ -54,7 +54,7 @@
                         _ => ""
                     };
                     var gecen = DateTime.Now - b.CreatedAt;
-                    var ne_zaman = gecen.TotalMinutes < 1 ? "şimdi"
+                    var neZaman = gecen.TotalMinutes < 1 ? "şimdi"
                         : gecen.TotalMinutes < 60 ? $"{(int)gecen.TotalMinutes}dk"
                         : gecen.TotalHours < 24 ? $"{(int)gecen.TotalHours}sa"
                         : $"{(int)gecen.TotalDays}g";
@@ -69,13 +69,13 @@
                     <a class="argus-notif-item @(b.IsRead ? "" : "argus-unread")"
                        href="@(linkGuvenli ? b.Link : null)" data-notif-id="@b.Id" onclick="argusNotifOkundu(this)">
                         <span class="solum-badge @renk" aria-hidden="true"></span>
-                        <span style="flex:1;min-width:0">
+                        <span class="argus-grow">
                             <span class="argus-notif-title">@b.Title</span>
                             @if (!string.IsNullOrEmpty(b.Message))
                             {
-                                <span class="argus-notif-msg" style="display:block">@b.Message</span>
+                                <span class="argus-notif-msg argus-stack">@b.Message</span>
                             }
-                            <span class="argus-notif-ago" style="display:block">@ne_zaman</span>
+                            <span class="argus-notif-ago argus-stack">@neZaman</span>
                         </span>
                         @if (!b.IsRead)
                         {

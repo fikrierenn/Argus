@@ -18,16 +18,16 @@ public static class DashboardView
     // ── Polarite: metrigin yonu (KpiDelta sozlesmesi) ────────────────────
     // Risk skoru DUSERSE iyidir. Polarite metrige aittir, karta degil —
     // ayni metrik baska bir ekranda gosterilirse ayni sabit kullanilir.
-    private const KpiPolarity RiskSkoruPolaritesi = KpiPolarity.LowerIsBetter;
+    private const KpiPolarity RiskScorePolarity = KpiPolarity.LowerIsBetter;
 
     /// <summary>Bos liste icin tek-sayfa sarmalayici (dashboard'da sayfalama yok).</summary>
-    private static PagedResult<T> TekSayfa<T>(IReadOnlyList<T> satirlar) =>
+    private static PagedResult<T> SinglePage<T>(IReadOnlyList<T> satirlar) =>
         new(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count));
 
     // ─────────────────────────── ERP RISK SEKMESI ───────────────────────
 
     /// <summary>ERP risk sekmesi kutucuklari.</summary>
-    public static IReadOnlyList<KpiCard> RiskKpileri(DashboardModel m) =>
+    public static IReadOnlyList<KpiCard> RiskKpis(DashboardModel m) =>
     [
         new KpiCard
         {
@@ -75,7 +75,7 @@ public static class DashboardView
     /// turetiliyor (ilk gun -> son gun). Seri iki noktadan kisaysa delta
     /// gosterilmez — olcum yok demektir.
     /// </summary>
-    public static KpiDelta? TrendDeltasi(IReadOnlyList<decimal> seri)
+    public static KpiDelta? TrendDelta(IReadOnlyList<decimal> seri)
     {
         if (seri.Count < 2)
         {
@@ -94,14 +94,14 @@ public static class DashboardView
         // sozlesmesinde hata veriyor, mutlak deger + hareket yeterli.
         var metin = $"{Math.Abs(fark):0.0} puan";
 
-        return new KpiDelta(metin, hareket, RiskSkoruPolaritesi)
+        return new KpiDelta(metin, hareket, RiskScorePolarity)
         {
             Note = "son 30 gün"
         };
     }
 
     /// <summary>En yüksek riskli ürünler tablosu.</summary>
-    public static TableModel<DashboardModel.RiskRow> RiskTablosu(IReadOnlyList<DashboardModel.RiskRow> satirlar) => new()
+    public static TableModel<DashboardModel.RiskRow> RiskTable(IReadOnlyList<DashboardModel.RiskRow> satirlar) => new()
     {
         Columns = new ColumnBuilder<DashboardModel.RiskRow>()
             .Text(r => r.Mekan, "Mekan")
@@ -110,7 +110,7 @@ public static class DashboardView
             .Number(r => r.Skor, "Skor")
             .Text(r => r.Flag, "Bayrak")
             .Build(),
-        Page = TekSayfa(satirlar),
+        Page = SinglePage(satirlar),
         // Satir tiklanabilir: urun-mekan kirilimina gider (eski "Incele" dugmesi).
         RowUrl = r => $"/Urun/Index?id={r.UrunId}&mekanId={r.MekanId}",
         EmptyTitle = "Riskli ürün bulunamadı.",
@@ -120,52 +120,52 @@ public static class DashboardView
     // ─────────────────────────── SAHA DENETIM SEKMESI ───────────────────
 
     /// <summary>Saha denetim kutucuklari (alti esit agirlikli olcum).</summary>
-    public static IReadOnlyList<KpiCard> DenetimKpileri(DashboardModel m)
+    public static IReadOnlyList<KpiCard> AuditKpis(DashboardModel m)
     {
         var k = m.AuditKpi;
         return
         [
-            new KpiCard { Label = "Toplam denetim", Value = Sayi(k?.TotalAudits) },
-            new KpiCard { Label = "Bu ay", Value = Sayi(k?.ThisMonthAudits) },
+            new KpiCard { Label = "Toplam denetim", Value = FormatCount(k?.TotalAudits) },
+            new KpiCard { Label = "Bu ay", Value = FormatCount(k?.ThisMonthAudits) },
             new KpiCard
             {
                 Label = "Uyum oranı",
-                Value = Yuzde(k?.AvgComplianceRate),
-                Tone = UyumTonu(k?.AvgComplianceRate ?? 0)
+                Value = FormatPercent(k?.AvgComplianceRate),
+                Tone = ComplianceTone(k?.AvgComplianceRate ?? 0)
             },
             new KpiCard
             {
                 Label = "Tekrar eden",
-                Value = Sayi(k?.RepeatingFindingCount),
+                Value = FormatCount(k?.RepeatingFindingCount),
                 Tone = (k?.RepeatingFindingCount ?? 0) > 0 ? KpiTone.Warn : KpiTone.Good
             },
             new KpiCard
             {
                 Label = "Sistemik",
-                Value = Sayi(k?.SystemicCount),
+                Value = FormatCount(k?.SystemicCount),
                 Tone = (k?.SystemicCount ?? 0) > 0 ? KpiTone.Bad : KpiTone.Good
             },
-            new KpiCard { Label = "Bekleyen DÖF", Value = Sayi(k?.PendingDofCount), Href = "/Dof" }
+            new KpiCard { Label = "Bekleyen DÖF", Value = FormatCount(k?.PendingDofCount), Href = "/Dof" }
         ];
     }
 
     /// <summary>Son denetimler tablosu.</summary>
-    public static TableModel<DashboardModel.RecentAuditRow> SonDenetimler(IReadOnlyList<DashboardModel.RecentAuditRow> satirlar) => new()
+    public static TableModel<DashboardModel.RecentAuditRow> RecentAuditsTable(IReadOnlyList<DashboardModel.RecentAuditRow> satirlar) => new()
     {
         Columns = new ColumnBuilder<DashboardModel.RecentAuditRow>()
             .Text(r => r.LocationName, "Lokasyon")
             .Text(r => r.AuditDate.ToString("dd.MM.yyyy"), "Tarih")
-            .Number(r => Yuzde(r.ComplianceRate), "Uyum")
+            .Number(r => FormatPercent(r.ComplianceRate), "Uyum")
             .Text(r => r.IsFinalized ? "Kesin" : "Taslak", "Durum")
             .Build(),
-        Page = TekSayfa(satirlar),
+        Page = SinglePage(satirlar),
         RowUrl = r => $"/Denetimler/Detay?id={r.Id}",
         EmptyTitle = "Denetim kaydı yok.",
         EmptyHint = "Saha denetimi girildikçe burada listelenir."
     };
 
     /// <summary>En riskli bulgular tablosu.</summary>
-    public static TableModel<DashboardModel.TopRiskFindingRow> RiskliBulgular(IReadOnlyList<DashboardModel.TopRiskFindingRow> satirlar) => new()
+    public static TableModel<DashboardModel.TopRiskFindingRow> TopFindingsTable(IReadOnlyList<DashboardModel.TopRiskFindingRow> satirlar) => new()
     {
         Columns = new ColumnBuilder<DashboardModel.TopRiskFindingRow>()
             .Text(r => r.ItemText, "Madde")
@@ -174,51 +174,51 @@ public static class DashboardView
             .Number(r => r.AvgRiskScore.ToString("0.0"), "Ort. risk")
             .Check(r => r.IsSystemic, "Sistemik")
             .Build(),
-        Page = TekSayfa(satirlar),
+        Page = SinglePage(satirlar),
         EmptyTitle = "Bulgu yok.",
         EmptyHint = "Tamamlanan denetimlerden sonra doldurulur."
     };
 
     /// <summary>Mağaza skorlari tablosu.</summary>
-    public static TableModel<DashboardModel.LocationScoreRow> MagazaSkorlari(IReadOnlyList<DashboardModel.LocationScoreRow> satirlar) => new()
+    public static TableModel<DashboardModel.LocationScoreRow> LocationScoresTable(IReadOnlyList<DashboardModel.LocationScoreRow> satirlar) => new()
     {
         Columns = new ColumnBuilder<DashboardModel.LocationScoreRow>()
             .Text(r => r.LocationName, "Lokasyon")
             .Number(r => r.AuditCount, "Denetim")
-            .Number(r => Yuzde(r.AvgComplianceRate), "Ort. uyum")
+            .Number(r => FormatPercent(r.AvgComplianceRate), "Ort. uyum")
             .Text(r => r.LastAuditDate?.ToString("dd.MM.yyyy") ?? "—", "Son denetim")
             .Number(r => r.RepeatingFindingCount, "Tekrar eden")
             .Build(),
-        Page = TekSayfa(satirlar),
+        Page = SinglePage(satirlar),
         EmptyTitle = "Lokasyon skoru yok."
     };
 
     // ─────────────────────────── AI SEKMESI ─────────────────────────────
 
     /// <summary>AI kutucuklari.</summary>
-    public static IReadOnlyList<KpiCard> AiKpileri(DashboardModel m)
+    public static IReadOnlyList<KpiCard> AiKpis(DashboardModel m)
     {
         var k = m.AiKpi;
         return
         [
-            new KpiCard { Label = "Aktif insight", Value = Sayi(k?.ActiveInsights), Hint = "Proaktif öneriler" },
-            new KpiCard { Label = "Onay oranı", Value = Yuzde(k?.ApprovalRate), Hint = "Kabul edilen öneriler" },
-            new KpiCard { Label = "Haftalık çalışma", Value = Sayi(k?.WeeklyExecutions), Hint = "Son 7 gün skill çalışma" },
-            new KpiCard { Label = "Ort. güven", Value = Yuzde(k?.AvgConfidence), Hint = "AI güven skoru" }
+            new KpiCard { Label = "Aktif insight", Value = FormatCount(k?.ActiveInsights), Hint = "Proaktif öneriler" },
+            new KpiCard { Label = "Onay oranı", Value = FormatPercent(k?.ApprovalRate), Hint = "Kabul edilen öneriler" },
+            new KpiCard { Label = "Haftalık çalışma", Value = FormatCount(k?.WeeklyExecutions), Hint = "Son 7 gün skill çalışma" },
+            new KpiCard { Label = "Ort. güven", Value = FormatPercent(k?.AvgConfidence), Hint = "AI güven skoru" }
         ];
     }
 
     // ─────────────────────────── Bicimleyiciler ─────────────────────────
 
-    private static string Sayi(int? deger) => (deger ?? 0).ToString("N0", Tr);
+    private static string FormatCount(int? deger) => (deger ?? 0).ToString("N0", TrCulture);
 
-    private static string Yuzde(decimal? deger) => $"%{(deger ?? 0).ToString("0.0", Tr)}";
+    private static string FormatPercent(decimal? deger) => $"%{(deger ?? 0).ToString("0.0", TrCulture)}";
 
-    private static readonly System.Globalization.CultureInfo Tr =
+    private static readonly System.Globalization.CultureInfo TrCulture =
         System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
 
     /// <summary>Uyum orani tonu: eski ekranin esikleri korundu (%90 / %70).</summary>
-    private static KpiTone UyumTonu(decimal oran) => oran switch
+    private static KpiTone ComplianceTone(decimal oran) => oran switch
     {
         >= 90m => KpiTone.Good,
         >= 70m => KpiTone.Warn,
@@ -230,7 +230,7 @@ public static class DashboardView
     /// (Solum sozlesmesi): risk dususunde ok asagi bakar ama renk yesildir.
     /// Solum'un MovementGlyph'i renderer icinde protected oldugu icin burada.
     /// </summary>
-    public static string HareketOku(KpiMovement hareket) => hareket switch
+    public static string MovementGlyph(KpiMovement hareket) => hareket switch
     {
         KpiMovement.Increase => "↑",
         KpiMovement.Decrease => "↓",
@@ -238,7 +238,7 @@ public static class DashboardView
     };
 
     /// <summary>Ekran okuyucu metni: yon ve yargi yalniz renkte kalmasin.</summary>
-    public static string DeltaErisim(KpiDelta delta)
+    public static string DeltaScreenReaderText(KpiDelta delta)
     {
         var yon = delta.Movement switch
         {
@@ -256,7 +256,7 @@ public static class DashboardView
     }
 
     /// <summary>Durum kodunu Solum rozet sinifina cevirir.</summary>
-    public static string RozetSinifi(string? durum) => (durum ?? "").ToUpperInvariant() switch
+    public static string BadgeClass(string? durum) => (durum ?? "").ToUpperInvariant() switch
     {
         "PASS" or "DONE" or "KESIN" => "solum-badge solum-badge-good",
         "WARN" or "RUNNING" or "QUEUED" or "ORTA" or "BEKLIYOR" => "solum-badge solum-badge-warn",

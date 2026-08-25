@@ -130,3 +130,11 @@
 
 /* Kart ve izgara arasi bosluk — .solum-card kendi margin'ini tasimiyor. */
 .solum-card, .solum-kpi-grid { margin-bottom: var(--solum-gap); }
+
+/* ── Kucuk duzen yardimcilari ────────────────────────────────────────────── */
+/* Inline style yerine sinif: razor-conventions.md inline style'i renk/font/border
+   icin yasakliyor; layout icin izin veriyor ama gerekce yorumu istiyor. Uc yerde
+   tekrar ettigi icin sinifa cikarildi (denetim bulgusu 2026-08-25). */
+.argus-stack { display: block; }
+.argus-grow { flex: 1; min-width: 0; }
+.argus-footline { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
