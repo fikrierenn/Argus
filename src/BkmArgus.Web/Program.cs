@@ -109,6 +109,36 @@ if (!app.Environment.IsDevelopment())
 app.UseRouting();
 
 app.UseAuthentication();
+
+// ⚠ GELISTIRME ORTAMI OTURUM ATLAMA (kullanici talebi 2026-08-25).
+// Iki kapi: ortam Development OLMALI + Auth:DevBypassRole DOLU olmali.
+// Bayrak takipli appsettings'e YAZILMAZ; appsettings.Local.json (gitignore)
+// ya da ortam degiskeninden gelir. Uretimde ayarliysa asagidaki dogrulama
+// uygulamayi ACILISTA dusurur — sessizce acik kalmaz.
+DevAuthBypassMiddleware.UretimdeKapaliOldugunuDogrula(app.Configuration, app.Environment);
+
+if (app.Environment.IsDevelopment())
+{
+    var devRol = app.Configuration["Auth:DevBypassRole"];
+    if (!string.IsNullOrWhiteSpace(devRol))
+    {
+        var devAyar = new DevAuthBypassOptions
+        {
+            Role = devRol,
+            UserId = app.Configuration.GetValue("Auth:DevBypassUserId", 1),
+            UserName = app.Configuration["Auth:DevBypassName"] ?? "Gelistirici (DEV)"
+        };
+
+        // Acik oldugu HER acilista gorunur olsun — sessiz bir kimlik atlama
+        // en tehlikeli halidir.
+        Log.Warning("*** DEV OTURUM ATLAMA AKTIF *** Rol={Rol} KullaniciId={Id}. " +
+                    "Bu yalniz Development ortaminda calisir; uretimde uygulama baslamaz.",
+                    devAyar.Role, devAyar.UserId);
+
+        app.UseMiddleware<DevAuthBypassMiddleware>(devAyar);
+    }
+}
+
 app.UseAuthorization();
 
 app.MapStaticAssets();
