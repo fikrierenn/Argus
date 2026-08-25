@@ -58,8 +58,16 @@
                         : gecen.TotalMinutes < 60 ? $"{(int)gecen.TotalMinutes}dk"
                         : gecen.TotalHours < 24 ? $"{(int)gecen.TotalHours}sa"
                         : $"{(int)gecen.TotalDays}g";
+                    @* GUVENLIK: Link DB'den geliyor. Razor niteligi HTML kacirir ama
+                       SEMA denetlemez — javascript:/data: oldugu gibi gecerdi. Solum'un
+                       UrlGuard'i tablo/KPI adreslerinde zaten devrede; elle yazilan bu
+                       anchor onu atliyordu (guvenlik denetimi 2026-08-25).
+                       IsAllowed kullaniliyor, Href DEGIL: Href reddedilen semada HATA
+                       atiyor ve bu parca ust cubukta HER sayfada calisiyor — tek bozuk
+                       satir butun paneli dusururdu. Guvensiz adres baglanti YAPILMAZ. *@
+                    var linkGuvenli = Solum.Web.Components.UrlGuard.IsAllowed(b.Link);
                     <a class="argus-notif-item @(b.IsRead ? "" : "argus-unread")"
-                       href="@(b.Link ?? "#")" data-notif-id="@b.Id" onclick="argusNotifOkundu(this)">
+                       href="@(linkGuvenli ? b.Link : null)" data-notif-id="@b.Id" onclick="argusNotifOkundu(this)">
                         <span class="solum-badge @renk" aria-hidden="true"></span>
                         <span style="flex:1;min-width:0">
                             <span class="argus-notif-title">@b.Title</span>

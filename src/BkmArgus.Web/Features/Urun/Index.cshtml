@@ -1,5 +1,9 @@
 @page "{id:int?}"
 @model UrunModel
+@* GUVENLIK: bu sayfa yetki kapisi OLMADAN duruyordu — anonim istek risk skoru,
+   stok, iade orani, AI ozeti ve DOF sorumlusunu donduruyordu (guvenlik denetimi
+   2026-08-25, plan 04 Faz 4). Dashboard satir-tiklama hedefi burasi. *@
+@attribute [Authorize]
 @{
     ViewData["Title"] = "Urun Detay";
     ViewData["Subtitle"] = "Kanit odasi ve DOF aksiyonu";

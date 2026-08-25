@@ -6,27 +6,39 @@
     (bilgi kaybi yok, yer degisti).
 *@
 @{
-    // Gelistirmede sunucu/veritabani adi da gosterilir; uretimde yalniz
-    // baglanti var/yok — ic yapi bilgisi sizmasin (security-principles.md §7).
+    // GUVENLIK: durum bilgisi yalniz KIMLIGI DOGRULANMIS kullaniciya. Onceki hali
+    // ortam kosuluna bagliydi, kimlige degil — anonim ziyaretci hem "baglanti
+    // var/yok" teyidi aliyor hem her istekte bir DB baglanti denemesi tetikliyordu
+    // (guvenlik denetimi 2026-08-25, plan 04 Faz 4).
+    // Gelistirmede sunucu/veritabani adi da gosterilir; uretimde yalniz var/yok
+    // (security-principles.md §7).
+    var oturumVar = User.Identity?.IsAuthenticated == true;
     BkmArgus.Web.Data.SqlDb.DbInfo? dbBilgi = null;
-    bool dbAcik;
-    if (Env.IsDevelopment())
+    bool? dbAcik = null;
+
+    if (oturumVar)
     {
-        dbBilgi = await Db.GetDbInfoAsync();
-        dbAcik = dbBilgi is not null;
-    }
-    else
-    {
-        dbAcik = await Db.CanConnectAsync();
+        if (Env.IsDevelopment())
+        {
+            dbBilgi = await Db.GetDbInfoAsync();
+            dbAcik = dbBilgi is not null;
+        }
+        else
+        {
+            dbAcik = await Db.CanConnectAsync();
+        }
     }
 }
 <footer class="solum-footer">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px">
         <span>BKM Denetim — Risk İzleme</span>
-        <span class="argus-status">
-            <span class="argus-status-dot @(dbAcik ? "argus-status-ok" : "argus-status-down")"></span>
-            <span>@(dbAcik ? "Bağlantı OK" : "Bağlantı yok")</span>
-        </span>
+        @if (dbAcik is bool acik)
+        {
+            <span class="argus-status">
+                <span class="argus-status-dot @(acik ? "argus-status-ok" : "argus-status-down")"></span>
+                <span>@(acik ? "Bağlantı OK" : "Bağlantı yok")</span>
+            </span>
+        }
         @if (Env.IsDevelopment() && dbBilgi is not null)
         {
             <span>DB: @dbBilgi.ServerName / @dbBilgi.DbName</span>
