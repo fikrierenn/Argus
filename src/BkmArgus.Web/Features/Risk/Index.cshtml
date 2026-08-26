@@ -62,11 +62,8 @@
                            bunu "bu satir 30 gunluk" diye okuyup secim var saniyordu.
                            Tek deger oldugu icin yeri burasi. Donem suzgeci gelirse
                            kolon geri gelir (plan 06 Faz 5). *@
-                        @Model.Rows.Count satır · sayfa @Model.PageIndex · dönem: son 30 gün
-                        @if (Model.Rows.Count == Model.PageSize)
-                        {
-                            <text>· sayfa dolu, devamı olabilir</text>
-                        }
+                        @Model.Rows.Count / @ArgusFormat.Count(Model.GercekToplam) satır ·
+                        sayfa @Model.PageIndex · dönem: son 30 gün
                     </div>
                 </div>
                 <div class="solum-row-side">
@@ -76,7 +73,7 @@
                 </div>
             </div>
 
-            @Html.SolumTable(RiskView.Table(Model.Rows, Model.SayfaBos))
+            @Html.SolumTable(RiskView.Table(Model))
 
             @* Sayfalama: gizli input yığını yerine rota verisi. Sınırda düğme
                yerine METİN gösterilir — tıklanamaz düğme kullanıcıyı yanıltır

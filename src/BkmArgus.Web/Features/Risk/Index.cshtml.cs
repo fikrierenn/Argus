@@ -51,24 +51,34 @@ public class RiskModel : PageModel
     public IReadOnlyList<int> PageSizeOptions { get; } = new[] { 20, 50, 100, 200 };
 
     public bool HasPrevPage => PageIndex > 1;
-    public bool HasNextPage => Rows.Count == PageSize;
 
     /// <summary>
-    /// `rpt.sp_RiskList` icindeki sert sayfa siniri (`IF @PageSize > 200 SET
-    /// @PageSize = 200`). Disa aktarim bu yuzden tek cagrida en fazla 200 satir
-    /// alabiliyordu — 5000 istemek hicbir sey degistirmiyordu.
+    /// Sonraki sayfa VAR MI — artik tahmin degil, olcum.
+    ///
+    /// Eskiden `Rows.Count == PageSize` idi: sayfa tam doluysa "devami var"
+    /// SANILIYOR, tam sinirda biten kumede kullanici bos sayfaya
+    /// goturuluyordu. SP `COUNT(*) OVER()` ile gercek toplami donduruyor
+    /// (plan 06 S6). Olculdu: suzgecsiz kume 32.980 satir; ekran "50 satir"
+    /// yaziyordu ve bunu TOPLAM gibi sunuyordu.
     /// </summary>
-    private const int SpSayfaSiniri = 200;
+    public bool HasNextPage => PageIndex * PageSize < GercekToplam;
 
-    /// <summary>Disa aktarimin sert ust siniri — asilirsa dosya adinda GORUNUR.</summary>
-    private const int DisaAktarimUstSinir = 5000;
+    /// <summary>Suzgece uyan toplam satir. Bos kumede 0.</summary>
+    public int GercekToplam { get; private set; }
+
+    /// <summary>
+    /// Disa aktarimin sert ust siniri — asilirsa dosya adinda GORUNUR.
+    /// 5000'di; o sayi sayfa dongusunun (25 cagri) pratik siniriydi. Tek
+    /// cagriya inince gercek sinir bellek/dosya boyutu oldu.
+    /// </summary>
+    private const int DisaAktarimUstSinir = 50000;
 
     /// <summary>
     /// Bos sayfa mi (veri bitti) yoksa gercekten kayit yok mu. Ikisi ayni
     /// mesaji gorurse kullanici suzgecini suclar; oysa veri bitmistir
     /// (denetim bulgusu 3.4).
     /// </summary>
-    public bool SayfaBos => Rows.Count == 0 && PageIndex > 1;
+    public bool SayfaBos => Rows.Count == 0 && (PageIndex > 1 || GercekToplam > 0);
 
     /// <summary>
     /// Secenek listesinde KARSILIGI OLMAYAN suzgec degerleri. Bunlar SP'ye
@@ -147,6 +157,9 @@ public class RiskModel : PageModel
                 PageSize
             });
 
+        // Toplam her satirda ayni deger (pencere fonksiyonu); bos kumede 0.
+        GercekToplam = data.Count > 0 ? data[0].TotalCount : 0;
+
         Rows = data.Select(row => new RiskRow(
             row.StokId,
             row.MekanId,
@@ -176,60 +189,43 @@ public class RiskModel : PageModel
         var tipCsv = tip is { Length: > 0 } ? string.Join(",", tip) : null;
 
         // KRITIK BULGU (2026-08-26): burada `Top = 5000, PageSize = 5000`
-        // yaziliydi ve SESSIZCE 200 satir donuyordu. Sebep SP'de:
+        // yaziliyordu ve SESSIZCE 200 satir donuyordu. Sebep SP'de:
         //   SET @PageSize = COALESCE(@PageSize, @Top, 50);   -- 5000
         //   IF @PageSize > 200 SET @PageSize = 200;          -- kirpiliyor
         // @Top da inert: COALESCE @PageSize dolu oldugu icin ona hic bakmiyor.
-        // Sonuc: denetci 3.400 satirlik suzgecle "Excel indir"e basiyor, 200
-        // satirlik dosya aliyor ve bunu TAM liste sanip rapor yaziyordu.
-        // Cozum: SP'yi degistirmeden sayfa dongusu (SP tarafi plan 06 Faz 5).
-        var tumSatirlar = new List<RiskRowRaw>();
-        var sayfa = 1;
-        var kirpildi = false;
+        // Denetci 3.400 satirlik suzgecle "Excel indir"e basiyor, 200 satirlik
+        // dosya aliyor ve bunu TAM liste sanip rapor yaziyordu.
+        //
+        // ILK COZUM sayfa dongusuydu (25 cagri, olculdu: 5000 satir 28 sn).
+        // SIMDI SP'de `@Export bit` var (sql/80): kirpma atlanir, TEK cagri.
+        // Olculdu: filtresiz disa aktarim tek cagrida 32.980 satir donuyor.
+        var data = await _db.QueryAsync<RiskRowRaw>(
+            "rpt.sp_RiskList",
+            new
+            {
+                Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
+                MinSkor = minSkor,
+                MaxSkor = maxSkor,
+                KesimBas = kesimBas?.Date,
+                KesimBit = kesimBit?.Date,
+                MekanCSV = mekanCsv,
+                TipCSV = tipCsv,
+                OrderBy = NormalizeOrderBy(orderBy),
+                OrderDir = NormalizeOrderDir(orderDir),
+                Export = true
+            });
 
-        while (true)
+        // Bellek/dosya guvenligi icin ust sinir korunuyor; asilirsa SESSIZ
+        // KALMIYOR — dosya adinda ve logda gorunuyor.
+        var kirpildi = data.Count > DisaAktarimUstSinir;
+        if (kirpildi)
         {
-            var dilim = await _db.QueryAsync<RiskRowRaw>(
-                "rpt.sp_RiskList",
-                new
-                {
-                    Top = SpSayfaSiniri,
-                    Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
-                    MinSkor = minSkor,
-                    MaxSkor = maxSkor,
-                    KesimBas = kesimBas?.Date,
-                    KesimBit = kesimBit?.Date,
-                    MekanCSV = mekanCsv,
-                    TipCSV = tipCsv,
-                    OrderBy = NormalizeOrderBy(orderBy),
-                    OrderDir = NormalizeOrderDir(orderDir),
-                    Page = sayfa,
-                    PageSize = SpSayfaSiniri
-                });
-
-            tumSatirlar.AddRange(dilim);
-
-            // Son sayfa: SP sinirindan az satir dondu.
-            if (dilim.Count < SpSayfaSiniri)
-            {
-                break;
-            }
-
-            // Ust sinir: sonsuz donguye karsi. Asilirsa SESSIZ KALMAZ —
-            // hem loglanir hem DOSYA ADINDA gorunur.
-            if (tumSatirlar.Count >= DisaAktarimUstSinir)
-            {
-                kirpildi = true;
-                _logger.LogWarning(
-                    "Risk disa aktarimi ust sinira dayandi: {Satir} satir, suzgec search={Search} mekan={Mekan} tip={Tip}",
-                    tumSatirlar.Count, search, mekanCsv, tipCsv);
-                break;
-            }
-
-            sayfa++;
+            _logger.LogWarning(
+                "Risk disa aktarimi ust sinira dayandi: {Toplam} satirin ilk {Sinir} tanesi alindi. " +
+                "suzgec search={Search} mekan={Mekan} tip={Tip}",
+                data.Count, DisaAktarimUstSinir, search, mekanCsv, tipCsv);
+            data = data.Take(DisaAktarimUstSinir).ToList();
         }
-
-        var data = tumSatirlar;
 
         var bytes = _export.Export(data, "Risk Listesi", new Dictionary<string, Func<RiskRowRaw, object?>>
         {
@@ -334,6 +330,9 @@ public class RiskModel : PageModel
         public bool FlagHizliDevir { get; init; }
         public decimal StokMiktar { get; init; }
         public int? SonHareketGun { get; init; }
+
+        /// <summary>Suzgece uyan GERCEK toplam (SP: COUNT(*) OVER()).</summary>
+        public int TotalCount { get; init; }
     }
 
     /// <summary>

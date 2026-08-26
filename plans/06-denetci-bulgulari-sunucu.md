@@ -279,3 +279,128 @@ Denetim silme sertleştirmesi canlı şema ölçümü, migration uygulaması ve 
 gerektiriyor; DB erişilemediği için başlanmadı. `sql/38` ile canlı SP'nin
 ayrıştığı ölçüldüğü için (S12) **şemayı dosyadan varsaymak yasak** —
 `before-major-change.md §5`.
+
+---
+
+## Faz 2 + Faz 5 (kısmi) KAPANDI — 2026-08-26
+
+### Uygulanan migration'lar (her biri iki kez koşuldu → idempotent)
+
+| Dosya | İçerik |
+|---|---|
+| `sql/79_audit_delete_scope.sql` | `sp_Audit_Delete` kapsam + transaction + Türkçe THROW + iz · `sp_Audit_List` gün sonu + `TotalCount` |
+| `sql/80_risk_total_export.sql` | `sp_AuditLog_Write` sonuç kümesi → OUTPUT · `sp_RiskList` `TotalCount` + `@Export` kipi |
+| `sql/81_gun_sonu_tip_duzeltme.sql` | `DATEADD(second, …)` `date` tipinde çalışmıyordu (9810) — iki SP'de |
+
+### S2 — denetim silme (ölçümlerle)
+
+Kapsam kararı ölçüme dayanıyor: `audit.Audits`'te **`LocationId` YOK** (yalnız
+serbest metin `LocationName`), yani mekan kapsamı kurulamaz. Sahiplik tek
+kolonda: `AuditorId`. Hangi kimlik uzayı olduğu veriden anlaşılmıyordu (tüm
+kayıtlarda 1, id 1 hem `audit.Users` hem `ref.Personnel`'de var); yazan yer
+arandı → `sql/99_smoke_tests.sql:21` `audit.Users.Id`.
+
+Kural: ADMIN/YONETICI her denetimi, diğerleri yalnız kendi denetimini
+(`AuditorId = @KullaniciId`). Kimlik gelmezse **reddedilir** (fail-closed).
+
+| Smoke | Sonuç |
+|---|---|
+| Kimlik yok | `50212 — kullanici kimligi gelmedi` |
+| Başka denetçinin kaydı, DENETCI | `50213 — silme yetkiniz yok` |
+| Kesinleştirilmiş kayıt, ADMIN | `50211 — Kesinlestirilmis denetim silinemez` |
+| Sahibi, taslak kayıt | Silindi + iz yazıldı (transaction içinde) |
+| Uçtan uca tarayıcı (id 21) | "Denetim silindi." + `AuditLog` **tek** satır (152 karakter detay) |
+
+### S6 — gerçek toplam
+
+`rpt.sp_RiskList` artık `COUNT(*) OVER()` döndürüyor. **Ölçüm: süzgeçsiz küme
+32.980 satır**; ekran "50 satır" yazıyor ve bunu toplam gibi sunuyordu.
+`PagedResult` gerçek toplamla beslendiği için **Solum'un sayfalayıcısı ilk kez
+çiziliyor** (`solum-pager`, `solum-page-current`, `solum-pager-info` — ölçüldü).
+`HasNextPage` artık tahmin değil: `PageIndex * PageSize < GercekToplam`.
+
+### I7 — dışa aktarım tek çağrı
+
+`@Export bit` kirpmayı atlıyor. Ölçüm: filtresiz dışa aktarım **tek çağrıda
+32.980 satır** (önce: sessizce 200; ara çözüm: 25 çağrı / 28 sn).
+
+### S7 — bitiş tarihi
+
+`AuditDate <= @Bitis` gün sonuna çekildi. `?EndDate=2026-08-26` artık 200
+dönüyor ve bugünün denetimlerini içeriyor.
+
+---
+
+## Faz 2/5 sırasında ÇIKAN DÖRT YENİ BULGU
+
+### S14 — "Yeni denetim" TAMAMEN KIRIKTI (kapandı)
+
+`Features/Audit/Create.cshtml.cs` dokuz özellik gönderiyordu (`LocationId`,
+`AuditorUserId`, `CreatedByUserId`), canlı SP yedi farklı ad bekliyor
+(`@AuditorId`…). Dapper stored-procedure çağrısında verilen her özelliği
+parametre olarak gönderir → **hata 8144: "çok fazla bağımsız değişken
+belirtilmiş"**. Kanıt: aynı parametre kümesiyle `EXEC` (transaction + rollback)
+→ 8144.
+
+Yani denetim modülünün giriş kapısı çalışmıyordu ve bunu hiçbir test
+yakalamıyordu. Ek olarak `AuditorId` elle `1` yazılıyordu — kapsam kapısı tam
+bu alana dayandığı için düzeltme zorunluydu.
+
+Kapandı: gerçek oturum kimliği, doğru parametre kümesi, `SqlException` köprüsü,
+kimlik yoksa fail-closed. **Ölçüm: POST → `/Audit/Edit/21`, `AuditorId = 1`
+(oturumdaki kullanıcı).**
+
+### S15 — `DATEADD(second, …)` `date` tipinde çalışmaz (kapandı)
+
+`DATEADD(second, -1, DATEADD(day, 1, CAST(@Bitis AS date)))` → **9810**.
+Migration iki kez sorunsuz uygulandı, `/Audit` de 200 döndü (süzgeç boşken o
+satır hiç çalışmıyor); kusur yalnız **parametreli** smoke ile göründü:
+`?EndDate=…` → 500. Aynı hatalı kalıp `sql/78`'deki `sp_AuditLog_List` içinde
+de vardı ve hiç tetiklenmemişti — bir kusuru onarınca aynı kalıbın başka
+nerede olduğunu aramak gerekiyor.
+
+### S16 — mükerrer denetim izi (kapandı)
+
+SP iz yazmaya başlayınca C# tarafındaki yazım ikinci satırı üretti: aynı silme
+için `AuditLog` Id 9 (SP, tam detay) **ve** Id 10 (C#, boş). Mükerrer iz, izin
+kendisine olan güveni bozar. C# kopyası kaldırıldı; ölçüm: kayıt 21 → tek satır.
+
+### S17 — `sp_AuditLog_Write` sonuç kümesi çağıranı kaydırıyordu (kapandı)
+
+Faz 1'de `SELECT SCOPE_IDENTITY()` yazmıştım. `sp_Audit_Delete` içinden
+çağrılınca bu satır **çağıranın ilk sonuç kümesi** oldu ve tanı amaçlı
+SELECT'imi gizledi. `ExecuteAsync` için zararsız ama `QuerySingle` kullanan bir
+çağıran yanlış kümeyi okur. `@LogId … OUTPUT` yapıldı.
+
+---
+
+## S8 YENİDEN TANIMLANDI — ürün ile DÖF arasında BAĞ YOK
+
+Plan "ürün bazlı DÖF listesi SP'si" diyordu. Ölçüm başka bir şey gösterdi:
+
+- `dof.Findings`'te ürün kolonu **yok**; tek bağ mekanizması `SourceKey`.
+- Mevcut **84 bulgunun tamamı** `SAHA_DENETIM / DENETIM_BULGU` ve anahtar
+  biçimi `AUDIT_{denetimId}_RESULT_{sonucId}`. ERP risk kanalı **hiç** bulgu
+  üretmemiş.
+- Ürün ekranındaki "DÖF başlat" düğmesi `/Dof/Create?urunId=…&mekanId=…`
+  adresine gidiyor ama `Dof/Create` bu iki değeri **hiç okumuyor** —
+  `SourceKey` serbest metin form alanı. Yani üründen açılan DÖF de o ürüne
+  bağlanmıyor.
+- `dof.sp_Finding_Create` yalnız `@SourceKey` alıyor; sistem/nesne kodları SP
+  içinde sabit.
+
+Sonuç: bir liste SP'si yazılsa **her ürün için boş dönerdi** — yani kaldırdığımız
+"DÖF kaydı yok" yalanının SQL'le tekrarı olurdu. Doğru iş sırası:
+1. `sp_Finding_Create`'e opsiyonel `@SourceSystemKodu`/`@SourceObjectKodu`,
+2. `Dof/Create` ürün bağlamını okuyup kanonik `SourceKey` üretsin,
+3. ancak sonra ürün bazlı liste SP'si anlam kazanır.
+
+Bu, tek bir ekran düzeltmesi değil **kanal bağlama** işi; ayrı faz olarak
+duruyor (S8a/S8b/S8c).
+
+## Kalan
+
+- **Faz 3** (DÖF kapsam kapısı + ADMIN atlama kararı) — domain kararı bekliyor.
+- **S9** (kesim aralığı semantiği) — `bkmargus-etl` danışmanı.
+- **I11** (`sp_RiskList` snapshot-yok bayrağı) — çağıran sözleşmesini değiştirir.
+- **I13** (denetim listesi sayfalama) — artık gerçek toplam var, sayfalama eklenebilir.

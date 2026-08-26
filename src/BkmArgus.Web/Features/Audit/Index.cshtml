@@ -38,7 +38,7 @@
         <div>
             <h3 class="solum-card-title">Denetim listesi</h3>
             <div class="solum-card-sub">
-                @Model.Audits.Count kayıt@(Model.Kirpildi ? " (sınıra dayandı)" : "")
+                @Model.Audits.Count / @ArgusFormat.Count(Model.GercekToplam) kayıt
             </div>
         </div>
         <div class="solum-row-side">
@@ -52,7 +52,8 @@
     @if (Model.Kirpildi)
     {
         <div class="solum-alert solum-alert-warn" role="status">
-            En yeni @IndexModel.Limit denetim gösteriliyor — daha eskiler listede olmayabilir.
+            Süzgece uyan <strong>@ArgusFormat.Count(Model.GercekToplam)</strong> denetimden
+            en yenisi @Model.Audits.Count tanesi gösteriliyor — daha eskiler listede yok.
             Süzgeci daraltın (tarih aralığı ya da mekan).
         </div>
     }

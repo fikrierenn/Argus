@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BkmArgus.Web.Data;
-using BkmArgus.Web.Domain;
-using BkmArgus.Web.Services;
 using Microsoft.Data.SqlClient;
 using System.Security.Claims;
 
@@ -13,16 +11,14 @@ public class IndexModel : PageModel
 {
     private readonly SqlDb _db;
     private readonly ILogger<IndexModel> _logger;
-    private readonly AuditTrail _iz;
 
     /// <summary>SP'nin cektigi kayit siniri — asilirsa "N kayit" TOPLAM DEGILDIR.</summary>
     public const int Limit = 100;
 
-    public IndexModel(SqlDb db, ILogger<IndexModel> logger, AuditTrail iz)
+    public IndexModel(SqlDb db, ILogger<IndexModel> logger)
     {
         _db = db;
         _logger = logger;
-        _iz = iz;
     }
 
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
@@ -43,7 +39,15 @@ public class IndexModel : PageModel
     /// goruyor, en eski 40'i hic gormuyordu — hicbir uyari da yoktu
     /// (denetim bulgusu 5.5).
     /// </summary>
-    public bool Kirpildi => Audits.Count >= Limit;
+    public bool Kirpildi => GercekToplam > Audits.Count;
+
+    /// <summary>
+    /// Suzgece uyan GERCEK kayit sayisi — SP artik `COUNT(*) OVER()` ile
+    /// donduruyor (plan 06 S7). Onceden bilinmiyordu; ekran sayfa satir
+    /// sayisini toplam sanip gosteriyordu. Olculdu: risk tarafinda ayni kusur
+    /// 50 satiri 32.980'in yerine koyuyordu.
+    /// </summary>
+    public int GercekToplam { get; private set; }
 
     public async Task OnGetAsync()
     {
@@ -63,6 +67,9 @@ public class IndexModel : PageModel
             IsFinalized,
             Top = Limit
         });
+
+        // Gercek toplam her satirda ayni deger (pencere fonksiyonu); bos kumede 0.
+        GercekToplam = Audits.Count > 0 ? Audits[0].TotalCount : 0;
     }
 
     /// <summary>
@@ -79,19 +86,20 @@ public class IndexModel : PageModel
     {
         try
         {
-            // Silinen kaydin OZETI once alinir: silindikten sonra iz icin
-            // okuyacak bir sey kalmaz (CASCADE sonuclari da goturur).
-            var ozet = Audits.FirstOrDefault(a => a.Id == id);
-
-            await _db.ExecuteAsync("audit.sp_Audit_Delete", new { AuditId = id });
-
-            // Denetim izi: geri alinamaz yikici islem (security-principles.md).
-            await _iz.YazAsync(AuditAction.DenetimSilme, "audit.Audits",
-                KullaniciId(), id,
-                eskiDeger: ozet is null
-                    ? null
-                    : $"Mekan: {ozet.LocationName} · Tarih: {ozet.AuditDate:yyyy-MM-dd} · " +
-                      $"Madde: {ozet.TotalItems} · Rapor no: {ozet.ReportNo ?? "—"}");
+            // Kapsam kapisi ve DENETIM IZI artik SP'de (sql/79): kimlik + rol
+            // gecirilir, karar ve kayit SQL'de olur.
+            //
+            // BURADA ESKIDEN IKINCI BIR IZ YAZIMI VARDI ve olculdu (2026-08-26):
+            // ayni silme icin AuditLog'a IKI satir dusuyordu — Id 9 (SP, tam
+            // detay: mekan/tarih/rapor no/silinen madde+fotograf/rol) ve Id 10
+            // (C#, bos). Mukerrer iz, izin kendisine olan guveni bozar: "kac
+            // kez silindi" sorusunun cevabi yanlis cikar. Tek yazan SP.
+            await _db.ExecuteAsync("audit.sp_Audit_Delete", new
+            {
+                AuditId = id,
+                KullaniciId = KullaniciId(),
+                RolKodu = User.FindFirstValue(ClaimTypes.Role)
+            });
 
             TempData["StatusMessage"] = "Denetim silindi.";
         }
@@ -126,5 +134,8 @@ public class IndexModel : PageModel
         public int TotalItems { get; init; }
         public int PassedItems { get; init; }
         public int FailedItems { get; init; }
+
+        /// <summary>Suzgece uyan toplam kayit (SP: COUNT(*) OVER()).</summary>
+        public int TotalCount { get; init; }
     }
 }

@@ -68,8 +68,7 @@ public static class RiskView
     /// bulunamadi. Suzgeci genisletin" diyordu; kullanici saglam suzgecini
     /// bozuyordu (denetim bulgusu 3.4).
     /// </summary>
-    public static TableModel<RiskModel.RiskRow> Table(
-        IReadOnlyList<RiskModel.RiskRow> satirlar, bool sayfaBos = false) => new()
+    public static TableModel<RiskModel.RiskRow> Table(RiskModel m) => new()
     {
         Columns = new ColumnBuilder<RiskModel.RiskRow>()
             .Text(r => r.Mekan, "Mekan")
@@ -83,10 +82,14 @@ public static class RiskView
             .Numeric(r => ArgusFormat.Quantity(r.StokAdet), "Stok")
             .Numeric(r => $"{r.SonHareketGun} gün", "Son hareket")
             .Build(),
-        Page = new PagedResult<RiskModel.RiskRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count)),
+        // GERCEK toplam veriliyor (plan 06 S6). Eskiden `satirlar.Count`
+        // yaziliyordu, yani "toplam" = sayfadaki satir sayisi; PageCount 1
+        // cikiyor ve Solum'un sayfalayicisi HIC cizilmiyordu. Olculdu:
+        // suzgecsiz kume 32.980 satir, ekran "50 satir" diyordu.
+        Page = new PagedResult<RiskModel.RiskRow>(m.Rows, m.GercekToplam, m.PageIndex, m.PageSize),
         RowUrl = r => $"/Urun/Index?id={r.Id}&mekanId={r.MekanId}",
-        EmptyTitle = sayfaBos ? "Bu sayfada kayıt yok." : "Risk kaydı bulunamadı.",
-        EmptyHint = sayfaBos
+        EmptyTitle = m.SayfaBos ? "Bu sayfada kayıt yok." : "Risk kaydı bulunamadı.",
+        EmptyHint = m.SayfaBos
             ? "Veri bitti — önceki sayfaya dönün. Süzgeciniz çalışıyor."
             : "Süzgeci genişletin. Kesim günü seçtiyseniz o güne ait snapshot olmayabilir."
     };
