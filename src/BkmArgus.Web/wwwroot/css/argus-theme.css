@@ -138,3 +138,9 @@
 .argus-stack { display: block; }
 .argus-grow { flex: 1; min-width: 0; }
 .argus-footline { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+
+/* Tiklanabilir satir: .solum-row bir <a> olarak kullanildiginda metin rengi ve
+   alt cizgi mirasla bozulmasin (Solum'da .solum-row baglanti varyanti yok). */
+a.argus-row-link { color: inherit; text-decoration: none; }
+a.argus-row-link:hover { background: var(--solum-surface-alt); }
+a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline-offset: -2px; }
