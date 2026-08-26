@@ -1,6 +1,8 @@
 @page
 @model BkmArgus.Web.Features.Dof.IndexModel
 @attribute [Authorize]
+@using Solum.Web.Components
+@inject IKpiRenderer KpiRenderer
 @{
     ViewData["Title"] = "DOF Yonetimi";
     ViewData["Subtitle"] = "Kanban akisi ve SLA takibi";
@@ -45,37 +47,52 @@
     };
 }
 
-<!-- KPI Bar -->
-<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs font-medium text-slate-500">Toplam DOF</div>
-        <div class="mt-1 text-2xl font-bold text-slate-800">@(Model.Kpi?.TotalCount ?? 0)</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs font-medium text-slate-500">Acik Bulgu</div>
-        <div class="mt-1 text-2xl font-bold text-blue-600">@((Model.Kpi?.OpenCount ?? 0) + (Model.Kpi?.InProgressCount ?? 0))</div>
-    </div>
-    <div class="rounded-xl border border-red-200 bg-red-50 p-4">
-        <div class="text-xs font-medium text-bkm-red">SLA Geciken</div>
-        <div class="mt-1 text-2xl font-bold text-bkm-red">@(Model.Kpi?.OverdueCount ?? 0)</div>
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <div class="text-xs font-medium text-slate-500">Ort. Cozum (gun)</div>
-        <div class="mt-1 text-2xl font-bold text-slate-800">@(Model.Kpi?.AvgResolutionDays.ToString("0.#") ?? "-")</div>
-    </div>
-</div>
+@*
+    KPI bandi ve baslik Solum ilkellerine tasindi (plan: 05, Dalga 1).
+    PANO ISARETLEMESINE DOKUNULMADI: kanban'in Solum'a girip girmeyecegi
+    kullanici karariyla Solum oturumuna soruldu (2026-08-26). Cevap gelmeden
+    yazmak iki kez is olur; mekanizma/politika ayrimi ve olcum gonderildi.
+*@
+@{
+    var kpi = Model.Kpi;
+    var dofKartlari = new List<KpiCard>
+    {
+        new() { Label = "Toplam DÖF", Value = (kpi?.TotalCount ?? 0).ToString() },
+        new()
+        {
+            Label = "Açık bulgu",
+            Value = ((kpi?.OpenCount ?? 0) + (kpi?.InProgressCount ?? 0)).ToString(),
+            Hint = "Açık + devam eden"
+        },
+        new()
+        {
+            Label = "SLA geciken",
+            Value = (kpi?.OverdueCount ?? 0).ToString(),
+            // Is kurali: geciken tek bulgu bile kotudur — sifirsa iyi.
+            Tone = (kpi?.OverdueCount ?? 0) > 0 ? KpiTone.Bad : KpiTone.Good
+        },
+        new()
+        {
+            Label = "Ort. çözüm",
+            Value = kpi?.AvgResolutionDays.ToString("0.#") ?? "—",
+            Hint = "gün"
+        }
+    };
+}
 
-<!-- Header -->
-<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-    <div>
-        <div class="text-sm font-semibold">Aksiyon Panosu</div>
-        <div class="text-xs text-slate-500">Bulgulari duruma gore takip et</div>
+@KpiRenderer.RenderGrid(dofKartlari)
+
+<section class="solum-card">
+    <div class="solum-card-head">
+        <div>
+            <h3 class="solum-card-title">Aksiyon panosu</h3>
+            <div class="solum-card-sub">Bulguları duruma göre takip et — kartı sürükleyerek durum değiştir</div>
+        </div>
+        <div class="solum-row-side">
+            <a class="solum-btn solum-btn-primary" asp-page="Create">Yeni DÖF</a>
+        </div>
     </div>
-    <a class="rounded-full bg-bkm-red px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
-       asp-page="Create">
-        + Yeni DOF
-    </a>
-</div>
+</section>
 
 <!-- Kanban Board -->
 <div class="grid gap-4 lg:grid-cols-5">
