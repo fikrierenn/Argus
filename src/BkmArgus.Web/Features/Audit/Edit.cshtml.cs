@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BkmArgus.Web.Data;
+using BkmArgus.Web.Domain;
+using BkmArgus.Web.Services;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -10,7 +12,14 @@ public class EditModel : PageModel
 {
     private readonly SqlDb _db;
     private readonly ILogger<EditModel> _logger;
-    public EditModel(SqlDb db, ILogger<EditModel> logger) { _db = db; _logger = logger; }
+    private readonly AuditTrail _iz;
+
+    public EditModel(SqlDb db, ILogger<EditModel> logger, AuditTrail iz)
+    {
+        _db = db;
+        _logger = logger;
+        _iz = iz;
+    }
 
     [BindProperty(SupportsGet = true)] public int Id { get; set; }
 
@@ -55,6 +64,12 @@ public class EditModel : PageModel
 
         // Then finalize
         await _db.ExecuteAsync("audit.sp_Audit_Finalize", new { AuditId = Id });
+
+        // Denetim izi: kesinlestirme geri alinamaz bir durum degisikligidir
+        // (kesinlestirilmis denetim silinemez, sonuclari kilitlenir).
+        await _iz.YazAsync(AuditAction.DenetimKesinlestirme, "audit.Audits",
+            int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var izUid) ? izUid : null,
+            Id, yeniDeger: $"Mekan: {Audit?.LocationName ?? "—"} · Madde: {Results.Count}");
 
         // Run analysis pipeline
         await _db.ExecuteAsync("audit.sp_Analysis_FullPipeline", new { AuditId = Id });

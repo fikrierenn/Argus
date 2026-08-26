@@ -73,6 +73,8 @@ builder.Services.AddScoped<Solum.Web.Components.IFieldRenderer, Solum.Web.Compon
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<NotificationService>();
+// Denetim izi — audit.AuditLog'a yazan TEK servis (plan 06 Faz 1).
+builder.Services.AddScoped<AuditTrail>();
 builder.Services.AddSingleton<ExcelExportService>();
 
 // Sir sifreleme ana anahtari yoksa uret ve appsettings.Local.json'a yaz.
@@ -179,7 +181,7 @@ app.MapPost("/api/notifications/mark-all-read", async (HttpContext ctx, Notifica
 }).RequireAuthorization();
 
 // DOF drag & drop transition API
-app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db) =>
+app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db, AuditTrail iz) =>
 {
     var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     var role = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "DENETCI";
@@ -202,6 +204,12 @@ app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.Sql
             UserRole = role,
             Reason = "Kanban surukle-birak ile degistirildi"
         });
+        // Denetim izi: durum degistiren islem (security-principles.md).
+        // Gecis SP icinde StatusHistory'ye de yaziliyor ama o SUREC izi;
+        // bu KULLANICI EYLEMI izi ve tek yerden okunabilir olmali.
+        await iz.YazAsync(BkmArgus.Web.Domain.AuditAction.DofGecis, "dof.Findings",
+            userId, (int)dofId, yeniDeger: $"Yeni durum: {newStatus} (pano)");
+
         return Results.Ok(new { success = true });
     }
     catch (Microsoft.Data.SqlClient.SqlException sqlEx)
@@ -213,18 +221,33 @@ app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.Sql
         // degistirilemedi." diyor, kullanici defalarca deneyip IT'ye ticket
         // aciyordu. Dogru mesaj tek adimda cozerdi.
         //
-        // SP mesajlari su an INGILIZCE (turkish-ui.md ihlali) — Turkcelestirmesi
-        // SP tarafinda yapilacak (plan 06). O gune kadar bilinen iki kalip
-        // burada Turkce karsiligina eslenir; taninmayan mesaj SIZDIRILMAZ.
-        var ham = sqlEx.Message ?? "";
-        var mesaj =
-            ham.Contains("already in status", StringComparison.OrdinalIgnoreCase)
-                ? "Bu bulgu zaten bu durumda. Sayfayı yenileyin."
-            : ham.Contains("Invalid transition", StringComparison.OrdinalIgnoreCase)
-                ? "Bu geçişe bu rolle izin verilmiyor — yönetici onayı gerekiyor."
-            : ham.Contains("not found", StringComparison.OrdinalIgnoreCase)
-                ? "Bulgu bulunamadı."
-                : "Geçişe izin verilmedi.";
+        // 50000-59999 araligi SOZLESME GEREGI kullaniciya gosterilebilir
+        // (`error-handling.md`), o yuzden SP mesaji ONCE oldugu gibi gecer.
+        //
+        // OLCULDU 2026-08-26 — CANLI SP ILE sql/38 AYRISMIS:
+        //   canli : 'Zaten bu durumda: %s' · 'Gecersiz gecis: X -> Y (rol: Z)'
+        //   sql/38: 'Finding is already in status %s' · 'Invalid transition: ...'
+        // Yani dosya Ingilizce, veritabani Turkce. Ilk yazdigim eslesme
+        // (yalniz Ingilizce kaliplar) canlida HIC tutmadi ve mesaj jenerige
+        // dusuyordu — olcum olmasaydi "duzelttim" diyecektim. Simdi iki dil
+        // de tanınıyor, taninmayan mesaj ham haliyle gosteriliyor (kendi
+        // SP'mizin is kurali metni, sizinti degil) ve daima loglaniyor.
+        // Ayrisma plan 06'ya kaydedildi (fresh-DB kapisi tam bunun icin var).
+        var ham = (sqlEx.Message ?? "").Trim();
+        var mesaj = ham switch
+        {
+            var m when m.Contains("Zaten bu durumda", StringComparison.OrdinalIgnoreCase)
+                    || m.Contains("already in status", StringComparison.OrdinalIgnoreCase)
+                => "Bu bulgu zaten bu durumda. Sayfayı yenileyin.",
+            var m when m.Contains("Gecersiz gecis", StringComparison.OrdinalIgnoreCase)
+                    || m.Contains("Invalid transition", StringComparison.OrdinalIgnoreCase)
+                => "Bu geçişe bu rolle izin verilmiyor — yönetici onayı gerekiyor.",
+            var m when m.Contains("bulunamadi", StringComparison.OrdinalIgnoreCase)
+                    || m.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                => "Bulgu bulunamadı.",
+            "" => "Geçişe izin verilmedi.",
+            _ => ham
+        };
 
         Log.Warning("DOF gecis is kurali reddi. DofId={DofId} NewStatus={NewStatus} SpMesaj={SpMesaj}",
             dofId, newStatus, ham);
@@ -239,7 +262,7 @@ app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.Sql
 }).RequireAuthorization();
 
 // --- AI Skill Execution API ---
-app.MapPost("/api/ai/skill/execute", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db) =>
+app.MapPost("/api/ai/skill/execute", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db, AuditTrail iz) =>
 {
     var form = await ctx.Request.ReadFromJsonAsync<SkillExecuteRequest>();
     if (form is null) return Results.BadRequest();
@@ -252,6 +275,12 @@ app.MapPost("/api/ai/skill/execute", async (HttpContext ctx, BkmArgus.Web.Data.S
         new { SkillId = form.SkillId, KullaniciId = userId,
               VarlikTipi = form.EntityType, VarlikId = form.EntityId,
               GirdiJson = form.InputJson });
+
+    // Denetim izi: AI skill calistirmak MALIYET uretir (ai-layer.md) —
+    // kimin neyi tetikledigi izlenebilir olmali.
+    await iz.YazAsync(BkmArgus.Web.Domain.AuditAction.AiSkillCalistirma, "ai.SkillExecutions",
+        userId, result?.Id ?? 0,
+        yeniDeger: $"Skill: {form.SkillId} · Varlik: {form.EntityType}/{form.EntityId}");
 
     return Results.Ok(new { executionId = result?.Id ?? 0 });
 }).RequireAuthorization(Policies.YonetimVeUstu);

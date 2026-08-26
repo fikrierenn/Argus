@@ -1,5 +1,7 @@
 using BkmArgus.Web.Data;
+using BkmArgus.Web.Domain;
 using BkmArgus.Web.Services;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -10,6 +12,7 @@ public class RiskModel : PageModel
     private readonly SqlDb _db;
     private readonly ExcelExportService _export;
     private readonly ILogger<RiskModel> _logger;
+    private readonly AuditTrail _iz;
 
     private static readonly IReadOnlyList<string> TipList = new[]
     {
@@ -76,11 +79,12 @@ public class RiskModel : PageModel
     /// </summary>
     public IReadOnlyList<string> TaninmayanSuzgecler { get; private set; } = Array.Empty<string>();
 
-    public RiskModel(SqlDb db, ExcelExportService export, ILogger<RiskModel> logger)
+    public RiskModel(SqlDb db, ExcelExportService export, ILogger<RiskModel> logger, AuditTrail iz)
     {
         _db = db;
         _export = export;
         _logger = logger;
+        _iz = iz;
     }
 
     public async Task OnGetAsync(
@@ -245,6 +249,16 @@ public class RiskModel : PageModel
             : $"risk_listesi_{DateTime.Today:yyyyMMdd}_{data.Count}satir.xlsx";
 
         _logger.LogInformation("Risk disa aktarimi: {Satir} satir, kirpildi={Kirpildi}", data.Count, kirpildi);
+
+        // Denetim izi: veri kurumsal sinirin DISINA cikiyor (5000 satira kadar
+        // risk verisi). Guvenlik denetimi bunu izsiz buldu (2026-08-26).
+        // @KayitId = 0 — tek kayda bagli degil (SP sozlesmesi).
+        await _iz.YazAsync(AuditAction.DisaAktarim, "rpt.DailyProductRisk",
+            int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var izUid) ? izUid : null,
+            0,
+            yeniDeger: $"Excel · {data.Count} satir · kirpildi={kirpildi} · " +
+                       $"suzgec: arama={search ?? "—"} mekan={mekanCsv ?? "—"} tip={tipCsv ?? "—"} " +
+                       $"skor={minSkor?.ToString() ?? "—"}..{maxSkor?.ToString() ?? "—"}");
 
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ad);
     }

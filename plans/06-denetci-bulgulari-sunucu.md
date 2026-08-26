@@ -147,3 +147,91 @@ birlikte döner — yarısı yasak.
 - 🟢 **Expansionist:** `audit.AuditLog` yazan tek yol kurulunca A1 kapanır, AI maliyet izi ve Excel izi de aynı yola bağlanır — üç TODO bir altyapıyla düşer.
 - ⚪ **Outsider:** Denetim yazılımının kendi eylemlerini loglamaması ve "DÖF yok" diye yanlış bilgi vermesi, yabancı bir denetçinin ilk sayfada bulacağı iki şey.
 - 🟡 **Executor:** Pazartesi sabahı: `audit.sp_AuditLog_Write` + `AuditTrail` servisi + silme akışına bağla. Yarım gün, domain kararı beklemiyor.
+
+---
+
+## Faz 1 KAPANDI — 2026-08-26 (ölçümlerle)
+
+`sql/78_audit_trail.sql` uygulandı (iki kez → idempotent, `tamam:5 uyarı:0 hata:0`).
+`audit.sp_AuditLog_Write` + `audit.sp_AuditLog_List` canlıda, `CreatedAt`
+varsayılanı `GETDATE()` → `SYSDATETIME()` oldu ve kısıt adlandırıldı
+(`DF_AuditLog_CreatedAt`). `Services/AuditTrail.cs` beş noktaya bağlandı:
+denetim silme · denetim kesinleştirme · DÖF geçişi · Excel dışa aktarım ·
+AI skill çalıştırma. Eylem kodları `Domain/AuditAction.cs`.
+
+**Kanıt:** Excel dışa aktarım tetiklendi → `audit.AuditLog` Id 4 yazıldı:
+`DISA_AKTARIM · rpt.DailyProductRisk · UserId 1 · "Excel · 0 satir ·
+kirpildi=False · suzgec: ... skor=95..—"`. Tablo 3 satırdan 4'e çıktı.
+
+Düzeltme: TODO'da `audit.AuditLog` "boş" yazıyordu — **yanlıştı**. 3 satır
+vardı ve hepsi `OGRENME_CEVAP` (2026-08-21, `sql/74`/`sql/76` içindeki satır
+içi INSERT'lerden). Web katmanında yazan yer yoktu, tablo boş değildi.
+
+---
+
+## Faz 1 ölçümü sırasında ÇIKAN İKİ YENİ BULGU
+
+### S11 — ADMIN durum makinesini TAMAMEN atlıyor (canlı SP'de ölçüldü)
+
+`dof.sp_Finding_Transition` canlı tanımı:
+
+```sql
+-- ADMIN bypasses all rules
+IF @UserRole <> 'ADMIN'
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM dof.StatusRules WHERE ...) ...
+END
+```
+
+**Ölçüm:** ADMIN oturumuyla `POST /api/dof/transition?dofId=92&newStatus=CLOSED`
+→ `{"success":true}`. DÖF 92 **DRAFT'tan doğrudan CLOSED'a** geçti. Oysa
+`dof.StatusRules`'da yedi kural var ve `DRAFT → CLOSED` **YOK**:
+
+| From | To | RequiredRole |
+|---|---|---|
+| `*` | DRAFT | ADMIN |
+| DRAFT | OPEN | DENETCI |
+| OPEN | IN_PROGRESS | NULL |
+| IN_PROGRESS | PENDING_VALIDATION | NULL |
+| PENDING_VALIDATION | CLOSED | YONETICI |
+| PENDING_VALIDATION | REJECTED | YONETICI |
+| REJECTED | IN_PROGRESS | NULL |
+
+Yani onay zinciri (IN_PROGRESS → PENDING_VALIDATION → YONETICI onayı) ADMIN
+için hiç yok; tek istekle kapatılabiliyor ve `StatusHistory` bunu meşru bir
+geçiş gibi kaydediyor. **Bu bir karar sorusu, kod hatası değil:** ADMIN'in
+süreci atlaması istenen davranış mı? İç denetimde "onaylayan ≠ yapan"
+ilkesiyle çelişiyor. `denetim-surec-danismani` ile Faz 3'te birlikte
+karara bağlanacak — kapsam kapısıyla aynı dokunuş.
+
+**Not:** bu ölçüm dev DB'de DÖF 92'yi CLOSED, 93'ü OPEN yaptı. Geri
+alınmadı — elle UPDATE `StatusHistory`'ye YANLIŞ bir geçmiş yazardı; kayıt
+gerçekten olan şeyi gösteriyor.
+
+### S12 — `sql/38` ile canlı SP AYRIŞMIŞ (dev-DB drift)
+
+| | Mesaj |
+|---|---|
+| `sql/38_dof_state_machine.sql:328,345` | `Finding is already in status %s` · `Invalid transition: ...` (İngilizce) |
+| Canlı `dof.sp_Finding_Transition` | `Zaten bu durumda: %s` · `Gecersiz gecis: X -> Y (rol: Z)` (Türkçe) |
+
+Canlı sürümde ayrıca `SET XACT_ABORT ON` yok ve `RAISERROR` sonrası ölü
+`RETURN` satırları var.
+
+Bunu **ölçüm yakaladı, dosya okumak yakalamadı**: mesaj eşlemesini önce
+denetçinin bildirdiği İngilizce kalıplara yazdım, canlıda hiç tutmadı ve
+gerçek sebep jeneriğe düşüyordu. Ölçüm olmasaydı "düzelttim" diyecektim.
+Şimdi iki dil de tanınıyor, tanınmayan mesaj ham hâliyle geçiyor (kendi
+SP'mizin iş kuralı metni, 50000-59999 sözleşmesi gereği gösterilebilir).
+
+`phase-review-gate §3.5` fresh-DB kapısı tam bu ayrışma için var ve bu
+plandaki her SQL fazında koşturulacak.
+
+### S13 — Marka ezmesi erişilebilirliği düşürüyordu (KAPANDI)
+
+`argus-theme.css` `--solum-bad`'i `#E30613`, `--solum-good`'u `#10B981`
+yapıyordu. Yumuşak zemin üzerinde ölçülen kontrast: **3,97** ve **2,15** —
+ikincisi büyük metin eşiğini (3,0) bile geçmiyordu. Solum'un erişilebilir
+varsayılanları aynı bağlamda 6,20 / 6,46. Ezme kaldırıldı; marka kırmızısı
+`--solum-accent` olarak kaldı (üzerinde beyaz metin). Ölçüm sonrası altı
+sınıfın hepsi AA: 4,53 – 16,70.

@@ -25,8 +25,22 @@
   --solum-accent: var(--bkm-red);
   --solum-accent-ink: #ffffff;
   --solum-accent-soft: #fdecec;
-  --solum-bad: var(--bkm-red);
-  --solum-good: var(--bkm-safe);
+  /* DURUM RENKLERI EZILMIYOR — olculmus gerekce (2026-08-26).
+     Onceden burada `--solum-bad: var(--bkm-red)` (#E30613) ve
+     `--solum-good: var(--bkm-safe)` (#10B981) vardi. Tarayicida hesaplanan
+     kontrast (WCAG, acik tema, yumusak zemin uzerinde metin):
+
+         alert-bad   #e30613 / #f6e4e0 -> 3,97   AA (4,5) ALTINDA
+         alert-good  #10b981 / #e4efe9 -> 2,15   buyuk metin esigini (3,0) BILE gecmiyor
+
+     Solum'un kendi degerleri ayni baglamda 6,20 ve 6,46 (AA gecer). Yani
+     erisilebilirlik kaybi MARKA EZMESINDEN geliyordu; Solum'a "sizin
+     aleft-good'unuz 2,15" diye rapor ettim, Solum "o renk bizde YOK, sizin
+     paletiniz" diye curuttu ve haklı çıktı. Olculen sey ezilmis haldi.
+
+     Karar: durum renkleri (good/bad) MARKA DEGIL, ANLAM tasir — erisilebilir
+     varsayilan Solum'dan gelir. Marka kirmizisi `--solum-accent` olarak
+     kaliyor (dugme/vurgu; uzerinde beyaz metin, kontrast sorunu yok). */
 
   /* Zemin */
   --solum-bg: var(--bkm-canvas);

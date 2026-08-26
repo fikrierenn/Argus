@@ -2,7 +2,10 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BkmArgus.Web.Data;
+using BkmArgus.Web.Domain;
+using BkmArgus.Web.Services;
 using Microsoft.Data.SqlClient;
+using System.Security.Claims;
 
 namespace BkmArgus.Web.Features.Audit;
 
@@ -10,14 +13,16 @@ public class IndexModel : PageModel
 {
     private readonly SqlDb _db;
     private readonly ILogger<IndexModel> _logger;
+    private readonly AuditTrail _iz;
 
     /// <summary>SP'nin cektigi kayit siniri — asilirsa "N kayit" TOPLAM DEGILDIR.</summary>
     public const int Limit = 100;
 
-    public IndexModel(SqlDb db, ILogger<IndexModel> logger)
+    public IndexModel(SqlDb db, ILogger<IndexModel> logger, AuditTrail iz)
     {
         _db = db;
         _logger = logger;
+        _iz = iz;
     }
 
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
@@ -74,7 +79,20 @@ public class IndexModel : PageModel
     {
         try
         {
+            // Silinen kaydin OZETI once alinir: silindikten sonra iz icin
+            // okuyacak bir sey kalmaz (CASCADE sonuclari da goturur).
+            var ozet = Audits.FirstOrDefault(a => a.Id == id);
+
             await _db.ExecuteAsync("audit.sp_Audit_Delete", new { AuditId = id });
+
+            // Denetim izi: geri alinamaz yikici islem (security-principles.md).
+            await _iz.YazAsync(AuditAction.DenetimSilme, "audit.Audits",
+                KullaniciId(), id,
+                eskiDeger: ozet is null
+                    ? null
+                    : $"Mekan: {ozet.LocationName} · Tarih: {ozet.AuditDate:yyyy-MM-dd} · " +
+                      $"Madde: {ozet.TotalItems} · Rapor no: {ozet.ReportNo ?? "—"}");
+
             TempData["StatusMessage"] = "Denetim silindi.";
         }
         catch (SqlException sqlEx) when (sqlEx.Number is >= 50000 and < 60000)
@@ -90,6 +108,10 @@ public class IndexModel : PageModel
 
         return RedirectToPage();
     }
+
+    /// <summary>Oturumdaki kullanici kimligi; yoksa null (iz sistem eylemi sayar).</summary>
+    private int? KullaniciId() =>
+        int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : null;
 
     public sealed record AuditRow
     {
