@@ -11,10 +11,10 @@ namespace BkmArgus.Web.Features;
 /// attribute'udur (@attribute [Authorize(Policy = ...)]). Menude gizlemek
 /// yetki degildir (security-principles.md §4).
 ///
-/// Menu DUZ (alt oge yok) — SEBEP OLCULDU: Solum.Web'de _ViewImports.cshtml
-/// yok, dolayisiyla kendi gorunumleri icindeki &lt;partial&gt; etiketi calismiyor.
-/// Gruplu menu denendi: grup basligi cizildi, alt ogeler HTML'e DUZ METIN olarak
-/// basildi (2026-08-25, Solum'a raporlandi). Solum duzeltince grup geri gelir.
+/// AI ogeleri GRUP altinda (alt ogeli menu). Bu once calismiyordu: Solum.Web'de
+/// _ViewImports.cshtml yoktu, RCL gorunumleri icindeki &lt;partial&gt; etiketi
+/// derlenmiyor ve HTML'e duz metin olarak basiliyordu (2026-08-25 bulgusu).
+/// Solum tarafi import'u ekledi; grup geri acildi.
 /// </summary>
 public sealed class ArgusMenu : IMenuContributor
 {
@@ -67,22 +67,23 @@ public sealed class ArgusMenu : IMenuContributor
         context.Add(new MenuItem("dof", "DÖF Yönetimi") { Url = "/Dof", Icon = IcoDof, Order = 40 });
         context.Add(new MenuItem("audit", "Saha Denetim") { Url = "/Audit", Icon = IcoAudit, Order = 50 });
 
-        // AI ogeleri DUZ duruyor. Gruplu menu denendi ve GERI ALINDI:
-        // Solum.Web'de _ViewImports.cshtml / addTagHelper YOK, bu yuzden kendi
-        // gorunumleri icindeki <partial> etiketi CALISMIYOR — alt ogeler HTML'e
-        // duz metin olarak basiliyor, ekranda hicbir sey gorunmuyor (olculdu
-        // 2026-08-25, Solum'a raporlandi). Solum tarafi duzeltince grup geri gelir.
-        context.Add(new MenuItem("ai", "AI Analiz")
+        // AI grubu — alt ogeli menu. Solum'un izin suzgeci alt ogelerin HEPSI
+        // izinsiz kalirsa GRUBU DA gizler: DENETCI rolunde bu baslik hic gorunmez
+        // (kendi Url'i olmadigi icin tiklanamaz olu baslik kalmaz).
+        // Alt oge cizimi Solum.Web/Pages/_ViewImports.cshtml gelene kadar CALISMIYORDU
+        // (partial etiketi duz metin basiliyordu, 2026-08-25 bulgusu); duzeltildi.
+        var aiGrup = context.Add(new MenuItem("ai-grup", "AI") { Icon = IcoAi, Order = 60 });
+        aiGrup.Add(new MenuItem("ai", "AI Analiz")
         {
-            Url = "/Ai", Icon = IcoAi, Order = 60, RequiredPermission = ArgusPermissions.Yonetim
+            Url = "/Ai", Icon = IcoAi, Order = 10, RequiredPermission = ArgusPermissions.Yonetim
         });
-        context.Add(new MenuItem("ai-learn", "AI Öğrenme")
+        aiGrup.Add(new MenuItem("ai-learn", "AI Öğrenme")
         {
-            Url = "/Ai/Ogrenme", Icon = IcoLearn, Order = 70, RequiredPermission = ArgusPermissions.Yonetim
+            Url = "/Ai/Ogrenme", Icon = IcoLearn, Order = 20, RequiredPermission = ArgusPermissions.Yonetim
         });
-        context.Add(new MenuItem("ai-providers", "AI Sağlayıcıları")
+        aiGrup.Add(new MenuItem("ai-providers", "AI Sağlayıcıları")
         {
-            Url = "/Ai/Providers", Icon = IcoProvider, Order = 75, RequiredPermission = ArgusPermissions.Admin
+            Url = "/Ai/Providers", Icon = IcoProvider, Order = 30, RequiredPermission = ArgusPermissions.Admin
         });
 
         context.Add(new MenuItem("correlation", "Korelasyon")

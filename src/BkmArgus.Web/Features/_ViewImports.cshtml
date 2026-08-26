@@ -3,3 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @namespace BkmArgus.Web.Features
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@* Solum'un KENDI etiketleri (<solum-field> vb.) icin zorunlu. Bu satir olmadan
+   Solum etiketleri sessizce duz metin olarak basilir — ayni sinif kirik
+   (Solum bulgusu 2026-08-25). Form katmani gelince kullanilacak. *@
+@addTagHelper *, Solum.Web
