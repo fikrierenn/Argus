@@ -82,6 +82,28 @@ Tailwind CDN, son ekran taşındığında `_Layout`'tan **kaldırılır** (bugü
           danışmanı, `sql-sp-reviewer` denetimi, yeni `sql/NN_*.sql`. Kapsam Dalga 1'i
           büyütür ama `.solum-pager` ilk gerçek kullanımını ve gerçek performans kazancını
           getirir (bugün Risk ekranı 500 satır çekiyor).
+> **DALGA 1 TAMAM** ✅ 2026-08-26 — 6 ekran (Genel Bakış · Ürün Detay · Korelasyon ·
+> DÖF panosu · Saha Denetim · Risk Gezgini). Commit'ler: 326aa6f · a5f6bbf · 63373e4 ·
+> 194c309 · ce7038b · 6bf58a9.
+>
+> | Ölçüt | Önce | Sonra |
+> |---|---|---|
+> | Sınıf-üretici Razor fonksiyonu | 23 | **0** |
+> | Tailwind kart kabı | 30 | **0** |
+> | Elle yazılmış tablo | 4 | **0** (SolumTable) |
+> | Aynı verinin mobil kopyası | 2 ekran | **0** |
+> | Satır içi olay işleyicisi | 27 | **0** (CSP) |
+> | Gizli input (Risk) | ~30 | **1** |
+> | GET formu (Risk) | 3 | **1** |
+>
+> Yan kazançlar: `<solum-field>` 12 alanda ilk gerçek kullanım · pano klavyeyle
+> taşınabilir oldu (kendi §10 ihlalimiz kapandı) · **sayfalama bug'ı** bulundu ve
+> düzeltildi (`page` Razor Pages'te ayrılmış anahtar; Önceki/Sonraki muhtemelen
+> baştan beri ölüydü) · 5 `*View.cs` sunum haritası.
+>
+> Denetçi zinciri koşuyor (kural-uyum + güvenlik + sessiz hata). Bulgular
+> kapanmadan Dalga 2 başlamaz.
+
 - [ ] **Dalga 2 — detay/rapor ekranları.** `Dof/Detail` · `Audit/Detail` · `Audit/Reports` ·
       `Ai/Index` · `Ai/Detay` · `Ai/SkillResult` · `Ai/Ogrenme` · `Yonetim/Index`.
 - [ ] **Dalga 3 — form ağırlıklı (S2+S3 ZORUNLU).** `Audit/Create` · `Audit/Edit` ·

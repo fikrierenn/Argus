@@ -27,7 +27,7 @@ Süreç katmanı (`.claude/rules/session-memory.md`). Kimlik → `CLAUDE.md`, ku
 
 Boş tablolar "kullanılmıyor" değil, **yazılmıyor** demek. Her biri bir bug.
 
-- [ ] **A1. `audit.AuditLog` hiç yazılmıyor** — `security-principles.md` denetim izi zorunlu kılıyor.
+- [ ] **A1. `audit.AuditLog` hiç yazılmıyor** *(plan 06 I4 olarak ele alınıyor)* — `security-principles.md` denetim izi zorunlu kılıyor.
   Kapsam: login/logout/başarısız giriş, şifre değişimi, denetim finalize, DÖF durum geçişi, ref tanım değişikliği, ETL manuel tetikleme, AI skill çalıştırma, export.
   Kabul: her aksiyon sonrası `audit.AuditLog`'da satır; kim/ne/ne zaman/hangi kayıt.
   Tier 3 → `plans/01-audit-log.md`
@@ -56,7 +56,10 @@ Boş tablolar "kullanılmıyor" değil, **yazılmıyor** demek. Her biri bir bug
 - [x] ✅ 2026-08-25 **B6. Solum ortak katmanına bağlan (Faz 1)** — `Solum.Abstractions/Core/Web` proje referansı + 4 bağlam adaptörü (`Security/SolumContext.cs`, `Security/ArgusPermissionChecker.cs`). Kanıt: build 0 hata, publish yeşil, Development boot `ValidateOnBuild` geçti. `plans/04-solum-dashboard.md`
 - [x] ✅ 2026-08-25 **B7. Kabuk Solum'a taşındı (Faz 2)** — `_Layout` 406→56 satır, ~24 elle yazılmış menü anchor'ı → 12 `MenuItem` (`Features/ArgusMenu.cs`). Açık yan menü (kullanıcı kararı). Kanıt: `/Error` 200, `--solum-accent`=#E30613, mobil çekmece çalışıyor, izin süzmesi 12→5, konsol 0 hata. `plans/04-solum-dashboard.md`
 - [x] ✅ 2026-08-25 (commit 91287b4) **B8. Faz 3 — Dashboard Solum ilkelleriyle yeniden yazıldı** — `Index.cshtml` 504→292, 7 sınıf-üretici fonksiyon→0, çıplak hex 2→0, 24 Tailwind kart kabı→`.solum-card`, 4 tablo `SolumTable`, 14 KPI `KpiCard`. Test 17/17. `plans/04-solum-dashboard.md`
-- [ ] **B9. Oturum açmış kabuk smoke'u** — Faz 2'de DOĞRULANMADI: kullanıcı kartuşu, bildirim çanı, ADMIN/YÖNETİCİ menü öğeleri, doğru menü vurgusu (`aria-current` pozitif dalı). Kimlik bilgisi gerekiyor.
+- [x] ✅ 2026-08-26 **B9. Oturum açmış kabuk smoke'u** — dev oturum atlama ile yapıldı: ADMIN'de 12/12 menü öğesi, `aria-current` pozitif dalı doğru öğede, gruplu menü alt öğeleri çiziliyor, DENETCI'de grup tamamen gizleniyor.
+- [x] ✅ 2026-08-26 **B10. Dalga 1 — 6 ekran Solum ilkellerine taşındı** — sınıf-üretici fonksiyon 23→0, Tailwind kart kabı 30→0, satır içi olay işleyicisi 27→0. `plans/05-solum-tam-tasima.md`
+- [ ] **B11. Risk sunum eşiklerini `ref.RiskParameters`'tan oku** — `RiskView.cs` 90/70 sunum eşiği taşıyor; semantik katmanda `KritikSkorEsik` tanımı var (`sql/47:91`). Danışman kuralı "eşiği kodda sabitleme". Skor hesabına DOKUNULMAZ, yalnız rozet rengi.
+- [ ] **B12. `<solum-field>` çoklu seçim türü yok** — `Risk/Index`'te mekan/tip onay kutusu grupları elle yazılı (10 kutu). Solum'a bildirildi, üç-ürün eşiğine takılıyor; Solum almazsa `argus-checkgroup` kalıcı olur.
 - [ ] **B5. Skill yönetim ekranı** — `ai.Skills`/`SkillVersions` için Razor sayfası (prompt görüntüle, sürüm geçmişi, aktif/pasif). Şu an sadece SQL'den yönetilebiliyor. `Policies.AdminOnly`.
 
 ---
@@ -246,6 +249,76 @@ Hiçbir retrieval mimarisi bunu çözmez. Çözüm veri yakalamada:
 - [ ] **H6. Denetim ekranı** — madde "HAYIR" işaretlenince `Remark` zorunlu
 - [ ] **H7. DÖF kapanışı** — `EffectivenessNote` zorunlu (ne yapıldı, sonuç ne)
 - [ ] **H8. DÖF açılışı** — otomatik iskeletin yanına serbest metin alanı
+
+---
+
+## FAZ I — Dalga 1 kapanış denetimi borçları (2026-08-26)
+
+Üç denetçi (`code-reviewer` · `security-reviewer` · `silent-failure-hunter`) Dalga 1
+kapanışında koştu. Sunum/sessiz-hata bulgularının **tamamı aynı gün kapatıldı**
+(commit gövdesinde ölçümler). Aşağıdakiler SQL/şema/yetki gerektirdiği için
+**plan 06**'ya taşındı; buradaki satırlar o planın izidir.
+
+### Plan 06 — sunucu kapıları (SQL + yetki)
+
+- [ ] **I1. DÖF geçişinde kullanıcı-kapsam kapısı** — `dof.sp_Finding_Transition`
+      kaydın çağıranın kapsamında olduğunu doğrulamıyor; `OPEN→IN_PROGRESS` ve
+      `IN_PROGRESS→PENDING_VALIDATION` rol istemediği için DENETCI `dofId`
+      döngüsüyle kendisine atanmamış tüm açık DÖF'leri taşıyabiliyor.
+      **YÜKSEK** (`security-reviewer` conf 95). Domain kararı gerekiyor
+      (`denetim-surec-danismani`): atanan+oluşturan+yönetici mi, mekan kapsamı mı.
+- [ ] **I2. `dof.sp_Finding_List` kapsamsız** — pano herkese her DÖF'ü gösteriyor.
+      I1 ile aynı kapsam çözümüne bağlanmalı; yoksa kullanıcı taşıyamadığı kartı
+      görmeye devam eder.
+- [ ] **I3. `/api/*` üçlüsünde antiforgery yok** — `dof/transition`,
+      `notifications/mark-read`, `mark-all-read`. Savunma yalnız `SameSite=Lax`;
+      parametreler sorgu dizesinde. Aynı-site alt alan adı senaryosu açık.
+      Parametreler JSON gövdeye + tek yardımcıya bağlı token doğrulaması.
+- [ ] **I4. `audit.AuditLog`'a yazan tek yol yok** (= eski A1) — silme, finalize,
+      DÖF geçişi, Excel dışa aktarım, AI skill çalıştırma izsiz. `audit.sp_AuditLog_Write`
+      + `Services/AuditTrail.cs`, sonra beş noktaya bağla.
+- [ ] **I5. Denetim silmede kapsam kontrolü SP'de yok** — herhangi bir DENETCI
+      başka mekanın taslak denetimini silebiliyor; `AuditResults` + `AuditResultPhotos`
+      CASCADE ile gidiyor. C# tarafı bugün kapandı (try/catch + THROW köprüsü +
+      onay metninde madde sayısı), **kapsam kapısı SP'de duruyor**.
+- [ ] **I6. Risk listesinde gerçek toplam yok** — `PagedResult` yalnız o sayfanın
+      satır sayısını taşıyor, Solum'un sayfalayıcısı hiç çizilmiyor. SP'ye
+      `COUNT(*) OVER()` eklenecek. Bugün C# tarafında yalnız "bu sayfa boş" ile
+      "kayıt yok" ayrıldı.
+- [ ] **I7. `rpt.sp_RiskList` dışa aktarım kipi** — SP `@PageSize`'ı 200'e kırpıyor;
+      dışa aktarım şu an 25 çağrılık **sayfa döngüsüyle** 5000 satır topluyor
+      (ölçüldü: 28 sn). `@Export bit` ile tek çağrıda alınmalı.
+- [ ] **I8. Kesim aralığı semantiği** — SP iki tarihi aralık olarak KULLANMIYOR,
+      aralıktaki `MAX(SnapshotDate)` gününü listeliyor. Bugün ekran gerçeği
+      yazıyor; karar (`bkmargus-etl`): tek "kesim günü" alanına inmek mi, gerçek
+      aralık desteği mi.
+- [ ] **I9. Ürün DÖF geçmişi veri yolu** — `Doflar` koleksiyonu hiç doldurulmuyordu
+      ve ekran "DÖF kaydı yok" diyordu (**CRITICAL**, mükerrer DÖF riski). Bugün
+      ekran iddiayı bıraktı; ürün bazlı DÖF listesi SP'si yazılacak.
+- [ ] **I10. Denetim listesi bitiş tarihi SP'de** — `AuditDate <= @Bitis` aynı günü
+      düşürüyor. C# şimdilik gün sonuna çekiyor; doğrusu SP'de
+      `AuditDate < DATEADD(day, 1, CONVERT(date, @Bitis))`.
+- [ ] **I11. `rpt.sp_RiskList` snapshot yok bayrağı** — ETL koşmamışsa SP
+      `RETURN` ile hiç sonuç kümesi döndürmüyor; ekran "süzgeci genişletin"
+      diyor ve kullanıcı ETL'in çalışmadığını asla öğrenmiyor.
+- [ ] **I12. DÖF SP mesajları İngilizce** — `Invalid transition: ...`,
+      `already in status ...`. `turkish-ui.md` ihlali. C# tarafında iki kalıp
+      Türkçeye eşlendi (fallback sızdırmıyor), doğrusu SP'de Türkçe yazmak.
+- [ ] **I13. Denetim listesinde sayfalama yok** — en yeni 100 kayıt. Bugün kırpma
+      uyarısı basılıyor; Risk ekranındaki sayfalama deseni buraya da gelecek.
+- [ ] **I14. DÖF panosu kolon başına sayfalama** — pano en yeni 100 bulguyla
+      sınırlı ve gecikmişler tanım gereği eski olduğu için kırpılan dilime
+      düşüyor. Bugün uyarı basılıyor; doğrusu kolon başına yükleme + sunucu sayacı.
+
+### Solum'a bildirilenler (bu dalgadan)
+
+- [ ] **I15. `.solum-alert-warn` yok** — Solum'da `-good` / `-bad` var, uyarı tonu
+      yok (ölçüldü: `solum.css:403-405`). Üç ekranda kırpma/uyarı bandı gerekti;
+      şimdilik `argus-alert-warn` (footprint-ladder 1. basamak, `solum-*` adı
+      gölgelenmedi). İkinci tüketicide pakete girmeli.
+- [ ] **I16. `Dof/Detail` hâlâ Tailwind + çıplak durum dizesi** — altı durum kodu
+      ve Türkçe etiket eşlemesi üç ayrı `switch`te tekrarlıyor. `Domain/DofStatus`
+      sabit sınıfı bugün yazıldı ve `Dof/Index` ona bağlandı; `Detail` Dalga 2'de.
 
 ---
 
