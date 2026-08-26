@@ -235,3 +235,47 @@ ikincisi büyük metin eşiğini (3,0) bile geçmiyordu. Solum'un erişilebilir
 varsayılanları aynı bağlamda 6,20 / 6,46. Ezme kaldırıldı; marka kırmızısı
 `--solum-accent` olarak kaldı (üzerinde beyaz metin). Ölçüm sonrası altı
 sınıfın hepsi AA: 4,53 – 16,70.
+
+---
+
+## Faz 4 KAPANDI — 2026-08-26 (CSRF)
+
+`Security/ApiGuard.cs` — tek kapı: token doğrulama + JSON gövde okuma.
+`AddAntiforgery(o => o.HeaderName = "RequestVerificationToken")`. Dört uç nokta
+bağlandı: `dof/transition` · `notifications/mark-read` · `mark-all-read` ·
+**`ai/skill/execute`** (denetim raporunda üçlüye dahil değildi ama aynı sınıfta —
+LLM maliyeti üretiyor, CSRF ile tetiklenmesi para harcatır).
+
+Parametreler sorgu dizesinden **gövdeye** taşındı (`NotifIdRequest`,
+`DofTransitionRequest`): sorgu dizesi tarayıcı geçmişine, erişim loguna ve
+`Referer` başlığına yazılıyor.
+
+İstemci tarafı tek yol: `window.ArgusApi.post(url, gövde)` (`argus-shell.js`).
+Token **üretilmiyor**, `_Layout`'taki `@Html.AntiForgeryToken()` alanından
+**okunuyor**. Pano da bu yoldan geçiyor; `argus-board.js` içindeki elle
+sorgu-dizesi kurulumu silindi.
+
+### Ölçüm — iki yön de kanıtlandı
+
+| Test | Sonuç |
+|---|---|
+| Token**suz** POST, eski usul sorgu dizesi | **403** + "Oturum doğrulaması başarısız…" |
+| Tokensuz POST, JSON gövde | **403** |
+| `notifications/mark-all-read` tokensuz | **403** |
+| `ai/skill/execute` tokensuz | **403** |
+| **Geçerli token** ile POST | 403 **DEĞİL** → iş mantığına ulaştı (400, DB erişilemediği için jenerik hata) |
+
+Yani kapı hem reddediyor hem meşru isteği geçiriyor. Reddetme **DB'ye
+dokunmadan** oluyor.
+
+**DOĞRULANMADI:** tarayıcıdan uçtan uca pano sürükleme (token okuma + başarılı
+geçiş) ölçülemedi — `192.168.40.201` erişilemiyor (ping %100 kayıp, 1433 kapalı),
+her sayfa 500 veriyor. Token'ı `/Account/Login` sayfasından aldım (o sayfa DB'siz
+render oluyor). DB dönünce tarayıcı smoke'u koşulacak.
+
+### Faz 2 BLOKLANDI
+
+Denetim silme sertleştirmesi canlı şema ölçümü, migration uygulaması ve smoke
+gerektiriyor; DB erişilemediği için başlanmadı. `sql/38` ile canlı SP'nin
+ayrıştığı ölçüldüğü için (S12) **şemayı dosyadan varsaymak yasak** —
+`before-major-change.md §5`.

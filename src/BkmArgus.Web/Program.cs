@@ -75,6 +75,11 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<NotificationService>();
 // Denetim izi — audit.AuditLog'a yazan TEK servis (plan 06 Faz 1).
 builder.Services.AddScoped<AuditTrail>();
+
+// CSRF: `/api/*` uc noktalari token'i BASLIKTAN okur (plan 06 Faz 4).
+// Guvenlik denetimi (IMP-2): uc durum-degistiren uc nokta yalniz
+// SameSite=Lax'e guveniyordu; ayni site alt alan adi senaryosu aciktir.
+builder.Services.AddAntiforgery(o => o.HeaderName = BkmArgus.Web.Security.ApiGuard.TokenHeader);
 builder.Services.AddSingleton<ExcelExportService>();
 
 // Sir sifreleme ana anahtari yoksa uret ve appsettings.Local.json'a yaz.
@@ -151,9 +156,21 @@ app.MapRazorPages()
    .WithStaticAssets();
 
 // --- Notification API endpoints ---
-app.MapPost("/api/notifications/mark-read", async (HttpContext ctx, NotificationService svc) =>
+app.MapPost("/api/notifications/mark-read", async (HttpContext ctx, NotificationService svc,
+                                                   Microsoft.AspNetCore.Antiforgery.IAntiforgery af,
+                                                   ILoggerFactory lf) =>
 {
-    if (!int.TryParse(ctx.Request.Query["id"], out var notifId)) return Results.BadRequest();
+    // CSRF kapisi — tek yerden (ApiGuard).
+    var red = await BkmArgus.Web.Security.ApiGuard.TokenDogrulaAsync(
+        ctx, af, lf.CreateLogger("Api.Notifications"));
+    if (red is not null) return red;
+
+    // Parametre sorgu dizesinden GOVDEYE tasindi: sorgu dizesi tarayici
+    // gecmisine, erisim loguna ve Referer basligina yazilir.
+    var govde = await BkmArgus.Web.Security.ApiGuard.GovdeOkuAsync<NotifIdRequest>(ctx);
+    if (govde is null || govde.Id <= 0) return Results.BadRequest(new { success = false, error = "Gecersiz bildirim kimligi." });
+
+    var notifId = govde.Id;
     var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
 
@@ -172,8 +189,14 @@ app.MapPost("/api/notifications/mark-read", async (HttpContext ctx, Notification
     return Results.Ok();
 }).RequireAuthorization();
 
-app.MapPost("/api/notifications/mark-all-read", async (HttpContext ctx, NotificationService svc) =>
+app.MapPost("/api/notifications/mark-all-read", async (HttpContext ctx, NotificationService svc,
+                                                       Microsoft.AspNetCore.Antiforgery.IAntiforgery af,
+                                                       ILoggerFactory lf) =>
 {
+    var red = await BkmArgus.Web.Security.ApiGuard.TokenDogrulaAsync(
+        ctx, af, lf.CreateLogger("Api.Notifications"));
+    if (red is not null) return red;
+
     var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
     await svc.MarkAllReadAsync(userId);
@@ -181,16 +204,24 @@ app.MapPost("/api/notifications/mark-all-read", async (HttpContext ctx, Notifica
 }).RequireAuthorization();
 
 // DOF drag & drop transition API
-app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db, AuditTrail iz) =>
+app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db, AuditTrail iz,
+                                          Microsoft.AspNetCore.Antiforgery.IAntiforgery af,
+                                          ILoggerFactory lf) =>
 {
+    var red = await BkmArgus.Web.Security.ApiGuard.TokenDogrulaAsync(
+        ctx, af, lf.CreateLogger("Api.Dof"));
+    if (red is not null) return red;
+
     var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     var role = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "DENETCI";
     if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
 
-    if (!long.TryParse(ctx.Request.Query["dofId"].ToString(), out var dofId))
+    var govde = await BkmArgus.Web.Security.ApiGuard.GovdeOkuAsync<DofTransitionRequest>(ctx);
+    if (govde is null || govde.DofId <= 0)
         return Results.BadRequest(new { success = false, error = "Gecersiz dofId." });
 
-    var newStatus = ctx.Request.Query["newStatus"].ToString();
+    var dofId = govde.DofId;
+    var newStatus = govde.NewStatus ?? "";
     if (string.IsNullOrWhiteSpace(newStatus))
         return Results.BadRequest(new { success = false, error = "newStatus zorunlu." });
 
@@ -262,9 +293,17 @@ app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.Sql
 }).RequireAuthorization();
 
 // --- AI Skill Execution API ---
-app.MapPost("/api/ai/skill/execute", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db, AuditTrail iz) =>
+app.MapPost("/api/ai/skill/execute", async (HttpContext ctx, BkmArgus.Web.Data.SqlDb db, AuditTrail iz,
+                                            Microsoft.AspNetCore.Antiforgery.IAntiforgery af,
+                                            ILoggerFactory lf) =>
 {
-    var form = await ctx.Request.ReadFromJsonAsync<SkillExecuteRequest>();
+    // Bu uc nokta LLM maliyeti uretiyor — CSRF ile tetiklenmesi para harcatir.
+    // Denetim raporunda ucluye dahil degildi ama ayni sinifta (plan 06 Faz 4).
+    var red = await BkmArgus.Web.Security.ApiGuard.TokenDogrulaAsync(
+        ctx, af, lf.CreateLogger("Api.Ai"));
+    if (red is not null) return red;
+
+    var form = await BkmArgus.Web.Security.ApiGuard.GovdeOkuAsync<SkillExecuteRequest>(ctx);
     if (form is null) return Results.BadRequest();
 
     var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -321,6 +360,12 @@ app.Run();
 
 // --- DTO Records for Minimal API ---
 record SkillExecuteRequest(string SkillId, string EntityType, int EntityId, string? InputJson);
+
+// `/api/*` govde sozlesmeleri (plan 06 Faz 4). Parametreler sorgu dizesinden
+// GOVDEYE tasindi: sorgu dizesi tarayici gecmisine, erisim loguna ve Referer
+// basligina yazilir; is verisi orada durmamali.
+record NotifIdRequest(int Id);
+record DofTransitionRequest(long DofId, string? NewStatus);
 record FeedbackRequest(int? RequestId, int? SkillExecutionId, bool IsApproved, int? Rating, string? Comment);
 record ExecutionIdResult(int Id);
 record SkillStatusResult(int ExecutionId, string SkillId, string Status, string? OutputJson,

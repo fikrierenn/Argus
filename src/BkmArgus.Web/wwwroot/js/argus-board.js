@@ -101,9 +101,10 @@
         // "Baglanti hatasi. Durum degismedi." yaziyordu — DB'de kayit degismisti.
         // Yanlis mesajin en tehlikeli turu (denetim bulgusu 2.2).
         try {
-            var adres = url + (url.indexOf("?") < 0 ? "?" : "&") +
-                "dofId=" + encodeURIComponent(id) + "&newStatus=" + encodeURIComponent(durum);
-            yanit = await fetch(adres, { method: "POST", credentials: "same-origin" });
+            // TEK POST YOLU: ArgusApi.post token basligini ve JSON govdeyi
+            // kuruyor (plan 06 Faz 4). Parametreler artik sorgu dizesinde
+            // DEGIL — sorgu dizesi tarayici gecmisine ve Referer'a yaziliyor.
+            yanit = await window.ArgusApi.post(url, { dofId: parseInt(id, 10), newStatus: durum });
             veri = await yanit.json().catch(function () { return null; });
         } catch (hata) {
             kart.removeAttribute("data-argus-busy");
@@ -113,10 +114,14 @@
 
         kart.removeAttribute("data-argus-busy");
 
-        // Oturum dustuyse sorun gecisin mesruiyeti DEGIL — kullanici bunu
-        // "kural izin vermedi" sanip tekrar deniyordu (bulgu 2.4).
+        // Oturum dustuyse ya da CSRF token'i bayatladiysa sorun gecisin
+        // mesruiyeti DEGIL — kullanici bunu "kural izin vermedi" sanip tekrar
+        // deniyordu (bulgu 2.4). 403 artik iki sey olabilir: yetki yok VEYA
+        // token gecersiz; sunucu kendi Turkce metnini yaziyorsa o kullanilir,
+        // cunku dogru tavsiye ("sayfayi yenile") ona bagli.
         if (yanit.status === 401 || yanit.status === 403) {
-            bildir(board, "Oturumunuz sona ermiş. Sayfayı yenileyip tekrar deneyin.", "bad");
+            bildir(board, (veri && veri.error) ||
+                "Oturumunuz sona ermiş. Sayfayı yenileyip tekrar deneyin.", "bad");
             return;
         }
 

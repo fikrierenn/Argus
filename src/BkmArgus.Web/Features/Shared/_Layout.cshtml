@@ -59,6 +59,11 @@
    dusuyordu (denetim bulgusu 4.2b). *@
 <div id="argusToast" class="argus-toast" role="status" aria-live="polite" hidden></div>
 
+@* CSRF token'i: `/api/*` cagrilari bunu RequestVerificationToken basligiyla
+   gonderiyor (plan 06 Faz 4). Form icinde degil cunku istek fetch ile gidiyor;
+   Razor'un urettigi gizli alan JS icin tek okuma noktasi. *@
+@Html.AntiForgeryToken()
+
 <script src="~/_content/Solum.Web/solum.js"></script>
 <script src="~/js/argus-shell.js" asp-append-version="true"></script>
 @await RenderSectionAsync("Scripts", required: false)

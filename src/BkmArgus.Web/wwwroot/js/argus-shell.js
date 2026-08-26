@@ -9,6 +9,34 @@
 
     function panel() { return document.getElementById("argusNotifPanel"); }
 
+    // CSRF token'i kabukta duruyor (_Layout -> @Html.AntiForgeryToken).
+    // Deger uretilmiyor, SECICIDEN okunuyor.
+    function token() {
+        var t = document.querySelector('input[name="__RequestVerificationToken"]');
+        return t ? t.value : "";
+    }
+
+    // TEK POST YOLU. Uc uc noktada uc ayri desen yasak (plan 06 Faz 4):
+    // token basligi + JSON govde burada bir kez kuruluyor.
+    // Guvenlik denetimi (IMP-2): parametreler sorgu dizesinden govdeye tasindi
+    // ve savunma artik yalniz SameSite=Lax degil.
+    function apiPost(url, govde, secenek) {
+        var s = secenek || {};
+        return fetch(url, {
+            method: "POST",
+            credentials: "same-origin",
+            keepalive: !!s.keepalive,
+            headers: {
+                "Content-Type": "application/json",
+                "RequestVerificationToken": token()
+            },
+            body: JSON.stringify(govde || {})
+        });
+    }
+
+    // Pano JS'i de ayni yoldan gecsin diye disari veriliyor.
+    window.ArgusApi = { post: apiPost, token: token };
+
     // Toast: zamanlayici EKLENDI. Eskiden mesaj sayfa omru boyunca ekranda
     // kaliyordu; kullanici eski bir hatayi guncel sanabiliyordu (bulgu 4.2a).
     function bildir(mesaj, tur) {
@@ -42,7 +70,7 @@
 
         // Tumunu okundu isaretle
         if (e.target.closest("[data-argus-notif-all]")) {
-            fetch("/api/notifications/mark-all-read", { method: "POST", credentials: "same-origin" })
+            apiPost("/api/notifications/mark-all-read", {})
                 .then(function (r) {
                     if (r.ok) { location.reload(); return; }
                     bildir("Bildirimler işaretlenemedi. Lütfen tekrar deneyin.", "bad");
@@ -65,8 +93,7 @@
         if (oge) {
             var id = oge.getAttribute("data-argus-notif-id");
             if (id) {
-                fetch("/api/notifications/mark-read?id=" + encodeURIComponent(id),
-                      { method: "POST", credentials: "same-origin", keepalive: true })
+                apiPost("/api/notifications/mark-read", { id: parseInt(id, 10) }, { keepalive: true })
                     .then(function (r) {
                         if (!r.ok) bildir("Bildirim okundu işaretlenemedi.");
                     })
