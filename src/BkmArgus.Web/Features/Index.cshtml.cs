@@ -6,7 +6,6 @@ namespace BkmArgus.Web.Features;
 
 public class IndexModel : PageModel
 {
-    private static readonly CultureInfo TrCulture = CultureInfo.GetCultureInfo("tr-TR");
     private readonly SqlDb _db;
 
     public IReadOnlyList<QuickStatus> StatusCards { get; private set; } = Array.Empty<QuickStatus>();
@@ -32,7 +31,7 @@ public class IndexModel : PageModel
         QuickNotes = notes.Select(n => n.Metin).ToList();
     }
 
-    private static string FormatNumber(int value) => value.ToString("N0", TrCulture);
+    private static string FormatNumber(int value) => ArgusFormat.Count(value);
 
     public record QuickStatus(string Baslik, string Deger, string Not, string Tone);
 

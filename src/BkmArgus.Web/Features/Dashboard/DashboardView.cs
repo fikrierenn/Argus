@@ -210,12 +210,10 @@ public static class DashboardView
 
     // ─────────────────────────── Bicimleyiciler ─────────────────────────
 
-    private static string FormatCount(int? deger) => (deger ?? 0).ToString("N0", TrCulture);
+    private static string FormatCount(int? deger) => ArgusFormat.Count(deger);
 
-    private static string FormatPercent(decimal? deger) => $"%{(deger ?? 0).ToString("0.0", TrCulture)}";
+    private static string FormatPercent(decimal? deger) => ArgusFormat.Percent(deger);
 
-    private static readonly System.Globalization.CultureInfo TrCulture =
-        System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
 
     /// <summary>Uyum orani tonu: eski ekranin esikleri korundu (%90 / %70).</summary>
     private static SolumTone ComplianceTone(decimal oran) => oran switch

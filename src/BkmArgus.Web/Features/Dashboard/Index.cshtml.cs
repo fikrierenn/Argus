@@ -7,7 +7,6 @@ namespace BkmArgus.Web.Features;
 
 public class DashboardModel : PageModel
 {
-    private static readonly CultureInfo TrCulture = CultureInfo.GetCultureInfo("tr-TR");
     private readonly SqlDb _db;
 
     // Tab support
@@ -190,7 +189,7 @@ public class DashboardModel : PageModel
         return string.Join(" ", points);
     }
 
-    private static string FormatNumber(int value) => value.ToString("N0", TrCulture);
+    private static string FormatNumber(int value) => ArgusFormat.Count(value);
 
     public record RiskRow(int UrunId, int MekanId, string Mekan, string Urun, string Donem, int Skor, string Flag, string Stok);
     public record DofRow(string Title, string Sorumlu, string SLA, string Status);
