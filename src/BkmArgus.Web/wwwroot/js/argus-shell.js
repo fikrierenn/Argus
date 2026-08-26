@@ -15,6 +15,17 @@
         alert(mesaj);
     }
 
+    // Yikici islem onayi: satir ici onclick="return confirm(...)" yerine
+    // data-argus-confirm. Onay REDDEDILIRSE gonderim durur (CSP + tek yer).
+    document.addEventListener("click", function (e) {
+        var onayli = e.target.closest("[data-argus-confirm]");
+        if (onayli && !window.confirm(onayli.getAttribute("data-argus-confirm"))) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+    }, true);
+
     document.addEventListener("click", function (e) {
         // Panel ac/kapat
         if (e.target.closest("[data-argus-notif-toggle]")) {

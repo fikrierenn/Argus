@@ -6,7 +6,7 @@
 @*
     Genel Bakış. Solum ilkelleri: KpiCard/RenderGrid · .solum-card · .solum-row ·
     _SolumEmpty (plan: 05, Dalga 1). Elle yazılmış 3 Tailwind kart kabı ve
-    ToneClass() sınıf-üretici fonksiyonu kaldırıldı — ton artık KpiTone.
+    ToneClass() sınıf-üretici fonksiyonu kaldırıldı — ton artık SolumTone.
 
     screen-ux-standard §6: boş durum yalnız "kayıt yok" demez, ne yapılacağını
     söyler. Solum'un _SolumEmpty parçasında aksiyon yuvası yok, o yüzden ipucu
@@ -24,9 +24,9 @@
         Hint = k.Not,
         Tone = k.Tone switch
         {
-            "tone-good" => KpiTone.Good,
-            "tone-warn" => KpiTone.Warn,
-            _ => KpiTone.Bad
+            "tone-good" => SolumTone.Good,
+            "tone-warn" => SolumTone.Warn,
+            _ => SolumTone.Bad
         }
     }).ToList();
 }

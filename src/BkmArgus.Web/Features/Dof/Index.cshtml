@@ -29,7 +29,7 @@
             Label = "SLA geciken",
             Value = (kpi?.OverdueCount ?? 0).ToString(),
             // Is kurali: geciken tek bulgu bile kotudur — sifirsa iyi.
-            Tone = (kpi?.OverdueCount ?? 0) > 0 ? KpiTone.Bad : KpiTone.Good
+            Tone = (kpi?.OverdueCount ?? 0) > 0 ? SolumTone.Bad : SolumTone.Good
         },
         new()
         {

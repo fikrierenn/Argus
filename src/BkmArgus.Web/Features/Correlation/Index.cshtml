@@ -31,7 +31,7 @@
             Label = "Acil müdahale",
             Value = Model.Summary.UrgentCount.ToString(),
             // Is kurali: acil kadranda tek mekan bile varsa bu kotu bir durumdur.
-            Tone = Model.Summary.UrgentCount > 0 ? KpiTone.Bad : KpiTone.Good,
+            Tone = Model.Summary.UrgentCount > 0 ? SolumTone.Bad : SolumTone.Good,
             Hint = "İki kanal birden yüksek"
         },
         new()

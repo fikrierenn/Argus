@@ -224,3 +224,17 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
 .argus-toast[hidden] { display: none; }
 .argus-toast-good { border-color: var(--solum-good); color: var(--solum-good); }
 .argus-toast-bad  { border-color: var(--solum-bad);  color: var(--solum-bad); }
+
+/* ── Filtre paneli ────────────────────────────────────────────────────────
+   Solum'da YOK ve BILEREK yok: "iki ekran, bir urun" — uc kural esigini
+   karsilamiyor (Solum karari 2026-08-26). Kap bizde, ALANLAR Solum'un
+   <solum-field>'inde; tasima gelirse degisen yalniz bu kap olur, 41 alan degil. */
+.argus-filter {
+  display: grid; gap: 12px; align-items: end;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  padding-top: 4px;
+}
+.argus-filter .solum-field { margin-bottom: 0; }
+.argus-filter-actions { display: flex; align-items: center; gap: 8px; }
+/* Satir icinde duran tek dugmeli form (Sil) — blok davranisi satiri kirmasin. */
+.argus-inline-form { display: inline; }

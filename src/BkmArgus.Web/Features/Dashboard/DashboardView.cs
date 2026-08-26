@@ -34,7 +34,7 @@ public static class DashboardView
             Label = "Kritik risk",
             Value = m.KritikRiskDeger,
             // Is kurali: kritik risk sayisi sifirdan buyukse bu bir uyaridir.
-            Tone = m.KritikRiskDeger == "0" ? KpiTone.Neutral : KpiTone.Bad,
+            Tone = m.KritikRiskDeger == "0" ? SolumTone.Neutral : SolumTone.Bad,
             Hint = m.KritikRiskNot,
             Href = "/Risk"
         },
@@ -42,7 +42,7 @@ public static class DashboardView
         {
             Label = "Bekleyen DÖF",
             Value = m.BekleyenDofDeger,
-            Tone = m.BekleyenDofDeger == "0" ? KpiTone.Good : KpiTone.Warn,
+            Tone = m.BekleyenDofDeger == "0" ? SolumTone.Good : SolumTone.Warn,
             Hint = m.BekleyenDofNot,
             Href = "/Dof"
         },
@@ -50,7 +50,7 @@ public static class DashboardView
         {
             Label = "Taranan stok",
             Value = m.TarananStokDeger,
-            Tone = KpiTone.Neutral,
+            Tone = SolumTone.Neutral,
             Hint = m.TarananStokNot
         },
         new KpiCard
@@ -59,9 +59,9 @@ public static class DashboardView
             Value = m.SistemDurum,
             Tone = m.SistemDurum switch
             {
-                "PASS" => KpiTone.Good,
-                "WARN" => KpiTone.Warn,
-                _ => KpiTone.Bad
+                "PASS" => SolumTone.Good,
+                "WARN" => SolumTone.Warn,
+                _ => SolumTone.Bad
             },
             Hint = m.SistemNot
         }
@@ -137,13 +137,13 @@ public static class DashboardView
             {
                 Label = "Tekrar eden",
                 Value = FormatCount(k?.RepeatingFindingCount),
-                Tone = (k?.RepeatingFindingCount ?? 0) > 0 ? KpiTone.Warn : KpiTone.Good
+                Tone = (k?.RepeatingFindingCount ?? 0) > 0 ? SolumTone.Warn : SolumTone.Good
             },
             new KpiCard
             {
                 Label = "Sistemik",
                 Value = FormatCount(k?.SystemicCount),
-                Tone = (k?.SystemicCount ?? 0) > 0 ? KpiTone.Bad : KpiTone.Good
+                Tone = (k?.SystemicCount ?? 0) > 0 ? SolumTone.Bad : SolumTone.Good
             },
             new KpiCard { Label = "Bekleyen DÖF", Value = FormatCount(k?.PendingDofCount), Href = "/Dof" }
         ];
@@ -218,11 +218,11 @@ public static class DashboardView
         System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
 
     /// <summary>Uyum orani tonu: eski ekranin esikleri korundu (%90 / %70).</summary>
-    private static KpiTone ComplianceTone(decimal oran) => oran switch
+    private static SolumTone ComplianceTone(decimal oran) => oran switch
     {
-        >= 90m => KpiTone.Good,
-        >= 70m => KpiTone.Warn,
-        _ => KpiTone.Bad
+        >= 90m => SolumTone.Good,
+        >= 70m => SolumTone.Warn,
+        _ => SolumTone.Bad
     };
 
     /// <summary>
