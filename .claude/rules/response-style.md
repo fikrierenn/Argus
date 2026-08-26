@@ -37,3 +37,33 @@ Kullanıcı `/caveman` veya `CAVEMAN MODE ACTIVE` enjekte ederse:
 ## Ölçüt
 
 Kullanıcı cevabı okumadan tool call sonucuna bakıp ne olduğunu anlayabiliyorsa → metin fazladır.
+
+---
+
+## Araç Kullanımında Token Disiplini (kullanıcı talebi 2026-08-26)
+
+Bu oturumda token'ın büyük kısmını **araç çıktısı** yedi: tam dosya okumaları,
+build logları, tarayıcı dökümleri, doğrulamada dönen ham HTML. Dil seçimi
+ikincil ama bedava kazanç.
+
+| Ne | Dil | Gerekçe |
+|---|---|---|
+| Alt-ajan görev tanımı + rapor | **İngilizce** | Yalnız ana ajana döner, kullanıcı görmez |
+| Kod içi yorum | **Türkçe** | `coding-discipline.md` zorunlu |
+| Kullanıcı yanıtı | **Türkçe** | Kullanıcının dili |
+| Diğer oturumlara mesaj | Türkçe | Karşı tarafta insan okuyor |
+| Commit mesajı | Türkçe, **kısa** | Ölçüm + karar; anlatı yok |
+
+**Araç çağrısı kuralları:**
+
+1. **Dosyayı bir kez oku.** "changed on disk" bildirimi geldiğinde dosyayı
+   yeniden okuma — bildirimdeki içerik güncel durumdur.
+2. **Tam dosya değil ilgili bölge.** `sed -n 'A,Bp'` veya `grep -n -A/-B`;
+   500 satırlık dosyayı KPI adı için baştan sona okumak yasak.
+3. **Doğrulamada sayı bas, gövde basma.** HTML/JSON çıktısını olduğu gibi
+   dökmek yerine `grep -c` / `python` ile say ve özet bas.
+4. **Build çıktısını süz.** `| grep -E "error|başarı"` — 40 satır uyarı
+   dökümü bilgi taşımıyor.
+5. **Commit gövdesi:** ne değişti + ölçüm + karar gerekçesi. Aynı şeyi üç
+   farklı cümleyle anlatma.
+6. **Ajan promptunda kural dosyasını kopyalama** — "şu dosyayı oku" yeter.
