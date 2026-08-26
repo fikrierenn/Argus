@@ -37,12 +37,25 @@
     <div class="solum-card-head">
         <div>
             <h3 class="solum-card-title">Denetim listesi</h3>
-            <div class="solum-card-sub">@Model.Audits.Count kayıt</div>
+            <div class="solum-card-sub">
+                @Model.Audits.Count kayıt@(Model.Kirpildi ? " (sınıra dayandı)" : "")
+            </div>
         </div>
         <div class="solum-row-side">
             <a class="solum-btn solum-btn-primary" asp-page="/Audit/Create">Yeni denetim</a>
         </div>
     </div>
+
+    @* SESSIZ KIRPMA (denetim bulgusu 5.5): SP en yeni @IndexModel.Limit kaydi doner,
+       sayfalama yok. Baslik bunu "N kayit" diye TOPLAM gibi gosteriyordu;
+       ceyrek raporu eksik denetimle yazilabiliyordu. *@
+    @if (Model.Kirpildi)
+    {
+        <div class="solum-alert solum-alert-warn" role="status">
+            En yeni @IndexModel.Limit denetim gösteriliyor — daha eskiler listede olmayabilir.
+            Süzgeci daraltın (tarih aralığı ya da mekan).
+        </div>
+    }
 
     @* Filtre GET formu — alanlar Solum'un <solum-field>'i ile, kap bizde
        (argus-filter). Solum "kap sende, alanlar bizde" dedi; tasima geldiginde
@@ -95,7 +108,12 @@
                         <form method="post" asp-page-handler="Delete" class="argus-inline-form">
                             <input type="hidden" name="id" value="@satir.Id" />
                             <button class="solum-btn solum-btn-danger" type="submit"
-                                    data-argus-confirm="@satir.LocationName denetimini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.">
+                                    @* CASCADE KAPSAMI onay metninde yaziyor: audit.AuditResults ve
+                                       ondan da AuditResultPhotos ON DELETE CASCADE ile gider
+                                       (sql/21_sps_audit.sql:268). sql-conventions.md §7 "UI'da acik
+                                       uyari zorunlu" diyor; eski metin yalniz "geri alinamaz" diyordu
+                                       ve kullanici 45 maddeli bir denetimi bos sanip silebiliyordu. *@
+                                    data-argus-confirm="@satir.LocationName denetimi silinecek. @satir.TotalItems madde sonucu ve bağlı fotoğraflar da SİLİNECEK. Bu işlem geri alınamaz. Devam edilsin mi?">
                                 Sil
                             </button>
                         </form>

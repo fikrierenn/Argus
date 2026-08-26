@@ -27,6 +27,18 @@
     };
 }
 
+@* KAYIT YOK BANDI (denetim bulgusu 5.2): eskiden tek uyari AI ozeti
+   kutusundaki bir cumleydi ve AI sonucu gelirse SILINIYORDU. Artik banda
+   ayri duruyor, ezilemez. *@
+@if (Model.KayitYok)
+{
+    <div class="solum-alert solum-alert-warn" role="alert">
+        Bu ürün için risk snapshot'ı bulunamadı (StokId @Model.UrunId).
+        Aşağıdaki alanlar boş — <strong>ürün kodu, adı ve dönem bilinmiyor</strong>.
+        Eski bir bağlantıdan geldiyseniz ETL bu ürünü henüz üretmemiş olabilir.
+    </div>
+}
+
 <section class="solum-card">
     <div class="solum-card-head">
         <div>
@@ -108,7 +120,9 @@
         @if (Model.Flaglar.Count == 0)
         {
             <partial name="/Pages/Shared/_SolumEmpty.cshtml"
-                     model="@(("Risk bayrağı yok.", (string?)"Bu ürün seçili dönemde bayrak üretmemiş."))" />
+                     model="@(Model.KayitYok
+                              ? ("Bayrak bilgisi yok.", (string?)"Risk snapshot'ı bulunamadığı için bayrak sorgulanamadı.")
+                              : ("Risk bayrağı yok.", (string?)"Bu ürün seçili dönemde bayrak üretmemiş."))" />
         }
         else
         {
@@ -132,7 +146,16 @@
     }
     else
     {
-        @if (Model.Doflar.Count == 0)
+        @* KRITIK BULGU (2026-08-26): burada "Bu urun icin acilmis duzeltici
+           faaliyet bulunmuyor" yaziyordu — `Doflar` HICBIR YERDE doldurulmadigi
+           icin bu mutlak bir yanlis bilgiydi. Denetci mukerrer DOF aciyordu.
+           Veri yolu gelene kadar ekran hicbir iddiada bulunmuyor. *@
+        @if (!Model.DofVeriYoluVar)
+        {
+            <partial name="/Pages/Shared/_SolumEmpty.cshtml"
+                     model="@(("DÖF geçmişi bu ekranda henüz gösterilmiyor.", (string?)"Bu ürünün DÖF kaydı olabilir — DÖF panosundan kontrol edin. Veri yolu hazırlanıyor."))" />
+        }
+        else if (Model.Doflar.Count == 0)
         {
             <partial name="/Pages/Shared/_SolumEmpty.cshtml"
                      model="@(("DÖF kaydı yok.", (string?)"Bu ürün için açılmış düzeltici faaliyet bulunmuyor."))" />

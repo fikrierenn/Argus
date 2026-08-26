@@ -1,12 +1,11 @@
-using System.Globalization;
 using BkmArgus.Web.Data;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace BkmArgus.Web.Features;
 
 public class UrunModel : PageModel
 {
-    private static readonly CultureInfo TrCulture = CultureInfo.GetCultureInfo("tr-TR");
     private readonly SqlDb _db;
 
     public int UrunId { get; private set; }
@@ -28,8 +27,30 @@ public class UrunModel : PageModel
     public string SonHareketGunText { get; private set; } = "-";
     public string SonHareketTip { get; private set; } = "-";
     public string KritikFlag { get; private set; } = "-";
-    public string DofDurum { get; private set; } = "Yok";
-    public string DofSorumlu { get; private set; } = "-";
+    // "Yok" DEGIL "—": bu iki alan hicbir zaman doldurulmuyor (asagidaki
+    // DofVeriYoluVar notu). "Yok" bir OLGU iddiasiydi ve yanlisti.
+    public string DofDurum { get; private set; } = "—";
+    public string DofSorumlu { get; private set; } = "—";
+
+    /// <summary>
+    /// Risk snapshot'i BULUNAMADI mi. Eskiden bu durumda uydurma kimlik
+    /// uretiliyordu (`BK-88123`, `Urun-88123`, `Mekan-?`, `Donem = "Son30Gun"`)
+    /// ve ekran DOLU gorunuyordu; tek uyari AI ozeti kutusundaki bir cumleydi,
+    /// o da AI sonucu gelirse SILINIYORDU (denetim bulgusu 5.2).
+    /// `evidence-discipline.md` ile dogrudan celisiyordu.
+    /// </summary>
+    public bool KayitYok { get; private set; }
+
+    /// <summary>
+    /// DOF gecmisi veri yolu HENUZ YOK — `Doflar` hicbir yerde doldurulmuyor.
+    ///
+    /// KRITIK BULGU (2026-08-26): sekme "Bu urun icin acilmis duzeltici
+    /// faaliyet bulunmuyor" yaziyordu. Denetci bunu OLGU sanip ayni urune
+    /// ikinci bir DOF aciyordu; oysa uc ay once acilmis, hala IN_PROGRESS bir
+    /// DOF olabilir. Veri yolu (urun bazli DOF listesi SP'si) plan 06 Faz 5'te;
+    /// o gelene kadar ekran HICBIR IDDIADA BULUNMUYOR.
+    /// </summary>
+    public bool DofVeriYoluVar => false;
 
     public IReadOnlyList<FlagRow> Flaglar { get; private set; } = Array.Empty<FlagRow>();
     public IReadOnlyList<HareketRow> Hareketler { get; private set; } = Array.Empty<HareketRow>();
@@ -40,16 +61,17 @@ public class UrunModel : PageModel
         _db = db;
     }
 
-    public async Task OnGetAsync(int? id, int? mekanId, string? tab)
+    public async Task<IActionResult> OnGetAsync(int? id, int? mekanId, string? tab)
     {
         UrunId = id ?? 0;
         MekanId = mekanId;
         ActiveTab = NormalizeTab(tab);
 
+        // Guard: id'siz istekte eskiden TAM kabuk cizilip "Risk bayragi yok."
+        // gibi OLGUSAL ifadeler basiliyordu. Kayit yoksa sayfa da yok.
         if (UrunId <= 0)
         {
-            AiOzet = "Urun bulunamadi.";
-            return;
+            return NotFound();
         }
 
         var detay = await _db.QuerySingleAsync<UrunDetayRow>(
@@ -65,11 +87,18 @@ public class UrunModel : PageModel
             Kategori3 = string.IsNullOrWhiteSpace(detay.Kategori3) ? "-" : detay.Kategori3;
             Donem = detay.DonemKodu;
             Skor = detay.RiskSkor;
+            // ESIK TAMAMLANDI (denetim bulgusu 6.2): eskiden alt dal `_ => "ORTA"`
+            // idi, yani skor 3 olan urun de "ORTA" (sari) gorunuyordu ve
+            // UrunView'de tanimli "DUSUK" yesil tonu HIC uretilemiyordu.
+            // "ORTA enflasyonu" etikete olan guveni yiyor.
+            // (Esiklerin ref.RiskParameters'a tasinmasi TODO B11.)
             SkorSeviye = Skor switch
             {
                 >= 90 => "KRITIK",
                 >= 75 => "YUKSEK",
-                _ => "ORTA"
+                >= 50 => "ORTA",
+                > 0 => "DUSUK",
+                _ => "YOK"
             };
             AiOzet = BuildAiOzet(detay.RiskYorum);
 
@@ -79,25 +108,37 @@ public class UrunModel : PageModel
                 : "Kesim-1 gun";
 
             IadeOranText = detay.IadeOraniYuzde.HasValue
-                ? $"%{detay.IadeOraniYuzde.Value.ToString("N1", TrCulture)}"
+                ? $"%{detay.IadeOraniYuzde.Value.ToString("N1", ArgusFormat.Tr)}"
                 : "-";
-            IadeNot = detay.IadeOranEsik > 0
-                ? $"Esik %{detay.IadeOranEsik.ToString("N1", TrCulture)}"
-                : "Esik -";
+            // Esik 0 mesru olabilir ("her iade anormaldir"). Eskiden `> 0`
+            // kontrolu 0'i "esik tanimlanmamis" gibi gosteriyordu — kendi
+            // "sifir ile bos ayni sey degildir" kuralimizla celisiyordu
+            // (denetim bulgusu 6.4).
+            IadeNot = detay.IadeOranEsik.HasValue
+                ? $"Eşik %{detay.IadeOranEsik.Value.ToString("N1", ArgusFormat.Tr)}"
+                : "Eşik tanımsız";
         }
         else
         {
-            UrunKod = $"BK-{UrunId}";
-            UrunAd = $"Urun-{UrunId}";
-            Kategori3 = "-";
-            Mekan = mekanId.HasValue ? $"Mekan-{mekanId}" : "Mekan-?";
-            Donem = "Son30Gun";
-            AiOzet = "Risk kaydi bulunamadi.";
+            // UYDURMA YOK: kod/ad/mekan/donem URETILMEZ. Ozellikle `Donem`:
+            // uydurulmus "Son30Gun" ile AI sorgusu kosuluyordu ve BASKA bir
+            // donemin anlatisi bu urune aitmis gibi gosterilebiliyordu.
+            KayitYok = true;
+            UrunKod = "—";
+            UrunAd = "Bilinmeyen ürün";
+            Kategori3 = "—";
+            Mekan = "—";
+            Donem = string.Empty;
+            SkorSeviye = "YOK";
         }
 
-        var aiSonuc = await _db.QuerySingleAsync<AiSonucRow>(
-            "ai.sp_LlmResults_Latest",
-            new { StokId = UrunId, MekanId = MekanId, DonemKodu = Donem });
+        // Donem bos ise (kayit yok) AI sorgusu HIC kosulmaz — uydurma anahtarla
+        // sorgulanan sonuc yanlis urune baglanir.
+        var aiSonuc = KayitYok
+            ? null
+            : await _db.QuerySingleAsync<AiSonucRow>(
+                "ai.sp_LlmResults_Latest",
+                new { StokId = UrunId, MekanId = MekanId, DonemKodu = Donem });
 
         if (aiSonuc is not null)
         {
@@ -137,12 +178,10 @@ public class UrunModel : PageModel
             KritikFlag = kritik.Flag;
         }
 
-        if (Doflar.Count > 0)
-        {
-            var ilk = Doflar[0];
-            DofDurum = ilk.Durum;
-            DofSorumlu = ilk.Sorumlu;
-        }
+        // NOT: burada eskiden `if (Doflar.Count > 0)` blogu vardi ve OLU koddu —
+        // `Doflar` hicbir yerde doldurulmuyor. Veri yolu gelince (plan 06 Faz 5)
+        // bu blok geri gelir; simdi ekran DofVeriYoluVar ile dogruyu soyluyor.
+        return Page();
     }
 
     private static string NormalizeTab(string? tab)
@@ -161,7 +200,8 @@ public class UrunModel : PageModel
         };
     }
 
-    private static string FormatNumber(decimal value) => value.ToString("N0", TrCulture);
+    // Miktar ondalik KORUNUR — stok decimal(18,3) (denetim bulgusu 6.1).
+    private static string FormatNumber(decimal value) => ArgusFormat.Quantity(value);
 
     private static string BuildAiOzet(string? riskYorum)
     {
@@ -205,7 +245,8 @@ public class UrunModel : PageModel
         public string DonemKodu { get; init; } = string.Empty;
         public int RiskSkor { get; init; }
         public string? RiskYorum { get; init; }
-        public decimal IadeOranEsik { get; init; }
+        // Nullable: "esik 0" ile "esik tanimsiz" ayrilabilsin.
+        public decimal? IadeOranEsik { get; init; }
         public decimal? IadeOraniYuzde { get; init; }
         public decimal StokMiktar { get; init; }
         public DateTime? StokBakiyeTarihi { get; init; }

@@ -13,8 +13,6 @@ namespace BkmArgus.Web.Features;
 /// </summary>
 public static class UrunView
 {
-    private static readonly System.Globalization.CultureInfo TrCulture =
-        System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
 
     /// <summary>Hareket gecmisi tablosu.</summary>
     public static TableModel<UrunModel.HareketRow> HareketTable(IReadOnlyList<UrunModel.HareketRow> satirlar) => new()
@@ -28,7 +26,7 @@ public static class UrunView
             .Numeric(r => Para(r.BirimFiyat), "Birim fiyat")
             .Numeric(r => Adet(r.Giris), "Giriş")
             .Numeric(r => Adet(r.Cikis), "Çıkış")
-            .Numeric(r => r.Kalan.ToString("N0", TrCulture), "Kalan")
+            .Numeric(r => ArgusFormat.Quantity(r.Kalan), "Kalan")
             .Build(),
         Page = new PagedResult<UrunModel.HareketRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count)),
         EmptyTitle = "Hareket kaydı yok.",
@@ -41,22 +39,25 @@ public static class UrunView
     /// </summary>
     public static string EtkiBadgeClass(int etki) => etki switch
     {
-        >= 15 => "solum-badge solum-badge-bad",
-        >= 10 => "solum-badge solum-badge-warn",
-        _ => "solum-badge"
+        >= 15 => ArgusBadge.Class(SolumTone.Bad),
+        >= 10 => ArgusBadge.Class(SolumTone.Warn),
+        _ => ArgusBadge.Class(SolumTone.Neutral)
     };
 
     /// <summary>Risk skoru seviyesine gore rozet tonu.</summary>
     public static string SeviyeBadgeClass(string? seviye) => (seviye ?? "").ToUpperInvariant() switch
     {
-        "KRITIK" or "YUKSEK" => "solum-badge solum-badge-bad",
-        "ORTA" => "solum-badge solum-badge-warn",
-        "DUSUK" => "solum-badge solum-badge-good",
-        _ => "solum-badge"
+        "KRITIK" or "YUKSEK" => ArgusBadge.Class(SolumTone.Bad),
+        "ORTA" => ArgusBadge.Class(SolumTone.Warn),
+        "DUSUK" => ArgusBadge.Class(SolumTone.Good),
+        // "YOK" ve bilinmeyen kod NOTR — renk bir yargidir, uydurulmaz.
+        _ => ArgusBadge.Class(SolumTone.Neutral)
     };
 
     // Bos deger tabloda "-" gosterilir; sifir ile bos ayni sey degildir.
-    private static string Para(decimal? deger) => deger?.ToString("N2", TrCulture) ?? "—";
+    private static string Para(decimal? deger) => ArgusFormat.Money(deger);
 
-    private static string Adet(decimal? deger) => deger?.ToString("N0", TrCulture) ?? "—";
+    // Miktar ondaligi KORUNUR (denetim bulgusu 6.1): giris/cikis decimal(18,3);
+    // "N0" ile 2,5 -> "3" oluyordu ve ERP dokumuyle kiyaslama tutmuyordu.
+    private static string Adet(decimal? deger) => ArgusFormat.Quantity(deger);
 }

@@ -22,8 +22,13 @@
     {
         new()
         {
-            Label = "Toplam mekan",
-            Value = Model.Summary.Total.ToString(),
+            // KIRPMA (denetim bulgusu 5.4): SP en fazla 100 satir doner.
+            // 100'den fazla mekan varsa bu sayi TOPLAM DEGILDIR — etiket bunu
+            // soyluyor, cunku ipucu metni onu "toplam" gibi sunuyordu.
+            Label = Model.Kirpildi ? "Listelenen mekan" : "Toplam mekan",
+            Value = Model.Kirpildi
+                ? $"{ArgusFormat.Count(Model.Summary.Total)}+"
+                : ArgusFormat.Count(Model.Summary.Total),
             Hint = "ERP veya denetim verisi olan"
         },
         new()
@@ -36,8 +41,10 @@
         },
         new()
         {
-            Label = "Ortalama skor",
-            Value = Model.Summary.AvgCombinedScore.ToString("0.0"),
+            // Kadran suzgeci aciksa ortalama YALNIZ o kadranin ortalamasidir;
+            // etiket "Ortalama skor" kalirsa genel ortalama sanilir (bulgu 5.4).
+            Label = Model.SuzgecAktif ? "Ortalama skor (süzgeçli)" : "Ortalama skor",
+            Value = Model.Summary.AvgCombinedScore.ToString("0.0", ArgusFormat.Tr),
             Hint = "Birleşik risk skoru"
         }
     };
@@ -74,7 +81,7 @@
         </div>
     </div>
 
-    @Html.SolumTable(CorrelationView.Table(Model.Items))
+    @Html.SolumTable(CorrelationView.Table(Model.Items, Model.YenidenHesaplandi))
 </section>
 
 @if (Model.Items.Count > 0)

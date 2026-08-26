@@ -26,34 +26,27 @@ public static class CorrelationView
     /// </summary>
     public static string QuadrantBadgeClass(string? kadran) => kadran switch
     {
-        "YUKSEK_YUKSEK" => "solum-badge solum-badge-bad",
-        "YUKSEK_DUSUK" or "DUSUK_YUKSEK" => "solum-badge solum-badge-warn",
-        "DUSUK_DUSUK" => "solum-badge solum-badge-good",
-        _ => "solum-badge"
+        "YUKSEK_YUKSEK" => ArgusBadge.Class(SolumTone.Bad),
+        "YUKSEK_DUSUK" or "DUSUK_YUKSEK" => ArgusBadge.Class(SolumTone.Warn),
+        "DUSUK_DUSUK" => ArgusBadge.Class(SolumTone.Good),
+        _ => ArgusBadge.Class(SolumTone.Neutral)
     };
 
     /// <summary>Risk skoru rozeti — YUKSEK skor KOTU (esikler 70/50, eski ekrandan).</summary>
-    public static string RiskBadgeClass(decimal skor) => skor switch
-    {
-        >= 70m => "solum-badge solum-badge-bad",
-        >= 50m => "solum-badge solum-badge-warn",
-        _ => "solum-badge solum-badge-good"
-    };
+    public static string RiskBadgeClass(decimal skor) =>
+        ArgusBadge.ForThreshold(skor, 70m, 50m, yuksekKotu: true, numeric: false);
 
     /// <summary>
     /// Uyum orani rozeti — YUKSEK oran IYI (risk skorunun TERSI yon).
     /// Ayni sinif ureticiyi ikisi icin kullanmak yanlis renk uretirdi;
     /// eski ekranda iki ayri fonksiyon vardi, ayrimi koruyoruz.
     /// </summary>
-    public static string ComplianceBadgeClass(decimal oran) => oran switch
-    {
-        < 50m => "solum-badge solum-badge-bad",
-        < 80m => "solum-badge solum-badge-warn",
-        _ => "solum-badge solum-badge-good"
-    };
+    public static string ComplianceBadgeClass(decimal oran) =>
+        ArgusBadge.ForThreshold(oran, 50m, 80m, yuksekKotu: false, numeric: false);
 
     /// <summary>Korelasyon tablosu.</summary>
-    public static TableModel<IndexModel.CorrelationRow> Table(IReadOnlyList<IndexModel.CorrelationRow> satirlar) => new()
+    public static TableModel<IndexModel.CorrelationRow> Table(
+        IReadOnlyList<IndexModel.CorrelationRow> satirlar, bool yenidenHesaplandi = false) => new()
     {
         Columns = new ColumnBuilder<IndexModel.CorrelationRow>()
             .Text(r => r.LocationName, "Mekan")
@@ -67,7 +60,12 @@ public static class CorrelationView
         Page = new PagedResult<IndexModel.CorrelationRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count)),
         // Satir tiklanabilir: mekanin risk kirilimina gider (eski "Detay" bagi).
         RowUrl = r => $"/Risk?mekan={r.LocationId}",
-        EmptyTitle = "Veri bulunamadı.",
-        EmptyHint = "Hesaplama henüz çalıştırılmamış olabilir — \"Yeniden hesapla\" düğmesini deneyin."
+        // Hesaplama SONRASI bos sonuc ile "hic hesaplanmamis" AYRI seydir
+        // (denetim bulgusu 5.3): eskiden ikisi de ayni ipucunu gosteriyordu ve
+        // kullanici dugmeye tekrar tekrar basiyordu.
+        EmptyTitle = yenidenHesaplandi ? "Hesaplama sonuç üretmedi." : "Veri bulunamadı.",
+        EmptyHint = yenidenHesaplandi
+            ? "Hesaplama çalıştı ama eşleşme çıkmadı: bugüne ait ERP snapshot'ı ya da denetim kaydı gerekiyor."
+            : "Hesaplama henüz çalıştırılmamış olabilir — \"Yeniden hesapla\" düğmesini deneyin."
     };
 }
