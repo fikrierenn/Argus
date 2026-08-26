@@ -19,11 +19,11 @@
 }
 
 <nav class="argus-tabs" aria-label="Pano sekmeleri">
-    <a class="argus-tab @(Model.Tab == "risk" ? "argus-tab-active" : "")"
+    <a class="argus-tabs-item @(Model.Tab == "risk" ? "argus-tabs-item--active" : "")"
        asp-page="/Dashboard/Index" asp-route-tab="risk">ERP Risk</a>
-    <a class="argus-tab @(Model.Tab == "audit" ? "argus-tab-active" : "")"
+    <a class="argus-tabs-item @(Model.Tab == "audit" ? "argus-tabs-item--active" : "")"
        asp-page="/Dashboard/Index" asp-route-tab="audit">Saha Denetim</a>
-    <a class="argus-tab @(Model.Tab == "ai" ? "argus-tab-active" : "")"
+    <a class="argus-tabs-item @(Model.Tab == "ai" ? "argus-tabs-item--active" : "")"
        asp-page="/Dashboard/Index" asp-route-tab="ai">AI</a>
 </nav>
 

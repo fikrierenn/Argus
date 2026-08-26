@@ -10,7 +10,8 @@
     Urun detay. Solum ilkelleri: .solum-card · .solum-row · SolumTable · KpiCard ·
     _SolumEmpty · solum-badge (plan: 05, Dalga 1). Elle yazilmis 3 Tailwind kart
     kabi, 9 kolonlu elle tablo ve 2 sinif-uretici fonksiyon kaldirildi.
-    Sekme seridi yerel (.argus-tabs) — Solum'da yok, karar verildi.
+    Sekme seridi yerel (.argus-tabs) — Solum ikinci tuketicide devralacak, adlar
+    o yuzden solum- sozlesmesine uyumlu tutuldu.
 *@
 @{
     ViewData["Title"] = "Ürün Detay";
@@ -94,11 +95,11 @@
 
 <section class="solum-card">
     <nav class="argus-tabs" aria-label="Ürün detay sekmeleri">
-        <a class="argus-tab @(Model.ActiveTab == "risk" ? "argus-tab-active" : "")"
+        <a class="argus-tabs-item @(Model.ActiveTab == "risk" ? "argus-tabs-item--active" : "")"
            asp-page="/Urun/Index" asp-route-id="@Model.UrunId" asp-route-tab="risk">Risk analizi</a>
-        <a class="argus-tab @(Model.ActiveTab == "hareket" ? "argus-tab-active" : "")"
+        <a class="argus-tabs-item @(Model.ActiveTab == "hareket" ? "argus-tabs-item--active" : "")"
            asp-page="/Urun/Index" asp-route-id="@Model.UrunId" asp-route-tab="hareket">Hareket geçmişi</a>
-        <a class="argus-tab @(Model.ActiveTab == "dof" ? "argus-tab-active" : "")"
+        <a class="argus-tabs-item @(Model.ActiveTab == "dof" ? "argus-tabs-item--active" : "")"
            asp-page="/Urun/Index" asp-route-id="@Model.UrunId" asp-route-tab="dof">DÖF geçmişi</a>
     </nav>
 

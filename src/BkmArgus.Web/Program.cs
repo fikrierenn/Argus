@@ -67,6 +67,9 @@ builder.Services.AddScoped<Solum.Web.Menu.IMenuBuilder, Solum.Web.Menu.MenuBuild
 builder.Services.AddSingleton<Solum.Web.Menu.IMenuContributor, BkmArgus.Web.Features.ArgusMenu>();
 builder.Services.AddSingleton<Solum.Web.Components.ITableRenderer, Solum.Web.Components.HtmlTableRenderer>();
 builder.Services.AddSingleton<Solum.Web.Components.IKpiRenderer, Solum.Web.Components.HtmlKpiRenderer>();
+// <solum-field> tag helper'i ureticiyi DI'dan alir; kayit yoksa ILK RENDER patlar
+// (Solum denetci bulgusu D8). AddSolumWeb() gelene kadar elle.
+builder.Services.AddScoped<Solum.Web.Components.IFieldRenderer, Solum.Web.Components.HtmlFieldRenderer>();
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<NotificationService>();

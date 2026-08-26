@@ -103,19 +103,27 @@
 .argus-status-ok { background: var(--solum-good); }
 .argus-status-down { background: var(--solum-bad); }
 
-/* ── Sekme seridi — Solum'da YOK (tek kullanim, uc-urun esigine takiliyor) ── */
-.argus-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: var(--solum-gap); }
-.argus-tab {
+/* ── Sekme seridi — Solum'da YOK (bir urun, uc-urun esigi) ────────────────
+   ADLANDIRMA Solum sozlesmesine gore: Solum tarafi "ikinci tuketici cikarsa
+   seninkini alir temel yapariz" dedi (2026-08-26). O yuzden sinif adlari
+   .argus-tabs / -item / -item--active / -panel ve TUM deger --solum-* token'i —
+   tasima geldiginde degisen yalniz onek olur, kural degil. */
+.argus-tabs {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: var(--solum-gap);
+}
+.argus-tabs-item {
   padding: 6px 14px; border-radius: 999px;
   border: 1px solid var(--solum-line); background: var(--solum-surface);
   color: var(--solum-text); text-decoration: none; font-size: var(--solum-text-sm);
 }
-.argus-tab:hover { background: var(--solum-surface-alt); color: var(--solum-ink); }
-.argus-tab:focus-visible { outline: 2px solid var(--solum-accent); outline-offset: 2px; }
-.argus-tab-active {
+.argus-tabs-item:hover { background: var(--solum-surface-alt); color: var(--solum-ink); }
+.argus-tabs-item:focus-visible { outline: 2px solid var(--solum-accent); outline-offset: 2px; }
+.argus-tabs-item--active {
   background: var(--solum-accent); border-color: var(--solum-accent);
   color: var(--solum-accent-ink); font-weight: 600;
 }
+/* Sekme govdesi: seritten sonraki icerik blogu. */
+.argus-tabs-panel { min-width: 0; }
 
 /* ── Pano duzeni — Solum'da bilerek YOK (duzen tuketicide kalir) ─────────── */
 .argus-split, .argus-split-equal { display: grid; gap: var(--solum-gap); margin-bottom: var(--solum-gap); }
