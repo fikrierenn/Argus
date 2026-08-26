@@ -18,7 +18,7 @@
 }
 <div class="argus-bell" id="argusBell">
     <button type="button" class="solum-btn" title="Bildirimler" aria-label="Bildirimler"
-            onclick="argusToggleNotif()">
+            data-argus-notif-toggle>
         <svg class="argus-notif-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
@@ -34,7 +34,7 @@
             <span>Bildirimler</span>
             @if (okunmamis > 0)
             {
-                <button type="button" class="solum-btn" onclick="argusNotifTumunuOkundu()">Tümünü okundu işaretle</button>
+                <button type="button" class="solum-btn" data-argus-notif-all>Tümünü okundu işaretle</button>
             }
         </div>
         <div class="argus-notif-list">
@@ -67,7 +67,7 @@
                        satir butun paneli dusururdu. Guvensiz adres baglanti YAPILMAZ. *@
                     var linkGuvenli = Solum.Web.Components.UrlGuard.IsAllowed(b.Link);
                     <a class="argus-notif-item @(b.IsRead ? "" : "argus-unread")"
-                       href="@(linkGuvenli ? b.Link : null)" data-notif-id="@b.Id" onclick="argusNotifOkundu(this)">
+                       href="@(linkGuvenli ? b.Link : null)" data-argus-notif-id="@b.Id">
                         <span class="solum-badge @renk" aria-hidden="true"></span>
                         <span class="argus-grow">
                             <span class="argus-notif-title">@b.Title</span>

@@ -152,3 +152,75 @@
 a.argus-row-link { color: inherit; text-decoration: none; }
 a.argus-row-link:hover { background: var(--solum-surface-alt); }
 a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline-offset: -2px; }
+
+/* ── Pano (kanban) ────────────────────────────────────────────────────────
+   Solum'da YOK. Kullanici Solum'un yapmasini istedi; Solum tarafi "Tier 3,
+   kullanici karari" dedi ve "sen yaz, devralirsak ilk gercek kullanim senin
+   kodun olur" onerdi (2026-08-26). O yuzden adlar solum- sozlesmesine uyumlu
+   (.argus-board / -column / -card / --over) ve TUM deger --solum-* token'i;
+   devralma ad degisikligine iner.
+
+   MEKANIZMA burada, POLITIKA gorunumde: hangi kolonlar, hangi gecis mesru,
+   hangi adres -> Razor tarafi soyler. *@ */
+.argus-board {
+  display: grid; gap: var(--solum-gap); align-items: start;
+  grid-template-columns: repeat(var(--argus-board-cols, 5), minmax(0, 1fr));
+}
+@media (max-width: 1400px) { .argus-board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px)  { .argus-board { grid-template-columns: minmax(0, 1fr); } }
+
+.argus-board-column {
+  background: var(--solum-surface-alt); border: 1px solid var(--solum-line);
+  border-radius: var(--solum-radius); padding: 10px; min-width: 0;
+}
+/* Birakma hedefi vurgusu — surukleme sirasinda JS ekler/kaldirir. */
+.argus-board-column--over { border-color: var(--solum-accent); background: var(--solum-accent-soft); }
+
+.argus-board-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 2px 4px 8px;
+}
+.argus-board-title { font-size: var(--solum-text-sm); font-weight: 600; color: var(--solum-ink); }
+.argus-board-count {
+  min-width: 22px; text-align: center; padding: 1px 7px; border-radius: 999px;
+  background: var(--solum-line); color: var(--solum-ink);
+  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.argus-board-list { display: flex; flex-direction: column; gap: 8px; min-height: 56px; }
+
+.argus-board-card {
+  display: block; text-decoration: none; color: var(--solum-text);
+  background: var(--solum-surface); border: 1px solid var(--solum-line);
+  border-left: 3px solid var(--solum-line);
+  border-radius: var(--solum-radius-sm); padding: 10px 12px; cursor: grab;
+}
+.argus-board-card:hover { border-color: var(--solum-accent); }
+.argus-board-card:focus-visible { outline: 2px solid var(--solum-accent); outline-offset: 2px; }
+.argus-board-card[aria-grabbed="true"] { opacity: .5; }
+.argus-board-card-good { border-left-color: var(--solum-good); }
+.argus-board-card-warn { border-left-color: var(--solum-warn); }
+.argus-board-card-bad  { border-left-color: var(--solum-bad); }
+
+.argus-board-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.argus-board-card-title { font-size: var(--solum-text-sm); font-weight: 600; color: var(--solum-ink); }
+.argus-board-card-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-top: 8px; font-size: 11.5px; color: var(--solum-muted);
+}
+.argus-board-card-sig { font-family: var(--solum-font-mono); font-size: 11px; color: var(--solum-muted); }
+/* Klavye ipucu: fare olmadan tasima yolu GORUNUR olmali. */
+.argus-board-hint { font-size: 11.5px; color: var(--solum-muted); padding: 0 4px 8px; }
+
+/* ── Bildirim seridi ──────────────────────────────────────────────────────
+   Solum'da YOK (ayri istek olarak soruldu). JS icine gomulu 6 uzun sinif
+   dizesi bu sinifla degistirildi. */
+.argus-toast {
+  position: fixed; right: 20px; bottom: 20px; z-index: 60;
+  max-width: 360px; padding: 11px 16px;
+  border: 1px solid var(--solum-line); border-radius: var(--solum-radius);
+  background: var(--solum-surface); color: var(--solum-text);
+  font-size: var(--solum-text-sm); box-shadow: 0 10px 30px rgb(0 0 0 / .14);
+}
+.argus-toast[hidden] { display: none; }
+.argus-toast-good { border-color: var(--solum-good); color: var(--solum-good); }
+.argus-toast-bad  { border-color: var(--solum-bad);  color: var(--solum-bad); }

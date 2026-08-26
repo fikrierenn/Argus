@@ -2,56 +2,16 @@
 @model BkmArgus.Web.Features.Dof.IndexModel
 @attribute [Authorize]
 @using Solum.Web.Components
+@using BkmArgus.Web.Features.Dof
 @inject IKpiRenderer KpiRenderer
 @{
-    ViewData["Title"] = "DOF Yonetimi";
-    ViewData["Subtitle"] = "Kanban akisi ve SLA takibi";
-
-    string RiskBorderClass(string riskLabel) => riskLabel switch
-    {
-        "Kritik" => "border-l-4 border-bkm-red",
-        "Yuksek" => "border-l-4 border-amber-400",
-        "Orta"   => "border-l-4 border-blue-400",
-        _        => "border-l-4 border-emerald-400"
-    };
-
-    string RiskBadgeClass(string riskLabel) => riskLabel switch
-    {
-        "Kritik" => "rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-bkm-red",
-        "Yuksek" => "rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700",
-        "Orta"   => "rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700",
-        _        => "rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
-    };
-
-    string SlaBadge(int daysLeft)
-    {
-        if (daysLeft < 0) return "rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-bkm-red";
-        if (daysLeft <= 2) return "rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700";
-        return "rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600";
-    }
-
-    string SlaText(int daysLeft)
-    {
-        if (daysLeft < 0) return $"{Math.Abs(daysLeft)} gun gecikme";
-        if (daysLeft == 0) return "Bugun son gun";
-        return $"{daysLeft} gun kaldi";
-    }
-
-    string StatusDot(string columnName) => columnName switch
-    {
-        "Taslak"          => "bg-slate-400",
-        "Acik"             => "bg-blue-500",
-        "Devam Ediyor"     => "bg-amber-500",
-        "Onay Bekliyor"    => "bg-purple-500",
-        _                  => "bg-emerald-500"
-    };
+    ViewData["Title"] = "DÖF Yönetimi";
+    ViewData["Subtitle"] = "Pano akışı ve SLA takibi";
 }
 
 @*
-    KPI bandi ve baslik Solum ilkellerine tasindi (plan: 05, Dalga 1).
-    PANO ISARETLEMESINE DOKUNULMADI: kanban'in Solum'a girip girmeyecegi
-    kullanici karariyla Solum oturumuna soruldu (2026-08-26). Cevap gelmeden
-    yazmak iki kez is olur; mekanizma/politika ayrimi ve olcum gonderildi.
+    KPI bandi ve baslik Solum ilkellerinde; pano asagida (plan: 05, Dalga 1).
+    Sinif-uretici dort Razor fonksiyonu DofView.cs'e tasindi.
 *@
 @{
     var kpi = Model.Kpi;
@@ -94,106 +54,80 @@
     </div>
 </section>
 
-<!-- Kanban Board -->
-<div class="grid gap-4 lg:grid-cols-5">
-    @{
-        var columns = new (string Label, IEnumerable<BkmArgus.Web.Features.Dof.IndexModel.FindingRow> Items)[]
-        {
-            ("Taslak", Model.Draft),
-            ("Acik", Model.Open),
-            ("Devam Ediyor", Model.InProgress),
-            ("Onay Bekliyor", Model.PendingValidation),
-            ("Kapandi", Model.Closed)
-        };
-    }
+@*
+    PANO. Mekanizma wwwroot/js/argus-board.js'te (surukleme + KLAVYE + DOM
+    tasima); politika burada: hangi kolonlar, hangi durum kodu, hangi adres.
+    Uc olculmus kusur bu gecise kadar duruyordu ve kapandi:
+      1. bes satir ici olay isleyicisi -> addEventListener (CSP)
+      2. klavye yolu YOKTU -> Alt+Sol/Sag (screen-ux-standard §10)
+      3. basaridan sonra location.reload() -> DOM dugumu tasiniyor
+    Kanban'in Solum'a girmesi kullanici istegi; Solum "Tier 3, kullanici karari"
+    dedi ve "sen yaz, devralirsak ilk gercek kullanim senin kodun olur" onerdi.
+*@
+<section class="solum-card">
+    <div class="argus-board-hint">
+        Kartı sürükleyip bırakarak durum değiştirin. Fare kullanmadan:
+        karta odaklanın (Tab) ve <strong>Alt + ← / →</strong> ile komşu kolona taşıyın.
+    </div>
 
-    @foreach (var (label, items) in columns)
-    {
-        var itemList = items.ToList();
-        <div class="kanban-column rounded-xl border-2 border-slate-200 bg-slate-50/50 p-3 transition-colors"
-             data-status="@(label switch { "Taslak" => "DRAFT", "Acik" => "OPEN", "Devam Ediyor" => "IN_PROGRESS", "Onay Bekliyor" => "PENDING_VALIDATION", _ => "CLOSED" })"
-             ondragover="event.preventDefault(); this.classList.add('border-bkm-red','bg-red-50/30')"
-             ondragleave="this.classList.remove('border-bkm-red','bg-red-50/30')"
-             ondrop="handleDrop(event, this)">
-            <div class="flex items-center justify-between px-1">
-                <div class="flex items-center gap-2">
-                    <span class="h-2 w-2 rounded-full @StatusDot(label)"></span>
-                    <span class="text-sm font-semibold text-slate-700">@label</span>
-                </div>
-                <span class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">@itemList.Count</span>
-            </div>
-
-            <div class="mt-3 space-y-3 min-h-[60px]">
-                @foreach (var card in itemList)
-                {
-                    <a asp-page="Detail" asp-route-id="@card.DofId"
-                       draggable="true"
-                       data-dof-id="@card.DofId"
-                       ondragstart="event.dataTransfer.setData('dofId', '@card.DofId'); this.classList.add('opacity-50')"
-                       ondragend="this.classList.remove('opacity-50')"
-                       class="block rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md cursor-grab active:cursor-grabbing @RiskBorderClass(card.RiskLabel)">
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="text-sm font-semibold text-slate-800 line-clamp-2">@card.Title</div>
-                            <span class="@RiskBadgeClass(card.RiskLabel) shrink-0">@card.RiskLabel</span>
-                        </div>
-
-                        @if (card.FindingSignature is not null)
-                        {
-                            <div class="mt-1 text-[11px] font-mono text-slate-400">@card.FindingSignature</div>
-                        }
-
-                        <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
-                            <span class="truncate max-w-[120px]" title="@card.AssignedTo">@(card.AssignedTo ?? "-")</span>
-                            @if (card.SlaDueDate.HasValue)
-                            {
-                                <span class="@SlaBadge(card.SlaDaysLeft)">@SlaText(card.SlaDaysLeft)</span>
-                            }
-                        </div>
-                    </a>
-                }
-
-                @if (itemList.Count == 0)
-                {
-                    <div class="py-6 text-center text-xs text-slate-400">Bulgu yok</div>
-                }
-            </div>
-        </div>
-    }
-</div>
-
-<!-- Drag & Drop Toast -->
-<div id="dnd-toast" class="fixed bottom-6 right-6 z-50 hidden rounded-xl border px-5 py-3 text-sm font-semibold shadow-lg transition-all"></div>
-
-<script>
-async function handleDrop(event, column) {
-    event.preventDefault();
-    column.classList.remove('border-bkm-red', 'bg-red-50/30');
-
-    const dofId = event.dataTransfer.getData('dofId');
-    const newStatus = column.dataset.status;
-    if (!dofId || !newStatus) return;
-
-    const toast = document.getElementById('dnd-toast');
-    toast.textContent = 'Durum degistiriliyor...';
-    toast.className = 'fixed bottom-6 right-6 z-50 rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-700 shadow-lg';
-
-    try {
-        const res = await fetch(`/api/dof/transition?dofId=${dofId}&newStatus=${newStatus}`, { method: 'POST' });
-        const data = await res.json();
-
-        if (data.success) {
-            toast.textContent = 'Durum guncellendi!';
-            toast.className = 'fixed bottom-6 right-6 z-50 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 shadow-lg';
-            setTimeout(() => location.reload(), 600);
-        } else {
-            toast.textContent = data.error || 'Gecis yapilamadi';
-            toast.className = 'fixed bottom-6 right-6 z-50 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-bkm-red shadow-lg';
-            setTimeout(() => toast.classList.add('hidden'), 3000);
+    <div class="argus-board" data-argus-board data-argus-drop-url="/api/dof/transition">
+        @{
+            // POLITIKA: kolon kumesi ve makine karsiliklari. Durum kodlari SP
+            // sozlesmesinden gelir (dof.sp_Finding_Transition mesruiyeti dogrular).
+            (string Kod, string Etiket, IEnumerable<BkmArgus.Web.Features.Dof.IndexModel.FindingRow> Kayitlar)[] kolonlar =
+            [
+                ("DRAFT", "Taslak", Model.Draft),
+                ("OPEN", "Açık", Model.Open),
+                ("IN_PROGRESS", "Devam ediyor", Model.InProgress),
+                ("PENDING_VALIDATION", "Onay bekliyor", Model.PendingValidation),
+                ("CLOSED", "Kapandı", Model.Closed)
+            ];
         }
-    } catch (err) {
-        toast.textContent = 'Baglanti hatasi';
-        toast.className = 'fixed bottom-6 right-6 z-50 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-bkm-red shadow-lg';
-        setTimeout(() => toast.classList.add('hidden'), 3000);
-    }
+
+        @foreach (var (kod, etiket, kayitlar) in kolonlar)
+        {
+            var liste = kayitlar.ToList();
+            <div class="argus-board-column" data-argus-column="@kod" aria-label="@etiket kolonu">
+                <div class="argus-board-head">
+                    <span class="argus-board-title">@etiket</span>
+                    <span class="argus-board-count" data-argus-count>@liste.Count</span>
+                </div>
+
+                <div class="argus-board-list" data-argus-list>
+                    @foreach (var kart in liste)
+                    {
+                        <a class="argus-board-card @DofView.RiskToneClass(kart.RiskLabel)"
+                           asp-page="Detail" asp-route-id="@kart.DofId"
+                           draggable="true" data-argus-card="@kart.DofId"
+                           aria-label="@kart.Title, @kart.RiskLabel risk">
+                            <span class="argus-board-card-top">
+                                <span class="argus-board-card-title">@kart.Title</span>
+                                <span class="@DofView.RiskBadgeClass(kart.RiskLabel)">@kart.RiskLabel</span>
+                            </span>
+                            @if (kart.FindingSignature is not null)
+                            {
+                                <span class="argus-board-card-sig">@kart.FindingSignature</span>
+                            }
+                            <span class="argus-board-card-meta">
+                                <span>@(kart.AssignedTo ?? "—")</span>
+                                @if (kart.SlaDueDate.HasValue)
+                                {
+                                    <span class="@DofView.SlaBadgeClass(kart.SlaDaysLeft)">@DofView.SlaText(kart.SlaDaysLeft)</span>
+                                }
+                            </span>
+                        </a>
+                    }
+                    @* Bos kolon sessiz kalmaz; JS sayaci gunceller ve bunu gizler/gosterir. *@
+                    <div class="solum-empty" data-argus-empty hidden="@(liste.Count > 0)">Bulgu yok</div>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@* Bildirim seridi: aria-live ile ekran okuyucuya da duyurulur. *@
+<div id="argusToast" class="argus-toast" role="status" aria-live="polite" hidden></div>
+
+@section Scripts {
+    <script src="~/js/argus-board.js" asp-append-version="true"></script>
 }
-</script>
