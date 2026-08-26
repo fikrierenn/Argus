@@ -22,18 +22,19 @@ namespace BkmArgus.Web.Features;
 /// </summary>
 public static class RiskView
 {
+    /// <summary>Kritik skor esigi — rozet KIRMIZI olur.</summary>
+    private const int KritikEsik = 90;
+
+    /// <summary>Uyari skor esigi — rozet SARI olur.</summary>
+    private const int UyariEsik = 70;
+
     /// <summary>Risk skoru rozeti — YUKSEK skor KOTU.</summary>
-    public static string ScoreBadgeClass(int skor) => skor switch
-    {
-        >= 90 => "solum-badge solum-badge-num solum-badge-bad",
-        >= 70 => "solum-badge solum-badge-num solum-badge-warn",
-        _ => "solum-badge solum-badge-num"
-    };
+    public static string ScoreBadgeClass(int skor) =>
+        ArgusBadge.ForThreshold(skor, KritikEsik, UyariEsik, yuksekKotu: true);
 
     /// <summary>Stok rozeti — stok VARSA iyi, yoksa kotu.</summary>
     public static string StockBadgeClass(bool stokVar) =>
-        stokVar ? "solum-badge solum-badge-num solum-badge-good"
-                : "solum-badge solum-badge-num solum-badge-bad";
+        ArgusBadge.Class(stokVar ? SolumTone.Good : SolumTone.Bad, numeric: true);
 
     /// <summary>
     /// Risk bayragi rozeti. Bilinmeyen kod NOTR kalir — kirmizi gostermek
@@ -42,9 +43,9 @@ public static class RiskView
     /// </summary>
     public static string FlagBadgeClass(string? bayrak) => (bayrak ?? "").ToUpperInvariant() switch
     {
-        "GIRISSIZSATIS" or "STOKYOK" => "solum-badge solum-badge-bad",
-        "IADEYUKSEK" or "SAYIMDUZELTME" => "solum-badge solum-badge-warn",
-        _ => "solum-badge"
+        "GIRISSIZSATIS" or "STOKYOK" => ArgusBadge.Class(SolumTone.Bad),
+        "IADEYUKSEK" or "SAYIMDUZELTME" => ArgusBadge.Class(SolumTone.Warn),
+        _ => ArgusBadge.Class(SolumTone.Neutral)
     };
 
     /// <summary>Bayrak kodu -> okunur Turkce etiket.</summary>
@@ -59,23 +60,35 @@ public static class RiskView
         _ => bayrak ?? "—"
     };
 
-    /// <summary>Risk listesi tablosu.</summary>
-    public static TableModel<RiskModel.RiskRow> Table(IReadOnlyList<RiskModel.RiskRow> satirlar) => new()
+    /// <summary>
+    /// Risk listesi tablosu.
+    ///
+    /// <paramref name="sayfaBos"/>: veri BITTI mi (sayfa 2+ bos dondu) yoksa
+    /// suzgec gercekten hicbir sey bulamadi mi. Eskiden ikisi de "Risk kaydi
+    /// bulunamadi. Suzgeci genisletin" diyordu; kullanici saglam suzgecini
+    /// bozuyordu (denetim bulgusu 3.4).
+    /// </summary>
+    public static TableModel<RiskModel.RiskRow> Table(
+        IReadOnlyList<RiskModel.RiskRow> satirlar, bool sayfaBos = false) => new()
     {
         Columns = new ColumnBuilder<RiskModel.RiskRow>()
             .Text(r => r.Mekan, "Mekan")
             .Text(r => r.Urun, "Ürün")
             .Text(r => r.UrunKod, "Kod")
-            .Text(r => r.Donem, "Dönem")
             .Numeric(r => r.Skor, "Skor")
             .Text(r => string.Join(" · ", r.Flags.Select(FlagText)), "Bayraklar")
-            .Numeric(r => r.StokAdet.ToString("N0", TrCulture), "Stok")
+            // ONDALIK KORUNUR: stok decimal(18,3). "N0" ile 0,4 -> "0" ve
+            // 2,5 -> "3" oluyordu; denetci ekrani ERP dokumuyle kiyaslayip
+            // farki "veri tutarsizligi bulgusu" diye yaziyordu (bulgu 6.1).
+            .Numeric(r => ArgusFormat.Quantity(r.StokAdet), "Stok")
             .Numeric(r => $"{r.SonHareketGun} gün", "Son hareket")
             .Build(),
         Page = new PagedResult<RiskModel.RiskRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count)),
         RowUrl = r => $"/Urun/Index?id={r.Id}&mekanId={r.MekanId}",
-        EmptyTitle = "Risk kaydı bulunamadı.",
-        EmptyHint = "Süzgeci genişletin ya da kesim tarih aralığını kontrol edin."
+        EmptyTitle = sayfaBos ? "Bu sayfada kayıt yok." : "Risk kaydı bulunamadı.",
+        EmptyHint = sayfaBos
+            ? "Veri bitti — önceki sayfaya dönün. Süzgeciniz çalışıyor."
+            : "Süzgeci genişletin. Kesim günü seçtiyseniz o güne ait snapshot olmayabilir."
     };
 
     /// <summary>
@@ -109,22 +122,29 @@ public static class RiskView
             ["sayfa"] = (sayfa ?? m.PageIndex).ToString()
         };
 
-        // Coklu secim dizi olarak baglanir: mekan[0], mekan[1] ...
-        for (var i = 0; i < m.SelectedMekan.Count; i++)
-        {
-            veri[$"mekan[{i}]"] = m.SelectedMekan[i];
-        }
-
-        for (var i = 0; i < m.SelectedTip.Count; i++)
-        {
-            veri[$"tip[{i}]"] = m.SelectedTip[i];
-        }
-
         // Bos deger URL'e girmez — "?search=" gibi anlamsiz parca kalmasin.
-        return veri.Where(p => !string.IsNullOrEmpty(p.Value))
-                   .ToDictionary(p => p.Key, p => p.Value);
-    }
+        var temiz = veri.Where(p => !string.IsNullOrEmpty(p.Value))
+                        .ToDictionary(p => p.Key, p => p.Value);
 
-    private static readonly System.Globalization.CultureInfo TrCulture =
-        System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
+        // Coklu secim dizi olarak baglanir: mekan[0], mekan[1] ...
+        //
+        // BOSLARI INDEKSLEMEDEN ONCE AYIKLA (bulgu 1.6): eskiden dizi once
+        // kuruluyor, sonra genel "bos degeri at" filtresi mekan[0]'i
+        // dusurebiliyordu. Indeks 0'dan baslamayan dizi model baglamada HIC
+        // baglanmaz, yani suzgec TUMDEN sifirlanir. ?mekan=&mekan=12 gibi elle
+        // duzenlenmis bir URL bunu tam olarak uretir.
+        var mekanlar = m.SelectedMekan.Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
+        for (var i = 0; i < mekanlar.Count; i++)
+        {
+            temiz[$"mekan[{i}]"] = mekanlar[i];
+        }
+
+        var tipler = m.SelectedTip.Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
+        for (var i = 0; i < tipler.Count; i++)
+        {
+            temiz[$"tip[{i}]"] = tipler[i];
+        }
+
+        return temiz;
+    }
 }

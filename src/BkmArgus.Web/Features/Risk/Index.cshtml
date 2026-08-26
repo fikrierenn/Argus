@@ -35,6 +35,20 @@
         .Select(s => new SelectOption(s.ToString(), $"Sayfada {s}")).ToList();
 }
 
+@* GORUNMEZ SUZGEC UYARISI (denetim bulgusu 1.3): secenek listesinde
+   karsiligi olmayan deger onay kutusu isaretlemiyor ama SP'ye gidiyordu;
+   liste bosaliyor, kenar cubugunda hicbir sey secili gorunmuyordu.
+   Korelasyon ekranindan /Risk?mekan={id} tiklamasi bu yolu uretiyor. *@
+@if (Model.TaninmayanSuzgecler.Count > 0)
+{
+    <div class="solum-alert solum-alert-warn" role="status">
+        Tanınmayan süzgeç değeri: <strong>@string.Join(" · ", Model.TaninmayanSuzgecler)</strong>.
+        Süzgeç uygulanmaya devam ediyor ama seçenek listesinde karşılığı yok —
+        o mekanın risk kaydı olmayabilir. Temizlemek için
+        <a asp-page="/Risk/Index">süzgeci sıfırlayın</a>.
+    </div>
+}
+
 <div class="argus-split">
     <div>
         <section class="solum-card">
@@ -42,7 +56,13 @@
                 <div>
                     <h3 class="solum-card-title">Risk listesi</h3>
                     <div class="solum-card-sub">
-                        @Model.Rows.Count satır · sayfa @Model.PageIndex
+                        @* DONEM KOLONU KALDIRILDI (denetim bulgusu 1.4): SP
+                           `AND r.DonemKodu = 'Son30Gun'` ile tek donemi sabitliyor,
+                           yani kolon HER SATIRDA ayni degeri yaziyordu ve kullanici
+                           bunu "bu satir 30 gunluk" diye okuyup secim var saniyordu.
+                           Tek deger oldugu icin yeri burasi. Donem suzgeci gelirse
+                           kolon geri gelir (plan 06 Faz 5). *@
+                        @Model.Rows.Count satır · sayfa @Model.PageIndex · dönem: son 30 gün
                         @if (Model.Rows.Count == Model.PageSize)
                         {
                             <text>· sayfa dolu, devamı olabilir</text>
@@ -56,7 +76,7 @@
                 </div>
             </div>
 
-            @Html.SolumTable(RiskView.Table(Model.Rows))
+            @Html.SolumTable(RiskView.Table(Model.Rows, Model.SayfaBos))
 
             @* Sayfalama: gizli input yığını yerine rota verisi. Sınırda düğme
                yerine METİN gösterilir — tıklanamaz düğme kullanıcıyı yanıltır
@@ -110,7 +130,7 @@
                             {
                                 <span class="@RiskView.FlagBadgeClass(bayrak)">@RiskView.FlagText(bayrak)</span>
                             }
-                            <span class="@RiskView.StockBadgeClass(satir.StokVar)">@satir.StokAdet.ToString("N0")</span>
+                            <span class="@RiskView.StockBadgeClass(satir.StokVar)">@ArgusFormat.Quantity(satir.StokAdet)</span>
                             <span class="@RiskView.ScoreBadgeClass(satir.Skor)">@satir.Skor</span>
                         </span>
                     </a>
@@ -139,9 +159,18 @@
                 <solum-field asp-for="MaxSkor" label="Maks skor" />
             </div>
 
+            @* KESIM SEMANTIGI (denetim bulgusu 1.2): SP bu iki tarihi ARALIK
+               olarak KULLANMIYOR — araliktaki EN SON snapshot gununu buluyor
+               (MAX(SnapshotDate)) ve yalniz o gunu listeliyor. Etiketler
+               "baslangic/bitis" oldugu icin kullanici "agustos ayinin
+               riskleri" bekliyor, tek gun aliyordu. Gercek davranis yaziyor;
+               SP'nin gercek aralik destegi plan 06 Faz 5'te karara bagli. *@
             <div class="argus-filter">
-                <solum-field asp-for="KesimBas" label="Kesim başlangıç" />
-                <solum-field asp-for="KesimBit" label="Kesim bitiş" />
+                <solum-field asp-for="KesimBas" label="Kesim aralığı — başlangıç" />
+                <solum-field asp-for="KesimBit" label="Kesim aralığı — bitiş" />
+            </div>
+            <div class="solum-hint">
+                Bu aralıktaki <strong>en son kesim günü</strong> listelenir; günler birleştirilmez.
             </div>
 
             <solum-field asp-for="OrderBy" label="Sıralama" kind="FieldKind.Select"

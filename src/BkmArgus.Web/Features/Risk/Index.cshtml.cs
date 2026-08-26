@@ -9,6 +9,7 @@ public class RiskModel : PageModel
 {
     private readonly SqlDb _db;
     private readonly ExcelExportService _export;
+    private readonly ILogger<RiskModel> _logger;
 
     private static readonly IReadOnlyList<string> TipList = new[]
     {
@@ -49,10 +50,37 @@ public class RiskModel : PageModel
     public bool HasPrevPage => PageIndex > 1;
     public bool HasNextPage => Rows.Count == PageSize;
 
-    public RiskModel(SqlDb db, ExcelExportService export)
+    /// <summary>
+    /// `rpt.sp_RiskList` icindeki sert sayfa siniri (`IF @PageSize > 200 SET
+    /// @PageSize = 200`). Disa aktarim bu yuzden tek cagrida en fazla 200 satir
+    /// alabiliyordu — 5000 istemek hicbir sey degistirmiyordu.
+    /// </summary>
+    private const int SpSayfaSiniri = 200;
+
+    /// <summary>Disa aktarimin sert ust siniri — asilirsa dosya adinda GORUNUR.</summary>
+    private const int DisaAktarimUstSinir = 5000;
+
+    /// <summary>
+    /// Bos sayfa mi (veri bitti) yoksa gercekten kayit yok mu. Ikisi ayni
+    /// mesaji gorurse kullanici suzgecini suclar; oysa veri bitmistir
+    /// (denetim bulgusu 3.4).
+    /// </summary>
+    public bool SayfaBos => Rows.Count == 0 && PageIndex > 1;
+
+    /// <summary>
+    /// Secenek listesinde KARSILIGI OLMAYAN suzgec degerleri. Bunlar SP'ye
+    /// gonderilmeye devam eder (sonuc degistirilmez) ama artik GORUNUR:
+    /// eskiden onay kutusu isaretlenmedigi icin aktif ama gorunmez bir suzgec
+    /// olusuyor ve kullanici "hic veri yok" sonucuna variyordu (bulgu 1.3).
+    /// Erisilebilir yol: Korelasyon ekranindan /Risk?mekan={id} tiklamasi.
+    /// </summary>
+    public IReadOnlyList<string> TaninmayanSuzgecler { get; private set; } = Array.Empty<string>();
+
+    public RiskModel(SqlDb db, ExcelExportService export, ILogger<RiskModel> logger)
     {
         _db = db;
         _export = export;
+        _logger = logger;
     }
 
     public async Task OnGetAsync(
@@ -91,6 +119,8 @@ public class RiskModel : PageModel
                 row.MekanId.ToString(),
                 string.IsNullOrWhiteSpace(row.MekanAd) ? $"Mekan-{row.MekanId}" : row.MekanAd))
             .ToList();
+
+        TaninmayanSuzgecler = TaninmayanlariBul();
 
         var mekanCsv = SelectedMekan.Count > 0 ? string.Join(",", SelectedMekan) : null;
         var tipCsv = SelectedTip.Count > 0 ? string.Join(",", SelectedTip) : null;
@@ -141,23 +171,61 @@ public class RiskModel : PageModel
         var mekanCsv = mekan is { Length: > 0 } ? string.Join(",", mekan) : null;
         var tipCsv = tip is { Length: > 0 } ? string.Join(",", tip) : null;
 
-        var data = await _db.QueryAsync<RiskRowRaw>(
-            "rpt.sp_RiskList",
-            new
+        // KRITIK BULGU (2026-08-26): burada `Top = 5000, PageSize = 5000`
+        // yaziliydi ve SESSIZCE 200 satir donuyordu. Sebep SP'de:
+        //   SET @PageSize = COALESCE(@PageSize, @Top, 50);   -- 5000
+        //   IF @PageSize > 200 SET @PageSize = 200;          -- kirpiliyor
+        // @Top da inert: COALESCE @PageSize dolu oldugu icin ona hic bakmiyor.
+        // Sonuc: denetci 3.400 satirlik suzgecle "Excel indir"e basiyor, 200
+        // satirlik dosya aliyor ve bunu TAM liste sanip rapor yaziyordu.
+        // Cozum: SP'yi degistirmeden sayfa dongusu (SP tarafi plan 06 Faz 5).
+        var tumSatirlar = new List<RiskRowRaw>();
+        var sayfa = 1;
+        var kirpildi = false;
+
+        while (true)
+        {
+            var dilim = await _db.QueryAsync<RiskRowRaw>(
+                "rpt.sp_RiskList",
+                new
+                {
+                    Top = SpSayfaSiniri,
+                    Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
+                    MinSkor = minSkor,
+                    MaxSkor = maxSkor,
+                    KesimBas = kesimBas?.Date,
+                    KesimBit = kesimBit?.Date,
+                    MekanCSV = mekanCsv,
+                    TipCSV = tipCsv,
+                    OrderBy = NormalizeOrderBy(orderBy),
+                    OrderDir = NormalizeOrderDir(orderDir),
+                    Page = sayfa,
+                    PageSize = SpSayfaSiniri
+                });
+
+            tumSatirlar.AddRange(dilim);
+
+            // Son sayfa: SP sinirindan az satir dondu.
+            if (dilim.Count < SpSayfaSiniri)
             {
-                Top = 5000,
-                Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
-                MinSkor = minSkor,
-                MaxSkor = maxSkor,
-                KesimBas = kesimBas?.Date,
-                KesimBit = kesimBit?.Date,
-                MekanCSV = mekanCsv,
-                TipCSV = tipCsv,
-                OrderBy = NormalizeOrderBy(orderBy),
-                OrderDir = NormalizeOrderDir(orderDir),
-                Page = 1,
-                PageSize = 5000
-            });
+                break;
+            }
+
+            // Ust sinir: sonsuz donguye karsi. Asilirsa SESSIZ KALMAZ —
+            // hem loglanir hem DOSYA ADINDA gorunur.
+            if (tumSatirlar.Count >= DisaAktarimUstSinir)
+            {
+                kirpildi = true;
+                _logger.LogWarning(
+                    "Risk disa aktarimi ust sinira dayandi: {Satir} satir, suzgec search={Search} mekan={Mekan} tip={Tip}",
+                    tumSatirlar.Count, search, mekanCsv, tipCsv);
+                break;
+            }
+
+            sayfa++;
+        }
+
+        var data = tumSatirlar;
 
         var bytes = _export.Export(data, "Risk Listesi", new Dictionary<string, Func<RiskRowRaw, object?>>
         {
@@ -170,8 +238,15 @@ public class RiskModel : PageModel
             ["Son Hareket (Gun)"] = r => r.SonHareketGun
         });
 
-        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            $"risk_listesi_{DateTime.Today:yyyyMMdd}.xlsx");
+        // Kirpma DOSYA ADINDA gorunur: tarayici indirmesinde toast gosterilemez,
+        // kullanici indirdigi seyin tam olmadigini dosyaya bakarak anlar.
+        var ad = kirpildi
+            ? $"risk_listesi_{DateTime.Today:yyyyMMdd}_ILK{data.Count}_KIRPILDI.xlsx"
+            : $"risk_listesi_{DateTime.Today:yyyyMMdd}_{data.Count}satir.xlsx";
+
+        _logger.LogInformation("Risk disa aktarimi: {Satir} satir, kirpildi={Kirpildi}", data.Count, kirpildi);
+
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ad);
     }
 
     public record RiskRow(
@@ -245,6 +320,48 @@ public class RiskModel : PageModel
         public bool FlagHizliDevir { get; init; }
         public decimal StokMiktar { get; init; }
         public int? SonHareketGun { get; init; }
+    }
+
+    /// <summary>
+    /// Secenek listesinde bulunmayan suzgec degerlerini toplar. Deger
+    /// ATILMAZ — sonucu degistirmek daha buyuk surpriz olurdu; yalnizca
+    /// ekranda GORUNUR hale gelir.
+    /// </summary>
+    private List<string> TaninmayanlariBul()
+    {
+        var liste = new List<string>();
+
+        foreach (var deger in SelectedMekan)
+        {
+            if (string.IsNullOrWhiteSpace(deger))
+            {
+                continue;
+            }
+
+            var bulundu = MekanOptions.Any(o =>
+                string.Equals(o.Value, deger, StringComparison.OrdinalIgnoreCase));
+            if (!bulundu)
+            {
+                liste.Add($"mekan={deger}");
+            }
+        }
+
+        foreach (var deger in SelectedTip)
+        {
+            if (string.IsNullOrWhiteSpace(deger))
+            {
+                continue;
+            }
+
+            var bulundu = TipList.Any(t =>
+                string.Equals(t, deger, StringComparison.OrdinalIgnoreCase));
+            if (!bulundu)
+            {
+                liste.Add($"tip={deger}");
+            }
+        }
+
+        return liste;
     }
 
     private static string NormalizeOrderBy(string? orderBy)
