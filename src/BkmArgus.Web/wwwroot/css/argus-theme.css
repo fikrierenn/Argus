@@ -255,3 +255,24 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
   font-size: var(--solum-text-sm); color: var(--solum-text);
 }
 .argus-checkitem:hover { color: var(--solum-ink); }
+
+/* ── Bayat ozet + uyari tonu toast ───────────────────────────────────────
+   NOT: .argus-alert-warn buradan KALDIRILDI — bildirdikten sonra Solum
+   .solum-alert-warn + -neutral + .solum-badge-neutral olarak gonderdi
+   (kok sebep: SolumHtml.ToneClass herhangi bir on-ek aliyor, yani C#
+   var olmayan sinif adi uretebiliyordu; simdi CSS ile kapatildi).
+   Toast Solum'da hic yok, o yuzden argus-toast-warn KALIYOR. */
+
+/* Bayat ozet uyarisi: pano tasimasi ustteki KPI bandini gecersiz kilar. */
+.argus-stale {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: var(--solum-gap);
+    padding: 9px 12px;
+    border: 1px dashed var(--solum-warn);
+    border-radius: var(--solum-radius-sm);
+    color: var(--solum-warn);
+    font-size: 13px;
+}
+.argus-stale[hidden] { display: none; }
+
+.argus-toast-warn { border-color: var(--solum-warn); color: var(--solum-warn); }

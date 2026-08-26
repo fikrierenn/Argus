@@ -22,7 +22,15 @@ public sealed class NotificationService
             new { UserId = userId, OnlyUnread = onlyUnread, Top = 20 });
     }
 
-    public async Task MarkReadAsync(int notificationId, int userId)
+    /// <summary>
+    /// Bildirimi okundu isaretler ve ETKILENEN SATIR SAYISINI dondurur.
+    ///
+    /// Eskiden donus yutuluyordu (denetim bulgusu 4.1): 0 satir "bu bildirim
+    /// sana ait degil" demektir ve bu bilgi hicbir yere gitmiyordu.
+    /// NOT: SP'de `SET NOCOUNT ON` varsa donus -1 olur (bilinmiyor) — cagiran
+    /// bu ikisini AYIRMAK zorunda, 0 ile -1 ayni sey degil.
+    /// </summary>
+    public async Task<int> MarkReadAsync(int notificationId, int userId)
         => await _db.ExecuteAsync(
             "log.sp_Notification_MarkRead",
             new { NotificationId = notificationId, UserId = userId });

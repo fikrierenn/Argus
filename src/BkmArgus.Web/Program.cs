@@ -154,7 +154,19 @@ app.MapPost("/api/notifications/mark-read", async (HttpContext ctx, Notification
     if (!int.TryParse(ctx.Request.Query["id"], out var notifId)) return Results.BadRequest();
     var uid = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     if (!int.TryParse(uid, out var userId)) return Results.Unauthorized();
-    await svc.MarkReadAsync(notifId, userId);
+
+    // Etkilenen satir 0 ise bildirim bu kullaniciya ait DEGIL (ya da yok).
+    // Eskiden her durumda Ok() donuyordu ve istemci de yanita bakmiyordu:
+    // uctan uca sifir dogrulama (denetim bulgusu 4.1). -1 = SET NOCOUNT ON,
+    // yani "bilinmiyor" — 0 ile ayni sey degil, o yuzden ayri ele alinir.
+    var etkilenen = await svc.MarkReadAsync(notifId, userId);
+    if (etkilenen == 0)
+    {
+        Log.Warning("Bildirim okundu isaretlenemedi: kayit yok veya kullaniciya ait degil. " +
+                    "BildirimId={BildirimId} KullaniciId={KullaniciId}", notifId, userId);
+        return Results.NotFound();
+    }
+
     return Results.Ok();
 }).RequireAuthorization();
 
@@ -191,6 +203,32 @@ app.MapPost("/api/dof/transition", async (HttpContext ctx, BkmArgus.Web.Data.Sql
             Reason = "Kanban surukle-birak ile degistirildi"
         });
         return Results.Ok(new { success = true });
+    }
+    catch (Microsoft.Data.SqlClient.SqlException sqlEx)
+        when (sqlEx.Number is >= 50000 and < 60000)
+    {
+        // IS KURALI HATASI. Eskiden tek `catch (Exception)` vardi ve SP'nin
+        // urettigi GERCEK neden jenerikle eziliyordu (denetim bulgusu 2.5):
+        // DENETCI karti "Kapandi"ya tasiyor, ekran yalniz "Durum
+        // degistirilemedi." diyor, kullanici defalarca deneyip IT'ye ticket
+        // aciyordu. Dogru mesaj tek adimda cozerdi.
+        //
+        // SP mesajlari su an INGILIZCE (turkish-ui.md ihlali) — Turkcelestirmesi
+        // SP tarafinda yapilacak (plan 06). O gune kadar bilinen iki kalip
+        // burada Turkce karsiligina eslenir; taninmayan mesaj SIZDIRILMAZ.
+        var ham = sqlEx.Message ?? "";
+        var mesaj =
+            ham.Contains("already in status", StringComparison.OrdinalIgnoreCase)
+                ? "Bu bulgu zaten bu durumda. Sayfayı yenileyin."
+            : ham.Contains("Invalid transition", StringComparison.OrdinalIgnoreCase)
+                ? "Bu geçişe bu rolle izin verilmiyor — yönetici onayı gerekiyor."
+            : ham.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? "Bulgu bulunamadı."
+                : "Geçişe izin verilmedi.";
+
+        Log.Warning("DOF gecis is kurali reddi. DofId={DofId} NewStatus={NewStatus} SpMesaj={SpMesaj}",
+            dofId, newStatus, ham);
+        return Results.BadRequest(new { success = false, error = mesaj });
     }
     catch (Exception ex)
     {

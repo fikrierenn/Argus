@@ -9,10 +9,16 @@
 
     function panel() { return document.getElementById("argusNotifPanel"); }
 
-    function bildir(mesaj) {
+    // Toast: zamanlayici EKLENDI. Eskiden mesaj sayfa omru boyunca ekranda
+    // kaliyordu; kullanici eski bir hatayi guncel sanabiliyordu (bulgu 4.2a).
+    function bildir(mesaj, tur) {
         var t = document.getElementById("argusToast");
-        if (t) { t.textContent = mesaj; t.className = "argus-toast argus-toast-bad"; t.hidden = false; return; }
-        alert(mesaj);
+        if (!t) { alert(mesaj); return; }
+        t.textContent = mesaj;
+        t.className = "argus-toast argus-toast-" + (tur || "bad");
+        t.hidden = false;
+        window.clearTimeout(t._zaman);
+        t._zaman = window.setTimeout(function () { t.hidden = true; }, 4000);
     }
 
     // Yikici islem onayi: satir ici onclick="return confirm(...)" yerine
@@ -39,19 +45,32 @@
             fetch("/api/notifications/mark-all-read", { method: "POST", credentials: "same-origin" })
                 .then(function (r) {
                     if (r.ok) { location.reload(); return; }
-                    bildir("Bildirimler işaretlenemedi. Lütfen tekrar deneyin.");
+                    bildir("Bildirimler işaretlenemedi. Lütfen tekrar deneyin.", "bad");
                 })
-                .catch(function () { bildir("Bildirimler işaretlenemedi. Lütfen tekrar deneyin."); });
+                .catch(function () { bildir("Bildirimler işaretlenemedi. Lütfen tekrar deneyin.", "bad"); });
             return;
         }
 
-        // Tek bildirim okundu — baglantiya tiklama akisini engellemez
+        // Tek bildirim okundu.
+        //
+        // IKI KUSUR KAPANDI (denetim bulgusu 4.1):
+        //   1. Yanit HIC kontrol edilmiyordu — .then yok, .catch yok. 500 veya
+        //      401 halinde kullaniciya sifir geri bildirim vardi.
+        //   2. Oge bir <a href> oldugu icin tiklama AYNI ANDA gezinme baslatiyor;
+        //      ucusta olan POST sayfa bosaltilirken tarayici tarafindan IPTAL
+        //      edilebiliyordu. Bildirim okundu isaretlenmiyor, zil rozeti eski
+        //      sayida kaliyordu. keepalive: true istegin gezinmeye dayanmasini
+        //      saglar (fetch spesifikasyonu bu is icin var).
         var oge = e.target.closest("[data-argus-notif-id]");
         if (oge) {
             var id = oge.getAttribute("data-argus-notif-id");
             if (id) {
                 fetch("/api/notifications/mark-read?id=" + encodeURIComponent(id),
-                      { method: "POST", credentials: "same-origin" });
+                      { method: "POST", credentials: "same-origin", keepalive: true })
+                    .then(function (r) {
+                        if (!r.ok) bildir("Bildirim okundu işaretlenemedi.");
+                    })
+                    .catch(function () { bildir("Bildirim okundu işaretlenemedi."); });
             }
             return;
         }

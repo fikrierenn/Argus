@@ -53,6 +53,12 @@
     <partial name="_ArgusFooter" />
 </div>
 
+@* Bildirim seridi: aria-live ile ekran okuyucuya da duyurulur.
+   BURADA (kabukta) duruyor cunku argus-shell.js her sayfada yuklu; eskiden
+   yalniz DOF panosunda tanimliydi ve diger ekranlarda bildir() alert()'e
+   dusuyordu (denetim bulgusu 4.2b). *@
+<div id="argusToast" class="argus-toast" role="status" aria-live="polite" hidden></div>
+
 <script src="~/_content/Solum.Web/solum.js"></script>
 <script src="~/js/argus-shell.js" asp-append-version="true"></script>
 @await RenderSectionAsync("Scripts", required: false)

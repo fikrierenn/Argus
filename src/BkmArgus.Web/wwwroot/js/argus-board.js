@@ -42,10 +42,26 @@
         toast.textContent = mesaj;
         toast.className = "argus-toast" + (tur ? " argus-toast-" + tur : "");
         toast.hidden = false;
+
+        // clearTimeout KOSULSUZ: eskiden yalniz "tur" doluyken temizlenirdi,
+        // yani basarili tasimadan 1 sn sonra baslayan ikinci tasimanin
+        // "Durum degistiriliyor..." yazisi ONCEKI basarinin 3,5 sn'lik
+        // zamanlayicisiyla is UCARKEN gizleniyordu. Yavas baglantida kullanici
+        // hicbir sey olmadigini sanip tekrar tikliyordu (denetim bulgusu 2.6).
+        window.clearTimeout(toast._zaman);
         if (tur) {
-            window.clearTimeout(toast._zaman);
             toast._zaman = window.setTimeout(function () { toast.hidden = true; }, 3500);
         }
+    }
+
+    // Basarili tasimadan sonra ustteki KPI bandi SUNUCU GERCEGINDEN AYRISIR:
+    // kolon sayaclari guncellenir ama "Acik bulgu" / "SLA geciken" eski deger
+    // kalir. Eskiden location.reload() bunu ortuyordu; kaldirilinca iki gercek
+    // yan yana kaldi ve hangisinin dogru oldugunu soyleyen hicbir sey yoktu
+    // (denetim bulgusu 3.2). Artik ozet BAYAT olarak isaretlenir.
+    function ozetiBayatIsaretle() {
+        var uyari = document.querySelector("[data-argus-summary-stale]");
+        if (uyari) uyari.hidden = false;
     }
 
     // Tek tasima yolu: hem surukleme hem klavye burayi cagirir.
@@ -54,33 +70,76 @@
         var kaynak = kart.closest("[data-argus-column]");
         if (kaynak === hedefKolon) return;
 
+        // YARIS KILIDI (denetim bulgusu 2.3): DOM ancak yanit dondukten sonra
+        // guncellendigi icin iki hizli Alt+Sag ayni gecisi iki kez POST ediyordu.
+        // Ikincisi SP'de "already in status" ile patliyor, kullanicinin ikinci
+        // adimi kayboluyor ve aldigi mesaj nedenini soylemiyordu.
+        if (kart.getAttribute("data-argus-busy") === "1") {
+            bildir(board, "Bu kartın işlemi sürüyor, bekleyin.", null);
+            return;
+        }
+
         var url = board.getAttribute("data-argus-drop-url");
         var durum = hedefKolon.getAttribute("data-argus-column");
         var id = kart.getAttribute("data-argus-card");
-        if (!url || !durum || !id) return;
 
+        // Eskiden burada sessiz "return" vardi: isaretleme bozulursa Alt+Sag
+        // hicbir sey yapmiyor, konsolda da iz kalmiyordu (bulgu 2.7).
+        if (!url || !durum || !id) {
+            bildir(board, "Kart taşınamadı: ekran tanımı eksik. Sayfayı yenileyin.", "bad");
+            return;
+        }
+
+        kart.setAttribute("data-argus-busy", "1");
         bildir(board, "Durum değiştiriliyor…", null);
 
+        var yanit = null;
+        var veri = null;
+
+        // TRY YALNIZ AG CAGRISINI SARIYOR. Eskiden appendChild/focus da icindeydi:
+        // sunucu isi yaptiktan sonra bir DOM hatasi olusursa kullaniciya
+        // "Baglanti hatasi. Durum degismedi." yaziyordu — DB'de kayit degismisti.
+        // Yanlis mesajin en tehlikeli turu (denetim bulgusu 2.2).
         try {
             var adres = url + (url.indexOf("?") < 0 ? "?" : "&") +
                 "dofId=" + encodeURIComponent(id) + "&newStatus=" + encodeURIComponent(durum);
-            var yanit = await fetch(adres, { method: "POST", credentials: "same-origin" });
-            var veri = await yanit.json().catch(function () { return null; });
-
-            // Sunucu "olmaz" derse DOM'a DOKUNULMAZ — kart yerinde kalir.
-            // Aksi halde kullanici tasidigini sanip yanlis duruma guvenir.
-            if (!yanit.ok || !veri || veri.success !== true) {
-                bildir(board, (veri && veri.error) || "Geçiş yapılamadı.", "bad");
-                return;
-            }
-
-            hedefKolon.querySelector("[data-argus-list]").appendChild(kart);
-            sayaclariYenile(board);
-            kart.focus();
-            bildir(board, "Durum güncellendi.", "good");
+            yanit = await fetch(adres, { method: "POST", credentials: "same-origin" });
+            veri = await yanit.json().catch(function () { return null; });
         } catch (hata) {
+            kart.removeAttribute("data-argus-busy");
             bildir(board, "Bağlantı hatası. Durum değişmedi.", "bad");
+            return;
         }
+
+        kart.removeAttribute("data-argus-busy");
+
+        // Oturum dustuyse sorun gecisin mesruiyeti DEGIL — kullanici bunu
+        // "kural izin vermedi" sanip tekrar deniyordu (bulgu 2.4).
+        if (yanit.status === 401 || yanit.status === 403) {
+            bildir(board, "Oturumunuz sona ermiş. Sayfayı yenileyip tekrar deneyin.", "bad");
+            return;
+        }
+
+        // Sunucu "olmaz" derse DOM'a DOKUNULMAZ — kart yerinde kalir.
+        // Aksi halde kullanici tasidigini sanip yanlis duruma guvenir.
+        if (!yanit.ok || !veri || veri.success !== true) {
+            bildir(board, (veri && veri.error) || "Geçiş yapılamadı.", "bad");
+            return;
+        }
+
+        // Buradan asagisi TRY DISINDA: sunucu isi yapti, artik "durum degismedi"
+        // demek yasak. Ekran guncellenemezse DOGRU mesaj verilir.
+        var hedefListe = hedefKolon.querySelector("[data-argus-list]");
+        if (!hedefListe) {
+            bildir(board, "Durum değişti ama ekran güncellenemedi. Sayfayı yenileyin.", "warn");
+            return;
+        }
+
+        hedefListe.appendChild(kart);
+        sayaclariYenile(board);
+        ozetiBayatIsaretle();
+        if (typeof kart.focus === "function") kart.focus();
+        bildir(board, "Durum güncellendi.", "good");
     }
 
     // ── Surukleme ────────────────────────────────────────────────────────
