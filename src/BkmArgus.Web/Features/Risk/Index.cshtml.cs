@@ -65,7 +65,7 @@ public class RiskModel : PageModel
         string[] tip,
         string? orderBy,
         string? orderDir,
-        int? page,
+        int? sayfa,
         int? pageSize)
     {
         Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
@@ -77,7 +77,7 @@ public class RiskModel : PageModel
         SelectedTip = tip ?? Array.Empty<string>();
         OrderBy = NormalizeOrderBy(orderBy);
         OrderDir = NormalizeOrderDir(orderDir);
-        PageIndex = page.GetValueOrDefault(1);
+        PageIndex = sayfa.GetValueOrDefault(1);
         if (PageIndex < 1)
         {
             PageIndex = 1;

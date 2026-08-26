@@ -57,11 +57,11 @@ public static class CorrelationView
     {
         Columns = new ColumnBuilder<IndexModel.CorrelationRow>()
             .Text(r => r.LocationName, "Mekan")
-            .Number(r => r.ErpRiskScore.ToString("0.0"), "ERP risk")
-            .Number(r => $"%{r.AuditComplianceRate:0.0}", "Denetim uyumu")
-            .Number(r => r.CombinedScore.ToString("0.0"), "Birleşik skor")
+            .Numeric(r => r.ErpRiskScore.ToString("0.0"), "ERP risk")
+            .Numeric(r => $"%{r.AuditComplianceRate:0.0}", "Denetim uyumu")
+            .Numeric(r => r.CombinedScore.ToString("0.0"), "Birleşik skor")
             .Text(r => QuadrantLabel(r.Quadrant), "Kadran")
-            .Number(r => r.AuditCount, "Denetim")
+            .Numeric(r => r.AuditCount, "Denetim")
             .Text(r => r.LastAuditDate?.ToString("dd.MM.yyyy") ?? "—", "Son denetim")
             .Build(),
         Page = new PagedResult<IndexModel.CorrelationRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count)),

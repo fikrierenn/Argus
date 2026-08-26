@@ -96,7 +96,7 @@ public static class DashboardView
 
         return new KpiDelta(metin, hareket, RiskScorePolarity)
         {
-            Note = "son 30 gün"
+            Hint = "son 30 gün"
         };
     }
 
@@ -107,7 +107,7 @@ public static class DashboardView
             .Text(r => r.Mekan, "Mekan")
             .Text(r => r.Urun, "Ürün")
             .Text(r => r.Donem, "Dönem")
-            .Number(r => r.Skor, "Skor")
+            .Numeric(r => r.Skor, "Skor")
             .Text(r => r.Flag, "Bayrak")
             .Build(),
         Page = SinglePage(satirlar),
@@ -155,7 +155,7 @@ public static class DashboardView
         Columns = new ColumnBuilder<DashboardModel.RecentAuditRow>()
             .Text(r => r.LocationName, "Lokasyon")
             .Text(r => r.AuditDate.ToString("dd.MM.yyyy"), "Tarih")
-            .Number(r => FormatPercent(r.ComplianceRate), "Uyum")
+            .Numeric(r => FormatPercent(r.ComplianceRate), "Uyum")
             .Text(r => r.IsFinalized ? "Kesin" : "Taslak", "Durum")
             .Build(),
         Page = SinglePage(satirlar),
@@ -169,9 +169,9 @@ public static class DashboardView
     {
         Columns = new ColumnBuilder<DashboardModel.TopRiskFindingRow>()
             .Text(r => r.ItemText, "Madde")
-            .Number(r => r.FailureCount, "Başarısız")
-            .Number(r => r.DistinctLocations, "Lokasyon")
-            .Number(r => r.AvgRiskScore.ToString("0.0"), "Ort. risk")
+            .Numeric(r => r.FailureCount, "Başarısız")
+            .Numeric(r => r.DistinctLocations, "Lokasyon")
+            .Numeric(r => r.AvgRiskScore.ToString("0.0"), "Ort. risk")
             .Check(r => r.IsSystemic, "Sistemik")
             .Build(),
         Page = SinglePage(satirlar),
@@ -184,10 +184,10 @@ public static class DashboardView
     {
         Columns = new ColumnBuilder<DashboardModel.LocationScoreRow>()
             .Text(r => r.LocationName, "Lokasyon")
-            .Number(r => r.AuditCount, "Denetim")
-            .Number(r => FormatPercent(r.AvgComplianceRate), "Ort. uyum")
+            .Numeric(r => r.AuditCount, "Denetim")
+            .Numeric(r => FormatPercent(r.AvgComplianceRate), "Ort. uyum")
             .Text(r => r.LastAuditDate?.ToString("dd.MM.yyyy") ?? "—", "Son denetim")
-            .Number(r => r.RepeatingFindingCount, "Tekrar eden")
+            .Numeric(r => r.RepeatingFindingCount, "Tekrar eden")
             .Build(),
         Page = SinglePage(satirlar),
         EmptyTitle = "Lokasyon skoru yok."

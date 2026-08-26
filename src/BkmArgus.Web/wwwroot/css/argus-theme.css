@@ -238,3 +238,20 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
 .argus-filter-actions { display: flex; align-items: center; gap: 8px; }
 /* Satir icinde duran tek dugmeli form (Sil) — blok davranisi satiri kirmasin. */
 .argus-inline-form { display: inline; }
+
+/* ── Sayfalama seridi + onay kutusu grubu ─────────────────────────────────
+   Solum'da .solum-pager VAR ama PagedResult/TotalCount istiyor; bizim liste
+   SP'leri toplam sayi dondurmuyor (plan 05, karar bekliyor). O gelene kadar
+   ileri/geri bagalantisi bizde — adlar solum- uyumlu. */
+.argus-pager {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 4px 4px; flex-wrap: wrap;
+}
+/* Coklu secim: <solum-field>'de bu tur yok (Solum'a bildirildi). */
+.argus-checkgroup { border: 0; margin: 0 0 var(--solum-gap); padding: 0; }
+.argus-checkgroup legend { padding: 0 0 6px; }
+.argus-checkitem {
+  display: flex; align-items: center; gap: 8px; padding: 3px 0;
+  font-size: var(--solum-text-sm); color: var(--solum-text);
+}
+.argus-checkitem:hover { color: var(--solum-ink); }

@@ -1,303 +1,190 @@
 @page
 @model RiskModel
 @attribute [Authorize]
+@using Solum.Web.Components
+@*
+    Risk gezgini. Solum ilkelleri: <solum-field> · .solum-card · SolumTable ·
+    solum-badge · _SolumEmpty (plan: 05, Dalga 1).
+
+    EN BÜYÜK KAZANÇ — ÜÇ FORM BİRE İNDİ. Eski ekran aynı süzgeç durumunu
+    üç ayrı GET formunda ~30 gizli input olarak tekrarlıyordu (kenar çubuğu,
+    araç çubuğu, önceki/sonraki). Birinde eksik kalan alan süzgeci SESSİZCE
+    sıfırlıyordu — örneğin sayfa değiştirince arama kaybolabilirdi.
+    Artık tek form + RiskView.RouteData() tek üretim yeri.
+
+    KALDIRILANLAR: 4 Tailwind kart kabı · 8 kolonlu elle tablo · AYNI VERİNİN
+    MOBİL KOPYASI · 5 sınıf-üretici Razor fonksiyonu · ~30 gizli input.
+
+    ÇOKLU SEÇİM: mekan/tip onay kutusu grupları elle yazılı — <solum-field>'de
+    çoklu seçim türü yok (Solum'a bildirilecek). Alan görünümü solum-* ile.
+*@
 @{
     ViewData["Title"] = "Risk Gezgini";
-    ViewData["Subtitle"] = "Filtreli risk listesi ve hizli aksiyon";
+    ViewData["Subtitle"] = "Süzgeçli risk listesi ve hızlı aksiyon";
 
-    string ScoreBadge(int skor) => skor switch
-    {
-        >= 90 => "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red",
-        >= 70 => "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700",
-        _ => "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"
-    };
+    IReadOnlyList<SelectOption> siralamaSecenekleri = Model.OrderOptions
+        .Select(o => new SelectOption(o.Value, o.Label)).ToList();
 
-    string StokBadge(bool stokVar) => stokVar
-        ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
-        : "rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-bkm-red";
+    IReadOnlyList<SelectOption> yonSecenekleri =
+    [
+        new("DESC", "Azalan"),
+        new("ASC", "Artan")
+    ];
 
-    string FlagBadge(string flag) => flag switch
-    {
-        "GIRISSIZSATIS" => "rounded-full bg-red-50 px-2 py-1 text-[10px] font-semibold text-bkm-red",
-        "STOKYOK" => "rounded-full bg-red-50 px-2 py-1 text-[10px] font-semibold text-bkm-red",
-        "IADEYUKSEK" => "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700",
-        "SAYIMDUZELTME" => "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700",
-        _ => "rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600"
-    };
-
-    string FlagText(string flag) => flag switch
-    {
-        "GIRISSIZSATIS" => "GirissizSatis",
-        "STOKYOK" => "StokYok",
-        "NETBIRIKIM" => "NetBirikim",
-        "IADEYUKSEK" => "IadeYuksek",
-        "SAYIMDUZELTME" => "SayimDuzeltme",
-        "HIZLIDEVIR" => "HizliDevir",
-        _ => flag
-    };
-
-    bool IsSelected(IEnumerable<string> values, string value) =>
-        values.Any(item => string.Equals(item, value, StringComparison.OrdinalIgnoreCase));
-
-    bool IsSelectedValue(string? current, string value) =>
-        string.Equals(current, value, StringComparison.OrdinalIgnoreCase);
-
-    bool IsSelectedInt(int current, int value) => current == value;
-
-    string Initials(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "--";
-        }
-
-        return value.Length >= 2 ? value[..2].ToUpperInvariant() : value[..1].ToUpperInvariant();
-    }
+    IReadOnlyList<SelectOption> sayfaBoyutuSecenekleri = Model.PageSizeOptions
+        .Select(s => new SelectOption(s.ToString(), $"Sayfada {s}")).ToList();
 }
 
-<div class="grid gap-4 xl:grid-cols-[280px_1fr]">
-    <form class="space-y-4 rounded-xl border border-slate-200 bg-white p-5" method="get">
-        <input type="hidden" name="search" value="@Model.Search" />
-        <input type="hidden" name="orderBy" value="@Model.OrderBy" />
-        <input type="hidden" name="orderDir" value="@Model.OrderDir" />
-        <input type="hidden" name="kesimBas" value="@(Model.KesimBas?.ToString("yyyy-MM-dd"))" />
-        <input type="hidden" name="kesimBit" value="@(Model.KesimBit?.ToString("yyyy-MM-dd"))" />
-        <input type="hidden" name="pageSize" value="@Model.PageSize" />
-        <input type="hidden" name="page" value="1" />
-        <div>
-            <div class="text-sm font-semibold">Filtreler</div>
-            <div class="text-xs text-slate-500">URL ile paylasilabilir durum</div>
+<div class="argus-split">
+    <div>
+        <section class="solum-card">
+            <div class="solum-card-head">
+                <div>
+                    <h3 class="solum-card-title">Risk listesi</h3>
+                    <div class="solum-card-sub">
+                        @Model.Rows.Count satır · sayfa @Model.PageIndex
+                        @if (Model.Rows.Count == Model.PageSize)
+                        {
+                            <text>· sayfa dolu, devamı olabilir</text>
+                        }
+                    </div>
+                </div>
+                <div class="solum-row-side">
+                    @* Dış aktarım aynı süzgeç durumunu taşır — durum tek yerden üretiliyor. *@
+                    <a class="solum-btn" asp-page="/Risk/Index" asp-page-handler="Export"
+                       asp-all-route-data="RiskView.RouteData(Model)">Excel indir</a>
+                </div>
+            </div>
+
+            @Html.SolumTable(RiskView.Table(Model.Rows))
+
+            @* Sayfalama: gizli input yığını yerine rota verisi. Sınırda düğme
+               yerine METİN gösterilir — tıklanamaz düğme kullanıcıyı yanıltır
+               (screen-ux-standard §7: tıklanamaz aksiyonu gösterme). *@
+            <div class="argus-pager">
+                @if (Model.HasPrevPage)
+                {
+                    <a class="solum-btn" asp-page="/Risk/Index"
+                       asp-all-route-data="RiskView.RouteData(Model, Model.PageIndex - 1)">← Önceki</a>
+                }
+                else
+                {
+                    <span class="solum-hint">İlk sayfa</span>
+                }
+
+                <span class="solum-hint">Sayfa @Model.PageIndex</span>
+
+                @if (Model.HasNextPage)
+                {
+                    <a class="solum-btn" asp-page="/Risk/Index"
+                       asp-all-route-data="RiskView.RouteData(Model, Model.PageIndex + 1)">Sonraki →</a>
+                }
+                else
+                {
+                    <span class="solum-hint">Son sayfa</span>
+                }
+            </div>
+        </section>
+
+        @if (Model.Rows.Count > 0)
+        {
+            <section class="solum-card">
+                <div class="solum-card-head">
+                    <div>
+                        <h3 class="solum-card-title">Bayrak dağılımı</h3>
+                        <div class="solum-card-sub">Bu sayfadaki kayıtların risk bayrakları — satıra tıklayın</div>
+                    </div>
+                </div>
+                @foreach (var satir in Model.Rows.Take(10))
+                {
+                    <a class="solum-row argus-row-link"
+                       href="/Urun/Index?id=@satir.Id&mekanId=@satir.MekanId">
+                        <span class="solum-row-main">
+                            <span class="solum-row-label">@satir.Urun</span>
+                            <span class="solum-row-desc">
+                                @satir.Mekan · @satir.UrunKod · @satir.SonHareketGun gün önce
+                            </span>
+                        </span>
+                        <span class="solum-row-side">
+                            @foreach (var bayrak in satir.Flags)
+                            {
+                                <span class="@RiskView.FlagBadgeClass(bayrak)">@RiskView.FlagText(bayrak)</span>
+                            }
+                            <span class="@RiskView.StockBadgeClass(satir.StokVar)">@satir.StokAdet.ToString("N0")</span>
+                            <span class="@RiskView.ScoreBadgeClass(satir.Skor)">@satir.Skor</span>
+                        </span>
+                    </a>
+                }
+            </section>
+        }
+    </div>
+
+    <section class="solum-card">
+        <div class="solum-card-head">
+            <div>
+                <h3 class="solum-card-title">Süzgeçler</h3>
+                <div class="solum-card-sub">URL ile paylaşılabilir durum</div>
+            </div>
         </div>
 
-        <div>
-            <div class="text-xs uppercase tracking-wide text-slate-400">Mekan</div>
-            <div class="mt-2 space-y-2">
+        @* TEK form: filtre + arama + sıralama + sayfa boyutu. Sayfa daima 1'e
+           döner — süzgeç değişince eski sayfada kalmak boş liste gösterirdi. *@
+        <form method="get">
+            <input type="hidden" name="sayfa" value="1" />
+
+            <solum-field asp-for="Search" label="Arama" placeholder="Ürün, kod ya da mekan…" />
+
+            <div class="argus-filter">
+                <solum-field asp-for="MinSkor" label="Min skor" />
+                <solum-field asp-for="MaxSkor" label="Maks skor" />
+            </div>
+
+            <div class="argus-filter">
+                <solum-field asp-for="KesimBas" label="Kesim başlangıç" />
+                <solum-field asp-for="KesimBit" label="Kesim bitiş" />
+            </div>
+
+            <solum-field asp-for="OrderBy" label="Sıralama" kind="FieldKind.Select"
+                         options="siralamaSecenekleri" />
+            <solum-field asp-for="OrderDir" label="Yön" kind="FieldKind.Select"
+                         options="yonSecenekleri" />
+            <solum-field asp-for="PageSize" label="Sayfa boyutu" kind="FieldKind.Select"
+                         options="sayfaBoyutuSecenekleri" />
+
+            @* Çoklu seçim: <solum-field>'de bu tür yok, elle yazıldı ama
+               görünüm solum-* sınıflarından geliyor. *@
+            <fieldset class="argus-checkgroup">
+                <legend class="solum-label">Mekan</legend>
                 @foreach (var mekan in Model.MekanOptions)
                 {
-                    <label class="flex items-center gap-2 text-sm text-slate-600">
-                        <input class="rounded border-slate-300" type="checkbox" name="mekan" value="@mekan.Value" @(IsSelected(Model.SelectedMekan, mekan.Value) ? "checked" : null) />
+                    var secili = Model.SelectedMekan.Any(m =>
+                        string.Equals(m, mekan.Value, StringComparison.OrdinalIgnoreCase));
+                    <label class="argus-checkitem">
+                        <input class="solum-checkbox" type="checkbox" name="mekan"
+                               value="@mekan.Value" checked="@secili" />
                         <span>@mekan.Label</span>
                     </label>
                 }
-            </div>
-        </div>
+            </fieldset>
 
-        <div>
-            <div class="text-xs uppercase tracking-wide text-slate-400">Risk tipi</div>
-            <div class="mt-2 grid gap-2">
+            <fieldset class="argus-checkgroup">
+                <legend class="solum-label">Risk tipi</legend>
                 @foreach (var tip in Model.TipOptions)
                 {
-                    <label class="flex items-center gap-2 text-sm text-slate-600">
-                        <input class="rounded border-slate-300" type="checkbox" name="tip" value="@tip" @(IsSelected(Model.SelectedTip, tip) ? "checked" : null) />
-                        <span>@FlagText(tip)</span>
+                    var secili = Model.SelectedTip.Any(t =>
+                        string.Equals(t, tip, StringComparison.OrdinalIgnoreCase));
+                    <label class="argus-checkitem">
+                        <input class="solum-checkbox" type="checkbox" name="tip"
+                               value="@tip" checked="@secili" />
+                        <span>@RiskView.FlagText(tip)</span>
                     </label>
                 }
+            </fieldset>
+
+            <div class="argus-filter-actions">
+                <button class="solum-btn solum-btn-primary" type="submit">Uygula</button>
+                <a class="solum-btn" asp-page="/Risk/Index">Temizle</a>
             </div>
-        </div>
-
-        <div>
-            <div class="text-xs uppercase tracking-wide text-slate-400">Skor araligi</div>
-            <div class="mt-2 grid grid-cols-2 gap-2">
-                <label class="text-xs text-slate-500">
-                    Min
-                    <input class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" type="number" name="minSkor" min="0" max="100" value="@Model.MinSkor" />
-                </label>
-                <label class="text-xs text-slate-500">
-                    Max
-                    <input class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" type="number" name="maxSkor" min="0" max="100" value="@Model.MaxSkor" />
-                </label>
-            </div>
-        </div>
-
-        <div class="flex items-center gap-2">
-            <button class="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600" type="submit">Filtrele</button>
-            <a class="text-xs text-slate-500" asp-page="/Risk/Index">Temizle</a>
-        </div>
-    </form>
-
-    <div class="space-y-4">
-        <div class="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <div class="text-sm font-semibold">Risk listesi</div>
-                <div class="text-xs text-slate-500">@Model.Rows.Count satir (sayfa @Model.PageIndex)</div>
-            </div>
-            <form class="flex flex-wrap items-center gap-2" method="get">
-                @foreach (var mekan in Model.SelectedMekan)
-                {
-                    <input type="hidden" name="mekan" value="@mekan" />
-                }
-                @foreach (var tip in Model.SelectedTip)
-                {
-                    <input type="hidden" name="tip" value="@tip" />
-                }
-                @if (Model.MinSkor.HasValue)
-                {
-                    <input type="hidden" name="minSkor" value="@Model.MinSkor" />
-                }
-                @if (Model.MaxSkor.HasValue)
-                {
-                    <input type="hidden" name="maxSkor" value="@Model.MaxSkor" />
-                }
-                <input type="hidden" name="page" value="1" />
-                <input class="w-44 rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" name="search" value="@Model.Search" placeholder="Ara (urun/kod/mekan)" />
-                <input class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" type="date" name="kesimBas" value="@(Model.KesimBas?.ToString("yyyy-MM-dd"))" />
-                <input class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" type="date" name="kesimBit" value="@(Model.KesimBit?.ToString("yyyy-MM-dd"))" />
-                <select class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" name="orderBy">
-                    @foreach (var option in Model.OrderOptions)
-                    {
-                        <option value="@option.Value" selected="@(IsSelectedValue(Model.OrderBy, option.Value) ? "selected" : null)">@option.Label</option>
-                    }
-                </select>
-                <select class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" name="orderDir">
-                    <option value="DESC" selected="@(IsSelectedValue(Model.OrderDir, "DESC") ? "selected" : null)">Azalan</option>
-                    <option value="ASC" selected="@(IsSelectedValue(Model.OrderDir, "ASC") ? "selected" : null)">Artan</option>
-                </select>
-                <select class="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600" name="pageSize">
-                    @foreach (var size in Model.PageSizeOptions)
-                    {
-                        <option value="@size" selected="@(IsSelectedInt(Model.PageSize, size) ? "selected" : null)">Top @size</option>
-                    }
-                </select>
-                <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="submit">Uygula</button>
-                <a class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600"
-                   href="/Risk?handler=Export&search=@Model.Search&minSkor=@Model.MinSkor&maxSkor=@Model.MaxSkor&kesimBas=@(Model.KesimBas?.ToString("yyyy-MM-dd"))&kesimBit=@(Model.KesimBit?.ToString("yyyy-MM-dd"))&orderBy=@Model.OrderBy&orderDir=@Model.OrderDir@(string.Join("", Model.SelectedMekan.Select(m => "&mekan=" + m)))@(string.Join("", Model.SelectedTip.Select(t => "&tip=" + t)))">Excel indir</a>
-            </form>
-        </div>
-
-        <div class="hidden rounded-xl border border-slate-200 bg-white p-4 md:block">
-            <table class="min-w-full text-left text-sm">
-                <thead class="text-xs uppercase text-slate-400">
-                    <tr>
-                        <th class="pb-2">Mekan</th>
-                        <th class="pb-2">Urun</th>
-                        <th class="pb-2">Donem</th>
-                        <th class="pb-2">Skor</th>
-                        <th class="pb-2">Flag</th>
-                        <th class="pb-2">Stok</th>
-                        <th class="pb-2">Son hareket</th>
-                        <th class="pb-2">Aksiyon</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @foreach (var row in Model.Rows)
-                    {
-                        <tr class="text-slate-700">
-                            <td class="py-3">@row.Mekan</td>
-                            <td class="py-3">
-                                <div class="flex items-center gap-3">
-                                    <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-500">@Initials(row.Urun)</div>
-                                    <div>
-                                        <div class="text-sm font-semibold">@row.Urun</div>
-                                        <div class="text-xs text-slate-500">@row.UrunKod</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="py-3">@row.Donem</td>
-                            <td class="py-3">
-                                <span class="@ScoreBadge(row.Skor)">@row.Skor</span>
-                            </td>
-                            <td class="py-3">
-                                <div class="flex flex-wrap gap-1">
-                                    @foreach (var flag in row.Flags)
-                                    {
-                                        <span class="@FlagBadge(flag)" title="@FlagText(flag)">@FlagText(flag)</span>
-                                    }
-                                </div>
-                            </td>
-                            <td class="py-3">
-                                <span class="@StokBadge(row.StokVar)">@row.StokAdet</span>
-                            </td>
-                            <td class="py-3 text-xs text-slate-500">@row.SonHareketGun gun once</td>
-                            <td class="py-3">
-                            <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" asp-page="/Urun/Index" asp-route-id="@row.Id" asp-route-mekanId="@row.MekanId">Incele</a>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-between gap-2">
-            <form method="get">
-                @foreach (var mekan in Model.SelectedMekan)
-                {
-                    <input type="hidden" name="mekan" value="@mekan" />
-                }
-                @foreach (var tip in Model.SelectedTip)
-                {
-                    <input type="hidden" name="tip" value="@tip" />
-                }
-                <input type="hidden" name="search" value="@Model.Search" />
-                @if (Model.MinSkor.HasValue)
-                {
-                    <input type="hidden" name="minSkor" value="@Model.MinSkor" />
-                }
-                @if (Model.MaxSkor.HasValue)
-                {
-                    <input type="hidden" name="maxSkor" value="@Model.MaxSkor" />
-                }
-                <input type="hidden" name="kesimBas" value="@(Model.KesimBas?.ToString("yyyy-MM-dd"))" />
-                <input type="hidden" name="kesimBit" value="@(Model.KesimBit?.ToString("yyyy-MM-dd"))" />
-                <input type="hidden" name="orderBy" value="@Model.OrderBy" />
-                <input type="hidden" name="orderDir" value="@Model.OrderDir" />
-                <input type="hidden" name="pageSize" value="@Model.PageSize" />
-                <input type="hidden" name="page" value="@(Model.PageIndex - 1)" />
-                <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="submit" @(Model.HasPrevPage ? null : "disabled")>Onceki</button>
-            </form>
-            <div class="text-xs text-slate-500">Sayfa @Model.PageIndex</div>
-            <form method="get">
-                @foreach (var mekan in Model.SelectedMekan)
-                {
-                    <input type="hidden" name="mekan" value="@mekan" />
-                }
-                @foreach (var tip in Model.SelectedTip)
-                {
-                    <input type="hidden" name="tip" value="@tip" />
-                }
-                <input type="hidden" name="search" value="@Model.Search" />
-                @if (Model.MinSkor.HasValue)
-                {
-                    <input type="hidden" name="minSkor" value="@Model.MinSkor" />
-                }
-                @if (Model.MaxSkor.HasValue)
-                {
-                    <input type="hidden" name="maxSkor" value="@Model.MaxSkor" />
-                }
-                <input type="hidden" name="kesimBas" value="@(Model.KesimBas?.ToString("yyyy-MM-dd"))" />
-                <input type="hidden" name="kesimBit" value="@(Model.KesimBit?.ToString("yyyy-MM-dd"))" />
-                <input type="hidden" name="orderBy" value="@Model.OrderBy" />
-                <input type="hidden" name="orderDir" value="@Model.OrderDir" />
-                <input type="hidden" name="pageSize" value="@Model.PageSize" />
-                <input type="hidden" name="page" value="@(Model.PageIndex + 1)" />
-                <button class="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-600" type="submit" @(Model.HasNextPage ? null : "disabled")>Sonraki</button>
-            </form>
-        </div>
-
-        <div class="space-y-3 md:hidden">
-            @foreach (var row in Model.Rows)
-            {
-                <div class="rounded-xl border border-slate-200 bg-white p-4">
-                    <div class="flex items-center justify-between">
-                        <div class="text-sm font-semibold">@row.Urun</div>
-                        <span class="@ScoreBadge(row.Skor)">@row.Skor</span>
-                    </div>
-                    <div class="text-xs text-slate-500">@row.UrunKod - @row.Mekan</div>
-                    <div class="mt-3 flex flex-wrap gap-1">
-                        @foreach (var flag in row.Flags)
-                        {
-                            <span class="@FlagBadge(flag)">@FlagText(flag)</span>
-                        }
-                    </div>
-                    <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
-                        <span>@row.Donem</span>
-                        <span>@row.SonHareketGun gun once</span>
-                    </div>
-                    <div class="mt-3 flex items-center justify-between">
-                        <span class="@StokBadge(row.StokVar)">Stok @row.StokAdet</span>
-                        <a class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600" asp-page="/Urun/Index" asp-route-id="@row.Id" asp-route-mekanId="@row.MekanId">Incele</a>
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
+        </form>
+    </section>
 </div>

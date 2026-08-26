@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BkmArgus.Web.Data;
@@ -10,7 +11,12 @@ public class IndexModel : PageModel
     public IndexModel(SqlDb db) => _db = db;
 
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
+    // Suzgec TARIH alani: saat kismi anlamsiz. Niyet MODELDE duruyor —
+    // gorunumde kind="Date" yazmak her cagri yerinde tekrar demekti (Solum
+    // onerisi 2026-08-26). Solum cikarimi [DataType]'i okuyup type="date" uretir.
+    [DataType(DataType.Date)]
     [BindProperty(SupportsGet = true)] public DateTime? StartDate { get; set; }
+    [DataType(DataType.Date)]
     [BindProperty(SupportsGet = true)] public DateTime? EndDate { get; set; }
     [BindProperty(SupportsGet = true)] public bool? IsFinalized { get; set; }
 

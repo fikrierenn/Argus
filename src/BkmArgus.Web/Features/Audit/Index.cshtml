@@ -20,18 +20,16 @@
     ViewData["Title"] = "Saha Denetim";
     ViewData["Subtitle"] = "Denetim listesi ve yönetimi";
 
-    @* DIKKAT — degerler "True"/"False" (BUYUK harfle). Sebep olculdu:
-       bool? alanin makine degeri Boolean.ToString() ile uretiliyor, yani
-       "True"/"False". Kucuk harfli "true" yazildiginda Solum'un korumasi
-       HATA firlatti (dogru davranis): "deger 'False' ama seceneklerin hicbiri
-       bu degeri tasimiyor... sessizce cizilseydi tarayici ILK secenegi secer
-       ve kullanici hicbir seye dokunmadan kaydettiginde deger DEGISIRDI."
-       Eski ekran kucuk harf kullaniyordu ve secili durum ELLE hesaplandigi
-       icin sorun gorunmuyordu. *@
+    @* Mantiksal deger secenekleri KUCUK harf — HTML makine bicimi bu.
+       Kisa gecmis: ilk yazdigim kucuk harf Solum'un korumasindan HATA aldi
+       ("deger 'False' ama seceneklerin hicbiri bu degeri tasimiyor"), gecici
+       olarak "True"/"False" yazildi; Solum uretimi duzeltti (MachineValue
+       bool'u her turde kucuk harfe normalize ediyor, commit 9d76486) ve dogru
+       hale donuldu. Artik "True" yazmak HATA verir — makine bicimi tek. *@
     IReadOnlyList<SelectOption> durumSecenekleri =
     [
-        new("True", "Kesinleştirildi"),
-        new("False", "Taslak")
+        new("true", "Kesinleştirildi"),
+        new("false", "Taslak")
     ];
 }
 
@@ -51,11 +49,10 @@
        degisen yalniz kap olur. *@
     <form class="argus-filter" method="get">
         <solum-field asp-for="Search" label="Mağaza adı" placeholder="Ara…" />
-        @* DateTime? cikarimi datetime-local uretiyor; bu bir SUZGEC ve saat
-           kismi anlamsiz — niyet acikca soyleniyor (Solum: cikarim her ayrimi
-           bilemez, niyeti nitelik tasir). *@
-        <solum-field asp-for="StartDate" label="Başlangıç" kind="FieldKind.Date" />
-        <solum-field asp-for="EndDate" label="Bitiş" kind="FieldKind.Date" />
+        @* Tarih niyeti MODELDE: [DataType(DataType.Date)] (Index.cshtml.cs).
+           Boylece kind her cagri yerinde tekrarlanmiyor — Solum onerisi. *@
+        <solum-field asp-for="StartDate" label="Başlangıç" />
+        <solum-field asp-for="EndDate" label="Bitiş" />
         <solum-field asp-for="IsFinalized" label="Durum" kind="FieldKind.Select"
                      options="durumSecenekleri" empty-option-text="Tümü" />
         <div class="argus-filter-actions">

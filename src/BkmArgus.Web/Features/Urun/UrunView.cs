@@ -25,10 +25,10 @@ public static class UrunView
             .Text(r => r.HareketTipi, "Hareket tipi")
             .Text(r => r.Tip, "Tip")
             .Text(r => r.EvrakNo, "Evrak")
-            .Number(r => Para(r.BirimFiyat), "Birim fiyat")
-            .Number(r => Adet(r.Giris), "Giriş")
-            .Number(r => Adet(r.Cikis), "Çıkış")
-            .Number(r => r.Kalan.ToString("N0", TrCulture), "Kalan")
+            .Numeric(r => Para(r.BirimFiyat), "Birim fiyat")
+            .Numeric(r => Adet(r.Giris), "Giriş")
+            .Numeric(r => Adet(r.Cikis), "Çıkış")
+            .Numeric(r => r.Kalan.ToString("N0", TrCulture), "Kalan")
             .Build(),
         Page = new PagedResult<UrunModel.HareketRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count)),
         EmptyTitle = "Hareket kaydı yok.",
