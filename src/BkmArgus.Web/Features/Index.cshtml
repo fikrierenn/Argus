@@ -22,16 +22,32 @@
         Label = k.Baslik,
         Value = k.Deger,
         Hint = k.Not,
+        // BILINMEYEN TON NOTR (denetim bulgusu 5.7): alt dal `_ => Bad` idi,
+        // yani SP'nin ton kolonu bosalirsa ya da kolon adi degisirse BUTUN
+        // kartlar kirmizi oluyordu — veri kaybi alarm kiligina giriyordu.
+        // SP'nin uretebildigi "tone-alert" de artik acikca esli
+        // (sql/32_sps_remaining_english.sql:126), tesadufe birakilmiyor.
         Tone = k.Tone switch
         {
             "tone-good" => SolumTone.Good,
             "tone-warn" => SolumTone.Warn,
-            _ => SolumTone.Bad
+            "tone-bad" or "tone-alert" => SolumTone.Bad,
+            _ => SolumTone.Neutral
         }
     }).ToList();
 }
 
-@KpiRenderer.RenderGrid(kartlar)
+@* KPI bos durumu: eskiden RenderGrid kosulsuz cagriliyordu ve SP 0 satir
+   dondurdugunde sayfanin tepesi SESSIZCE bosaliyordu (bulgu 5.7). *@
+@if (kartlar.Count == 0)
+{
+    <partial name="/Pages/Shared/_SolumEmpty.cshtml"
+             model="@(("Günlük özet üretilemedi.", (string?)"Gecelik ETL çalışmamış olabilir — Tanımlar > sağlık kontrolüne bakın."))" />
+}
+else
+{
+    @KpiRenderer.RenderGrid(kartlar)
+}
 
 <div class="argus-split-equal">
     <section class="solum-card">

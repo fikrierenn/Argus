@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BkmArgus.Web.Data;
+using BkmArgus.Web.Domain;
 
 namespace BkmArgus.Web.Features.Dof;
 
@@ -8,21 +9,37 @@ public class IndexModel : PageModel
     private readonly SqlDb _db;
     public IndexModel(SqlDb db) => _db = db;
 
+    /// <summary>Panonun cektigi kayit siniri — kirpma uyarisi bunu gosterir.</summary>
+    public const int Limit = 100;
+
     public IReadOnlyList<FindingRow> Findings { get; private set; } = Array.Empty<FindingRow>();
     public DofKpiRow? Kpi { get; private set; }
 
-    // Kanban columns
-    public IEnumerable<FindingRow> Draft => Findings.Where(f => f.Status == "DRAFT");
-    public IEnumerable<FindingRow> Open => Findings.Where(f => f.Status == "OPEN");
-    public IEnumerable<FindingRow> InProgress => Findings.Where(f => f.Status == "IN_PROGRESS");
-    public IEnumerable<FindingRow> PendingValidation => Findings.Where(f => f.Status == "PENDING_VALIDATION");
-    public IEnumerable<FindingRow> Closed => Findings.Where(f => f.Status is "CLOSED" or "REJECTED");
+    /// <summary>
+    /// KPI satiri GERCEKTEN geldi mi. `Kpi` bos nesneye dusurulunce butun
+    /// sayilar 0 oluyor ve "SLA geciken 0" YESIL gorunuyordu — veri yoklugu
+    /// iyi haber olarak sunuluyordu (denetim bulgusu 3.3).
+    /// </summary>
+    public bool KpiVar { get; private set; }
+
+    /// <summary>Liste sinira dayandi mi — dayandiysa gecikmis bulgular dusmus olabilir.</summary>
+    public bool Kirpildi => Findings.Count >= Limit;
+
+    // Kanban kolonlari — durum kodlari DofStatus sabitlerinden (magic string yasagi)
+    public IEnumerable<FindingRow> Draft => Findings.Where(f => f.Status == DofStatus.Taslak);
+    public IEnumerable<FindingRow> Open => Findings.Where(f => f.Status == DofStatus.Acik);
+    public IEnumerable<FindingRow> InProgress => Findings.Where(f => f.Status == DofStatus.DevamEdiyor);
+    public IEnumerable<FindingRow> PendingValidation => Findings.Where(f => f.Status == DofStatus.OnayBekliyor);
+    public IEnumerable<FindingRow> Closed => Findings.Where(f => DofStatus.AkisBitti(f.Status));
 
     public async Task OnGetAsync()
     {
-        Findings = await _db.QueryAsync<FindingRow>("dof.sp_Finding_List", new { Top = 100 });
+        Findings = await _db.QueryAsync<FindingRow>("dof.sp_Finding_List", new { Top = Limit });
+
+        // Is kurali: KPI satiri yoksa uydurma sifir uretilmez, "veri yok" denir.
         var kpi = await _db.QuerySingleAsync<DofKpiRow>("dof.sp_Finding_Dashboard");
-        Kpi = kpi ?? new DofKpiRow();
+        KpiVar = kpi is not null;
+        Kpi = kpi;
     }
 
     public sealed record FindingRow

@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @using Solum.Web.Components
 @using BkmArgus.Web.Features.Dof
+@using BkmArgus.Web.Domain
 @inject IKpiRenderer KpiRenderer
 @{
     ViewData["Title"] = "DÖF Yönetimi";
@@ -15,30 +16,52 @@
 *@
 @{
     var kpi = Model.Kpi;
+
+    // "Veri yok" ile "sifir" AYNI SEY DEGIL (denetim bulgusu 3.3): SP satir
+    // dondurmezse eskiden butun KPI'lar 0 oluyordu ve "SLA geciken" YESIL 0
+    // gorunuyordu — yani veri yoklugu "her sey yolunda" diye sunuluyordu.
+    // Denetim yaziliminda bu yanlis guvencedir.
+    var kpiVar = Model.KpiVar;
+    var geciken = kpi?.OverdueCount ?? 0;
+
     var dofKartlari = new List<KpiCard>
     {
-        new() { Label = "Toplam DÖF", Value = (kpi?.TotalCount ?? 0).ToString() },
+        new()
+        {
+            Label = "Toplam DÖF",
+            Value = kpiVar ? ArgusFormat.Count(kpi!.TotalCount) : "—",
+            Hint = kpiVar ? null : "Özet üretilemedi"
+        },
         new()
         {
             Label = "Açık bulgu",
-            Value = ((kpi?.OpenCount ?? 0) + (kpi?.InProgressCount ?? 0)).ToString(),
+            Value = kpiVar ? ArgusFormat.Count(kpi!.OpenCount + kpi.InProgressCount) : "—",
             Hint = "Açık + devam eden"
         },
         new()
         {
             Label = "SLA geciken",
-            Value = (kpi?.OverdueCount ?? 0).ToString(),
+            Value = kpiVar ? ArgusFormat.Count(geciken) : "—",
             // Is kurali: geciken tek bulgu bile kotudur — sifirsa iyi.
-            Tone = (kpi?.OverdueCount ?? 0) > 0 ? SolumTone.Bad : SolumTone.Good
+            // KPI yoksa ton NOTR: yesil "gecikme yok" iddiasidir, veri yoklugu degil.
+            Tone = !kpiVar ? SolumTone.Neutral : geciken > 0 ? SolumTone.Bad : SolumTone.Good
         },
         new()
         {
             Label = "Ort. çözüm",
-            Value = kpi?.AvgResolutionDays.ToString("0.#") ?? "—",
+            Value = kpiVar ? kpi!.AvgResolutionDays.ToString("0.#", ArgusFormat.Tr) : "—",
             Hint = "gün"
         }
     };
 }
+
+@* Ozet bandi bayat isareti: pano uzerinde kart tasindiginda kolon sayaclari
+   guncellenir ama bu band SUNUCUDA cizildi — ayrisma kullaniciya soylenir
+   (denetim bulgusu 3.2). argus-board.js basarili tasimada gizligi kaldirir. *@
+<div class="argus-stale" data-argus-summary-stale role="status" hidden>
+    Üstteki özet güncel değil — taşıma sonrası yenilenmedi.
+    <a class="solum-btn" asp-page="Index">Yenile</a>
+</div>
 
 @KpiRenderer.RenderGrid(dofKartlari)
 
@@ -52,6 +75,19 @@
             <a class="solum-btn solum-btn-primary" asp-page="Create">Yeni DÖF</a>
         </div>
     </div>
+
+    @* SESSIZ KIRPMA UYARISI (denetim bulgusu 3.1): pano en yeni 100 bulguyu
+       ceker (sp_Finding_List @Top). KPI bandi TUM tabloyu sayar, yani 340 DOF
+       varken band "340" der, pano 100 kart cizer ve kolon sayaclari toplami
+       100 olur. Daha kotusu: gecikmis bulgular tanim geregi ESKI oldugu icin
+       kirpilan dilime dusuyor — denetci panoyu is listesi sanip SLA'yi kaciriyor. *@
+    @if (Model.Kirpildi)
+    {
+        <div class="solum-alert solum-alert-warn" role="status">
+            Yalnız en yeni @IndexModel.Limit bulgu gösteriliyor@(Model.KpiVar ? $" (toplam {ArgusFormat.Count(Model.Kpi!.TotalCount)})" : "").
+            Gecikmiş bulgular bu listede olmayabilir — SLA takibi için üstteki özeti ve DÖF listesini kullanın.
+        </div>
+    }
 </section>
 
 @*
@@ -76,11 +112,11 @@
             // sozlesmesinden gelir (dof.sp_Finding_Transition mesruiyeti dogrular).
             (string Kod, string Etiket, IEnumerable<BkmArgus.Web.Features.Dof.IndexModel.FindingRow> Kayitlar)[] kolonlar =
             [
-                ("DRAFT", "Taslak", Model.Draft),
-                ("OPEN", "Açık", Model.Open),
-                ("IN_PROGRESS", "Devam ediyor", Model.InProgress),
-                ("PENDING_VALIDATION", "Onay bekliyor", Model.PendingValidation),
-                ("CLOSED", "Kapandı", Model.Closed)
+                (DofStatus.Taslak, DofStatus.Label(DofStatus.Taslak), Model.Draft),
+                (DofStatus.Acik, DofStatus.Label(DofStatus.Acik), Model.Open),
+                (DofStatus.DevamEdiyor, DofStatus.Label(DofStatus.DevamEdiyor), Model.InProgress),
+                (DofStatus.OnayBekliyor, DofStatus.Label(DofStatus.OnayBekliyor), Model.PendingValidation),
+                (DofStatus.Kapandi, DofStatus.Label(DofStatus.Kapandi), Model.Closed)
             ];
         }
 
@@ -104,6 +140,13 @@
                                 <span class="argus-board-card-title">@kart.Title</span>
                                 <span class="@DofView.RiskBadgeClass(kart.RiskLabel)">@kart.RiskLabel</span>
                             </span>
+                            @* REDDEDILEN bulgu "Kapandi" kolonunda duruyor (akis bitti,
+                               kolon sayisi bes). Rozet olmadan KAPANMIS gibi gorunuyordu
+                               (denetim bulgusu 3.5) — durum kartin uzerinde yaziyor. *@
+                            @if (kart.Status == DofStatus.Reddedildi)
+                            {
+                                <span class="solum-badge solum-badge-bad">@DofStatus.Label(DofStatus.Reddedildi)</span>
+                            }
                             @if (kart.FindingSignature is not null)
                             {
                                 <span class="argus-board-card-sig">@kart.FindingSignature</span>
@@ -124,9 +167,6 @@
         }
     </div>
 </section>
-
-@* Bildirim seridi: aria-live ile ekran okuyucuya da duyurulur. *@
-<div id="argusToast" class="argus-toast" role="status" aria-live="polite" hidden></div>
 
 @section Scripts {
     <script src="~/js/argus-board.js" asp-append-version="true"></script>
