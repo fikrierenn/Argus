@@ -109,13 +109,12 @@ public static class DashboardView
         Columns = new ColumnBuilder<DashboardModel.RiskRow>()
             .Text(r => r.Mekan, "Mekan")
             .Text(r => r.Urun, "Ürün")
+            .Linked(r => $"/Urun/Index?id={r.UrunId}&mekanId={r.MekanId}")
             .Text(r => r.Donem, "Dönem")
             .Numeric(r => r.Skor, "Skor")
             .Text(r => r.Flag, "Bayrak")
             .Build(),
         Page = SinglePage(satirlar),
-        // Satir tiklanabilir: urun-mekan kirilimina gider (eski "Incele" dugmesi).
-        RowUrl = r => $"/Urun/Index?id={r.UrunId}&mekanId={r.MekanId}",
         EmptyTitle = "Riskli ürün bulunamadı.",
         EmptyHint = "Gecelik ETL çalıştıktan sonra liste dolar."
     };
@@ -157,12 +156,12 @@ public static class DashboardView
     {
         Columns = new ColumnBuilder<DashboardModel.RecentAuditRow>()
             .Text(r => r.LocationName, "Lokasyon")
+            .Linked(r => $"/Audit/Detail/{r.Id}")
             .Text(r => r.AuditDate.ToString("dd.MM.yyyy"), "Tarih")
             .Numeric(r => FormatPercent(r.ComplianceRate), "Uyum")
             .Text(r => r.IsFinalized ? "Kesin" : "Taslak", "Durum")
             .Build(),
         Page = SinglePage(satirlar),
-        RowUrl = r => $"/Denetimler/Detay?id={r.Id}",
         EmptyTitle = "Denetim kaydı yok.",
         EmptyHint = "Saha denetimi girildikçe burada listelenir."
     };

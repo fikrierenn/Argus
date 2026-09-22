@@ -50,6 +50,10 @@
 
   /* Yan menu genisligi: eski kabuk lg:w-64 (16rem = 256px) idi, korunuyor. */
   --solum-sidebar-w: 256px;
+
+  /* Tablo KART duzenine gecis esigi. argus-table-mobile.js AYNI degeri
+     okuyor; ikisi ayrisirsa etiketsiz kart ya da etiketli tablo cikar. */
+  --argus-kart-esigi: 640px;
 }
 
 /* ── Marka blogu — logo + iki satir metin ────────────────────────────── */
@@ -359,4 +363,109 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
 @media (max-width: 380px) {
     .solum-card { padding-left: 12px; padding-right: 12px; }
     .solum-main { padding-left: 10px; padding-right: 10px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TABLO -> KART DUZENI (plan 07, Faz 2)
+
+   OLCUM 2026-09-22, /Risk 375px:
+     tablo genisligi ... 673px (7 kolon)
+     sayfa tasmasi ..... 137px
+
+   `argus-cards` sinifini JS koyar ve YALNIZ etiketleme basarili olduysa
+   koyar. Yani bu blok, hucrede etiket YOKKEN hic devreye girmez ve tablo
+   `.solum-table-wrap` icinde yatay kaydirmaya duser — bozuk kart uretmek
+   yerine bugunku davranisa dusmek.
+
+   Solum `data-solum-label` basmaya baslarsa JS silinir, bu blok
+   `[data-solum-label]` uzerinden calismaya devam eder.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+    .argus-cards .solum-table,
+    .argus-cards .solum-table tbody,
+    .argus-cards .solum-table tr {
+        display: block;
+        width: 100%;
+    }
+
+    /* Baslik satiri gizleniyor cunku etiket artik HER HUCREDE. */
+    .argus-cards .solum-table thead { display: none; }
+
+    .argus-cards .solum-table tr {
+        border: 1px solid var(--solum-line);
+        border-radius: var(--solum-radius-sm);
+        margin-bottom: 10px;
+        padding: 4px 0;
+    }
+
+    .argus-cards .solum-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        border: 0;
+        padding: 7px 12px;
+        text-align: right;
+    }
+
+    /* Etiket: once Solum'un kendi niteligi, yoksa JS'in yazdigi. */
+    .argus-cards .solum-table td::before {
+        content: attr(data-solum-label);
+        color: var(--solum-muted);
+        font-size: 12px;
+        text-align: left;
+        flex: 0 0 42%;
+    }
+
+    .argus-cards .solum-table td[data-label]:not([data-solum-label])::before {
+        content: attr(data-label);
+    }
+
+    /* Bos hucre kart icinde SESSIZ bir bosluk birakirdi; etiket yine gorunur
+       ki "veri yok" ile "alan yok" karismasin. */
+    .argus-cards .solum-table td:empty::after {
+        content: "—";
+        color: var(--solum-muted);
+    }
+
+    /* Sayisal hizalama kart icinde anlamsiz — deger zaten saga yasli. */
+    .argus-cards .solum-table td.solum-num { text-align: right; }
+
+    /* Satir tiklanabilirse kart tumuyle hedef olur (44px zaten saglaniyor). */
+    .argus-cards .solum-table tr[data-solum-href] { cursor: pointer; }
+}
+
+/* ── Satir yan alani dar ekranda sarar ────────────────────────────────
+   OLCUM 2026-09-22, /Risk 375px (kart duzeni ACIKKEN):
+     tablo 327px'e indi AMA sayfa hala 137px tasiyordu
+     suclu: `.solum-row-side` — bayrak rozetleri yan yana, sarmiyor
+            (4 bayrak + stok + skor = 512px)
+
+   Solum satir ilkeli masaustunde etiket/deger yan yana varsayiyor. Dar
+   ekranda satir DIKEY yigina duser ve yan alan sarar. */
+@media (max-width: 640px) {
+    .solum-row {
+        flex-wrap: wrap;
+        align-items: flex-start;
+        row-gap: 6px;
+    }
+
+    .solum-row-side {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        width: 100%;
+        row-gap: 6px;
+    }
+
+    /* Kart basligi da sarar: baslik + aksiyon dugmesi yan yana sigmiyordu.
+       OLCUM: `.solum-card-head` flex-wrap:nowrap iken yan alan 403px'e
+       itiliyordu (viewport 375). */
+    .solum-card-head {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    /* Rozet metni uzunsa kirpilmak yerine sarar — "Girissiz satis" gibi
+       iki kelimeli bayraklar kesilmesin. */
+    .solum-badge { white-space: normal; }
 }

@@ -30,7 +30,11 @@
     @await RenderSectionAsync("Head", required: false)
 </head>
 <body>
-<div class="solum-shell" id="solum-shell">
+@* `data-solum-shell` ZORUNLU: solum.js kabugu artik bu NITELIKLE ariyor
+   (eskiden getElementById("solum-shell")). Yoksa mobil menu acilmiyor ve
+   Solum kendi gorunur uyarisini basiyor: "kabuk betigi yuklenmedi".
+   Besinci kirici degisiklik — 2026-09-22'de ekran goruntusunden yakalandi. *@
+<div class="solum-shell" id="solum-shell" data-solum-shell>
     <partial name="_ArgusSidebar" />
     <partial name="_ArgusTopbar" />
 
@@ -66,6 +70,9 @@
 
 <script src="~/_content/Solum.Web/solum.js"></script>
 <script src="~/js/argus-shell.js" asp-append-version="true"></script>
+@* Tablo hucrelerine etiket yazar (dar ekranda kart duzeni). Solum `<td>`ye
+   `data-solum-label` basmaya baslayinca BU SATIR VE DOSYA SILINIR. *@
+<script src="~/js/argus-table-mobile.js" asp-append-version="true"></script>
 @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

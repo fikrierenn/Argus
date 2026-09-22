@@ -50,6 +50,7 @@ public static class CorrelationView
     {
         Columns = new ColumnBuilder<IndexModel.CorrelationRow>()
             .Text(r => r.LocationName, "Mekan")
+            .Linked(r => $"/Risk?mekan={r.LocationId}")
             .Numeric(r => r.ErpRiskScore.ToString("0.0"), "ERP risk")
             .Numeric(r => $"%{r.AuditComplianceRate:0.0}", "Denetim uyumu")
             .Numeric(r => r.CombinedScore.ToString("0.0"), "Birleşik skor")
@@ -58,8 +59,6 @@ public static class CorrelationView
             .Text(r => r.LastAuditDate?.ToString("dd.MM.yyyy") ?? "—", "Son denetim")
             .Build(),
         Page = new PagedResult<IndexModel.CorrelationRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count), SortDecision.None),
-        // Satir tiklanabilir: mekanin risk kirilimina gider (eski "Detay" bagi).
-        RowUrl = r => $"/Risk?mekan={r.LocationId}",
         // Hesaplama SONRASI bos sonuc ile "hic hesaplanmamis" AYRI seydir
         // (denetim bulgusu 5.3): eskiden ikisi de ayni ipucunu gosteriyordu ve
         // kullanici dugmeye tekrar tekrar basiyordu.

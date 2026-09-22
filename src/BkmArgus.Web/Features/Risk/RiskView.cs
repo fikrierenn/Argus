@@ -73,6 +73,9 @@ public static class RiskView
         Columns = new ColumnBuilder<RiskModel.RiskRow>()
             .Text(r => r.Mekan, "Mekan")
             .Text(r => r.Urun, "Ürün")
+            // Kimlik kolonu GERCEK baglanti: klavyeyle erisilebilir, orta
+            // tik/yeni sekme calisir. `RowUrl` olu kancaydi (asagidaki nota bak).
+            .Linked(r => $"/Urun/Index?id={r.Id}&mekanId={r.MekanId}")
             .Text(r => r.UrunKod, "Kod")
             .Numeric(r => r.Skor, "Skor")
             .Text(r => string.Join(" · ", r.Flags.Select(FlagText)), "Bayraklar")
@@ -91,7 +94,6 @@ public static class RiskView
         // olurdu — Solum bu ayrimi tam bunun icin tipe koydu.
         Page = new PagedResult<RiskModel.RiskRow>(m.Rows, m.GercekToplam, m.PageIndex, m.PageSize,
             new SortDecision(m.OrderBy, m.OrderDir == "DESC")),
-        RowUrl = r => $"/Urun/Index?id={r.Id}&mekanId={r.MekanId}",
         EmptyTitle = m.SayfaBos ? "Bu sayfada kayıt yok." : "Risk kaydı bulunamadı.",
         EmptyHint = m.SayfaBos
             ? "Veri bitti — önceki sayfaya dönün. Süzgeciniz çalışıyor."
