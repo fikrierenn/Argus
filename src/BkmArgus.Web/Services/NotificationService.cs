@@ -1,12 +1,18 @@
 using BkmArgus.Web.Data;
+using Solum.Web.Components;
 
 namespace BkmArgus.Web.Services;
 
 public sealed class NotificationService
 {
     private readonly SqlDb _db;
+    private readonly ILogger<NotificationService> _logger;
 
-    public NotificationService(SqlDb db) => _db = db;
+    public NotificationService(SqlDb db, ILogger<NotificationService> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     public async Task<int> GetUnreadCountAsync(int userId)
     {
@@ -15,11 +21,49 @@ public sealed class NotificationService
         return result?.Count ?? 0;
     }
 
+    /// <summary>
+    /// Son bildirimler. Adres denetimi BURADA yapilir, gorunumde degil.
+    ///
+    /// NEDEN SERVISTE: `Link` DB'den geliyor ve Razor niteligi HTML kacirir
+    /// ama SEMA denetlemez — `javascript:` oldugu gibi gecerdi. Karar tek
+    /// yerde olmali; gorunum yalniz cizer.
+    ///
+    /// NEDEN `TryCreate`, `Create` DEGIL (Solum'un kendi ayrimi, 2026-09):
+    /// kaynakta YAZILI adres icin `Create` dogru — yazim hatasi gurultulu
+    /// patlamali. DISARIDAN gelen deger icin `TryCreate` — cunku bu parca
+    /// ust cubukta HER sayfada calisiyor ve tek bozuk satir `/Error` dahil
+    /// butun siteyi 500 yapardi.
+    ///
+    /// SESSIZ DEGIL: dusurulen adresin SEBEBI loglanir (`kutuphane-disiplini §5`).
+    /// Eski hal `UrlGuard.IsAllowed` ile yalniz true/false biliyordu; artik
+    /// "neden dusuruldu" da kayitli.
+    /// </summary>
     public async Task<List<NotificationRow>> GetLatestAsync(int userId, bool onlyUnread = false)
     {
-        return await _db.QueryAsync<NotificationRow>(
+        var satirlar = await _db.QueryAsync<NotificationRow>(
             "log.sp_Notification_List",
             new { UserId = userId, OnlyUnread = onlyUnread, Top = 20 });
+
+        var sonuc = new List<NotificationRow>(satirlar.Count);
+
+        foreach (var satir in satirlar)
+        {
+            if (SafeUrl.TryCreate(satir.Link, out var adres, out var sebep))
+            {
+                sonuc.Add(satir with { GuvenliLink = adres });
+                continue;
+            }
+
+            _logger.LogWarning(
+                "Bildirim adresi dusuruldu. BildirimId={BildirimId} Sebep={Sebep}",
+                satir.Id, sebep);
+
+            // Adres dusuruldu ama BILDIRIM DUSMEDI: metin hala gosterilir,
+            // yalniz tiklanamaz. Kaydi gizlemek kullaniciya bilgi kaybettirirdi.
+            sonuc.Add(satir with { GuvenliLink = null });
+        }
+
+        return sonuc;
     }
 
     /// <summary>
@@ -54,7 +98,14 @@ public sealed class NotificationService
         public string Type { get; init; } = "";
         public string Title { get; init; } = "";
         public string? Message { get; init; }
+        /// <summary>DB'den gelen HAM adres — dogrudan href'e yazilmaz.</summary>
         public string? Link { get; init; }
+
+        /// <summary>
+        /// Denetlenmis adres. `null` = "baglanti CIZILMEZ" (adres yok ya da
+        /// reddedildi). Gorunum yalniz buna bakar.
+        /// </summary>
+        public SafeUrl? GuvenliLink { get; init; }
         public bool IsRead { get; init; }
         public DateTime CreatedAt { get; init; }
     }
