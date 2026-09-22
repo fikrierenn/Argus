@@ -290,3 +290,73 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
 .argus-stale[hidden] { display: none; }
 
 .argus-toast-warn { border-color: var(--solum-warn); color: var(--solum-warn); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBIL (plan 07, Faz 1)
+
+   OLCUM 2026-09-22, 375px genislik:
+     sayfa yatay tasmasi ....... 37px
+     suclu ..................... .solum-topbar icindeki "Cikis" butonu
+                                 (sag kenar 412, viewport 375)
+     44px alti dokunma hedefi .. 3/24
+     yan menu .................. DOGRU calisiyor (translateX(-256px),
+                                 ekran disi) — Solum'un solum.css:1064 blogu
+
+   Yani kabuk sorunu DEGIL, ust cubuk ICERIGI sigmiyordu: hamburger +
+   baslik/altbaslik + zil + kullanici adi + rol + "Cikis" yan yana.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Satir ici ikon ───────────────────────────────────────────────────
+   Dugme metniyle ayni renkte (currentColor), metinle hizali. */
+.argus-ico { width: 16px; height: 16px; flex: 0 0 auto; }
+.solum-btn .argus-ico + span { margin-left: 6px; }
+
+/* ── Dokunma hedefi tabani ────────────────────────────────────────────
+   `pointer: coarse` = parmakla kullanilan cihaz (fare degil). Masaustunde
+   HIC uygulanmaz, yani yogun ekranlar bozulmaz.
+
+   WCAG 2.5.5 hedefi 44px; Solum'un `.solum-btn` dolgusu 7px/13px ile ~31px
+   birakiyor (olculdu: solum.css:953). Bu bir tema tercihi degil erisilebilirlik
+   TABANI — Solum'a bildirildi (talep T3). Gelirse bu blok silinir. */
+@media (pointer: coarse) {
+    .solum-btn,
+    .argus-tabs-item,
+    .solum-nav-item,
+    .argus-notif-item {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    /* Onay kutusu kendisi buyumeli; etiket tiklama alanini zaten genisletiyor. */
+    .solum-checkbox { width: 22px; height: 22px; }
+
+    .argus-checkitem { min-height: 44px; }
+}
+
+/* ── Ust cubuk: 600px altinda sadelesir ───────────────────────────────
+   Kimlik GORUNUR kalir (bas harfler rozeti), yalniz metin dusuyor. Cikis
+   dugmesi ikona iner ama erisilebilir adi `aria-label` ile korunuyor —
+   metni gizleyip ad birakmamak, ekran okuyucuda adsiz dugme uretirdi. */
+@media (max-width: 600px) {
+    .argus-page-subtitle { display: none; }
+
+    .argus-user-name,
+    .argus-user-role { display: none; }
+
+    .argus-user { gap: 0; }
+
+    /* Cikis: metin gizlenir, ikon kalir (bkz. _ArgusTopbar). */
+    .argus-logout-text { display: none; }
+
+    .solum-topbar { gap: 8px; padding-left: 10px; padding-right: 10px; }
+
+    .argus-page-title { font-size: 15px; }
+}
+
+/* ── Cok dar ekran (360px ve alti) ────────────────────────────────────
+   Kart ve tablo kenar bosluklari daralir; icerik alani kazanilir. */
+@media (max-width: 380px) {
+    .solum-card { padding-left: 12px; padding-right: 12px; }
+    .solum-main { padding-left: 10px; padding-right: 10px; }
+}
