@@ -25,11 +25,16 @@ public sealed class ArgusCurrentUser(IHttpContextAccessor accessor) : ICurrentUs
 /// </summary>
 public sealed class ArgusClock : IClock
 {
-    /// <inheritdoc />
-    public DateTime Now => DateTime.Now;
-
-    /// <inheritdoc />
-    public DateTimeOffset OffsetNow => DateTimeOffset.Now;
+    /// <summary>
+    /// Su an — offset TASIYAN tek sekil (Solum 2026-09 sozlesmesi).
+    ///
+    /// Solum `IClock.Now`'u `DateTime`'dan `DateTimeOffset`'e cevirdi: iki ayri
+    /// sekil (Now + OffsetNow) tuketiciye "hangisi dogru" sorusunu biraktigi
+    /// icin tek sekle indirildi. BkmArgus YEREL saat kullanir (DB tarafinda
+    /// SYSDATETIME()), o yuzden kaynak `DateTimeOffset.Now`; yerel gereken
+    /// yerde `.LocalDateTime` okunur.
+    /// </summary>
+    public DateTimeOffset Now => DateTimeOffset.Now;
 }
 
 /// <summary>

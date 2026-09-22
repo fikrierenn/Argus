@@ -21,8 +21,11 @@ public static class DashboardView
     private const KpiPolarity RiskScorePolarity = KpiPolarity.LowerIsBetter;
 
     /// <summary>Bos liste icin tek-sayfa sarmalayici (dashboard'da sayfalama yok).</summary>
+    // SortDecision.None = "istenen siralama UYGULANMADI" (Solum 2026-09
+    // sozlesmesi). Dashboard tablolari kullanici siralamasi kabul etmiyor,
+    // sira SP'den geldigi gibi; bunu tip uzerinde BEYAN ediyoruz.
     private static PagedResult<T> SinglePage<T>(IReadOnlyList<T> satirlar) =>
-        new(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count));
+        new(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count), SortDecision.None);
 
     // ─────────────────────────── ERP RISK SEKMESI ───────────────────────
 
@@ -36,7 +39,7 @@ public static class DashboardView
             // Is kurali: kritik risk sayisi sifirdan buyukse bu bir uyaridir.
             Tone = m.KritikRiskDeger == "0" ? SolumTone.Neutral : SolumTone.Bad,
             Hint = m.KritikRiskNot,
-            Href = "/Risk"
+            Href = SafeUrl.Create("/Risk")
         },
         new KpiCard
         {
@@ -44,7 +47,7 @@ public static class DashboardView
             Value = m.BekleyenDofDeger,
             Tone = m.BekleyenDofDeger == "0" ? SolumTone.Good : SolumTone.Warn,
             Hint = m.BekleyenDofNot,
-            Href = "/Dof"
+            Href = SafeUrl.Create("/Dof")
         },
         new KpiCard
         {
@@ -145,7 +148,7 @@ public static class DashboardView
                 Value = FormatCount(k?.SystemicCount),
                 Tone = (k?.SystemicCount ?? 0) > 0 ? SolumTone.Bad : SolumTone.Good
             },
-            new KpiCard { Label = "Bekleyen DÖF", Value = FormatCount(k?.PendingDofCount), Href = "/Dof" }
+            new KpiCard { Label = "Bekleyen DÖF", Value = FormatCount(k?.PendingDofCount), Href = SafeUrl.Create("/Dof") }
         ];
     }
 

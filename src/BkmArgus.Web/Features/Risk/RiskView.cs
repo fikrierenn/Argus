@@ -86,7 +86,11 @@ public static class RiskView
         // yaziliyordu, yani "toplam" = sayfadaki satir sayisi; PageCount 1
         // cikiyor ve Solum'un sayfalayicisi HIC cizilmiyordu. Olculdu:
         // suzgecsiz kume 32.980 satir, ekran "50 satir" diyordu.
-        Page = new PagedResult<RiskModel.RiskRow>(m.Rows, m.GercekToplam, m.PageIndex, m.PageSize),
+        // Siralama GERCEKTEN uygulandi: SP @OrderBy/@OrderDir aliyor ve
+        // OrderBy dali ORDER BY'da kosuyor. SortDecision.None yazmak YALAN
+        // olurdu — Solum bu ayrimi tam bunun icin tipe koydu.
+        Page = new PagedResult<RiskModel.RiskRow>(m.Rows, m.GercekToplam, m.PageIndex, m.PageSize,
+            new SortDecision(m.OrderBy, m.OrderDir == "DESC")),
         RowUrl = r => $"/Urun/Index?id={r.Id}&mekanId={r.MekanId}",
         EmptyTitle = m.SayfaBos ? "Bu sayfada kayıt yok." : "Risk kaydı bulunamadı.",
         EmptyHint = m.SayfaBos

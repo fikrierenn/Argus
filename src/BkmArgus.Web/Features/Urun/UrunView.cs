@@ -28,7 +28,7 @@ public static class UrunView
             .Numeric(r => Adet(r.Cikis), "Çıkış")
             .Numeric(r => ArgusFormat.Quantity(r.Kalan), "Kalan")
             .Build(),
-        Page = new PagedResult<UrunModel.HareketRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count)),
+        Page = new PagedResult<UrunModel.HareketRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count), SortDecision.None),
         EmptyTitle = "Hareket kaydı yok.",
         EmptyHint = "Seçili dönemde bu ürün için stok hareketi görünmüyor."
     };

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Solum.Core.Extensibility;
 using Solum.Core.Permissions;
 
 namespace BkmArgus.Web.Security;
@@ -40,9 +41,34 @@ public sealed class ArgusPermissionChecker(
         [ArgusPermissions.Yonetim] = Policies.YonetimVeUstu
     };
 
-    /// <inheritdoc />
-    public async Task<bool> IsGrantedAsync(string permissionName, CancellationToken ct = default)
+    /// <summary>
+    /// Izin verili mi.
+    ///
+    /// <paramref name="resource"/> Solum'un 2026-09 sozlesmesiyle geldi: dolu
+    /// ise soru TEK KAYIT icindir ("BU siparisi gorebilir mi"), null ise AD
+    /// seviyesindedir ("siparis gorebilir mi").
+    ///
+    /// BkmArgus'ta bu kontrol YALNIZ MENU GORUNURLUGU icin cagriliyor, yani
+    /// soru daima ad seviyesinde. Kayit-bazli kapsam kontrolu bizde SP'de
+    /// (ornek: `audit.sp_Audit_Delete` kapsam kapisi) — orasi tek boğaz.
+    /// Dolayisiyla `resource` BILINCLI olarak DEGERLENDIRILMIYOR; kayit-bazli
+    /// bir cagri gelirse ad seviyesinde cevaplanir ve bu YANILTICI olurdu,
+    /// o yuzden log'a uyari dusuyor.
+    /// </summary>
+    public async Task<bool> IsGrantedAsync(
+        string permissionName,
+        RecordRef? resource,
+        CancellationToken ct = default)
     {
+        // Kayit-bazli soru bu uygulamada desteklenmiyor — sessiz "evet" demek
+        // yerine gorunur kaliyor (fail-loud niyet beyani).
+        if (resource is not null)
+        {
+            logger.LogWarning(
+                "Kayit-bazli izin sorusu ad seviyesinde cevaplandi. Izin={Izin} Varlik={Varlik} KayitId={KayitId}",
+                permissionName, resource.Value.EntityName, resource.Value.RecordId);
+        }
+
         var user = accessor.HttpContext?.User;
 
         // Guard: kimligi dogrulanmamis kullaniciya hicbir izin verilmez.

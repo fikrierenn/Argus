@@ -57,7 +57,7 @@ public static class CorrelationView
             .Numeric(r => r.AuditCount, "Denetim")
             .Text(r => r.LastAuditDate?.ToString("dd.MM.yyyy") ?? "—", "Son denetim")
             .Build(),
-        Page = new PagedResult<IndexModel.CorrelationRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count)),
+        Page = new PagedResult<IndexModel.CorrelationRow>(satirlar, satirlar.Count, 1, Math.Max(1, satirlar.Count), SortDecision.None),
         // Satir tiklanabilir: mekanin risk kirilimina gider (eski "Detay" bagi).
         RowUrl = r => $"/Risk?mekan={r.LocationId}",
         // Hesaplama SONRASI bos sonuc ile "hic hesaplanmamis" AYRI seydir

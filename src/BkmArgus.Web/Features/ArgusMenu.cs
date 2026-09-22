@@ -1,4 +1,5 @@
 using BkmArgus.Web.Security;
+using Solum.Web.Components;
 using Solum.Web.Menu;
 
 namespace BkmArgus.Web.Features;
@@ -61,11 +62,11 @@ public sealed class ArgusMenu : IMenuContributor
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        context.Add(new MenuItem("home", "Genel Bakış") { Url = "/", Icon = IcoHome, Order = 10 });
-        context.Add(new MenuItem("dashboard", "Dashboard") { Url = "/Dashboard", Icon = IcoDashboard, Order = 20 });
-        context.Add(new MenuItem("risk", "Risk Gezgini") { Url = "/Risk", Icon = IcoRisk, Order = 30 });
-        context.Add(new MenuItem("dof", "DÖF Yönetimi") { Url = "/Dof", Icon = IcoDof, Order = 40 });
-        context.Add(new MenuItem("audit", "Saha Denetim") { Url = "/Audit", Icon = IcoAudit, Order = 50 });
+        context.Add(new MenuItem("home", "Genel Bakış") { Url = SafeUrl.Create("/"), Icon = IcoHome, Order = 10 });
+        context.Add(new MenuItem("dashboard", "Dashboard") { Url = SafeUrl.Create("/Dashboard"), Icon = IcoDashboard, Order = 20 });
+        context.Add(new MenuItem("risk", "Risk Gezgini") { Url = SafeUrl.Create("/Risk"), Icon = IcoRisk, Order = 30 });
+        context.Add(new MenuItem("dof", "DÖF Yönetimi") { Url = SafeUrl.Create("/Dof"), Icon = IcoDof, Order = 40 });
+        context.Add(new MenuItem("audit", "Saha Denetim") { Url = SafeUrl.Create("/Audit"), Icon = IcoAudit, Order = 50 });
 
         // AI grubu — alt ogeli menu. Solum'un izin suzgeci alt ogelerin HEPSI
         // izinsiz kalirsa GRUBU DA gizler: DENETCI rolunde bu baslik hic gorunmez
@@ -75,32 +76,32 @@ public sealed class ArgusMenu : IMenuContributor
         var aiGrup = context.Add(new MenuItem("ai-grup", "AI") { Icon = IcoAi, Order = 60 });
         aiGrup.Add(new MenuItem("ai", "AI Analiz")
         {
-            Url = "/Ai", Icon = IcoAi, Order = 10, RequiredPermission = ArgusPermissions.Yonetim
+            Url = SafeUrl.Create("/Ai"), Icon = IcoAi, Order = 10, RequiredPermission = ArgusPermissions.Yonetim
         });
         aiGrup.Add(new MenuItem("ai-learn", "AI Öğrenme")
         {
-            Url = "/Ai/Ogrenme", Icon = IcoLearn, Order = 20, RequiredPermission = ArgusPermissions.Yonetim
+            Url = SafeUrl.Create("/Ai/Ogrenme"), Icon = IcoLearn, Order = 20, RequiredPermission = ArgusPermissions.Yonetim
         });
         aiGrup.Add(new MenuItem("ai-providers", "AI Sağlayıcıları")
         {
-            Url = "/Ai/Providers", Icon = IcoProvider, Order = 30, RequiredPermission = ArgusPermissions.Admin
+            Url = SafeUrl.Create("/Ai/Providers"), Icon = IcoProvider, Order = 30, RequiredPermission = ArgusPermissions.Admin
         });
 
         context.Add(new MenuItem("correlation", "Korelasyon")
         {
-            Url = "/Correlation", Icon = IcoCorrelation, Order = 80, RequiredPermission = ArgusPermissions.Yonetim
+            Url = SafeUrl.Create("/Correlation"), Icon = IcoCorrelation, Order = 80, RequiredPermission = ArgusPermissions.Yonetim
         });
         context.Add(new MenuItem("ref", "Tanımlar")
         {
-            Url = "/Ref", Icon = IcoRef, Order = 100, RequiredPermission = ArgusPermissions.Admin
+            Url = SafeUrl.Create("/Ref"), Icon = IcoRef, Order = 100, RequiredPermission = ArgusPermissions.Admin
         });
         context.Add(new MenuItem("yonetim", "Yönetim")
         {
-            Url = "/Yonetim", Icon = IcoUsers, Order = 110, RequiredPermission = ArgusPermissions.Admin
+            Url = SafeUrl.Create("/Yonetim"), Icon = IcoUsers, Order = 110, RequiredPermission = ArgusPermissions.Admin
         });
         context.Add(new MenuItem("ayarlar", "Ayarlar")
         {
-            Url = "/Ayarlar", Icon = IcoSettings, Order = 120, RequiredPermission = ArgusPermissions.Admin
+            Url = SafeUrl.Create("/Ayarlar"), Icon = IcoSettings, Order = 120, RequiredPermission = ArgusPermissions.Admin
         });
     }
 }

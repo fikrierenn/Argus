@@ -41,8 +41,8 @@ public class ArgusPermissionCheckerTests
         var checker = Kur(new ClaimsPrincipal(new ClaimsIdentity()), policySonucu: true);
 
         // Policy servisi "evet" dese bile kimlik yoksa reddedilir.
-        Assert.False(await checker.IsGrantedAsync(ArgusPermissions.Admin));
-        Assert.False(await checker.IsGrantedAsync(ArgusPermissions.Yonetim));
+        Assert.False(await checker.IsGrantedAsync(ArgusPermissions.Admin, resource: null));
+        Assert.False(await checker.IsGrantedAsync(ArgusPermissions.Yonetim, resource: null));
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class ArgusPermissionCheckerTests
     {
         var checker = Kur(kullanici: null, policySonucu: true);
 
-        Assert.False(await checker.IsGrantedAsync(ArgusPermissions.Admin));
+        Assert.False(await checker.IsGrantedAsync(ArgusPermissions.Admin, resource: null));
     }
 
     [Fact]
@@ -60,8 +60,8 @@ public class ArgusPermissionCheckerTests
         // gidilmez, sonuc false. Sessiz true en tehlikeli hata olurdu.
         var checker = Kur(Kimlikli("ADMIN"), policySonucu: true);
 
-        Assert.False(await checker.IsGrantedAsync("Argus.OlmayanIzin"));
-        Assert.False(await checker.IsGrantedAsync(""));
+        Assert.False(await checker.IsGrantedAsync("Argus.OlmayanIzin", resource: null));
+        Assert.False(await checker.IsGrantedAsync("", resource: null));
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class ArgusPermissionCheckerTests
         var izinli = Kur(Kimlikli("ADMIN"), policySonucu: true);
         var izinsiz = Kur(Kimlikli("DENETCI"), policySonucu: false);
 
-        Assert.True(await izinli.IsGrantedAsync(ArgusPermissions.Admin));
-        Assert.False(await izinsiz.IsGrantedAsync(ArgusPermissions.Admin));
+        Assert.True(await izinli.IsGrantedAsync(ArgusPermissions.Admin, resource: null));
+        Assert.False(await izinsiz.IsGrantedAsync(ArgusPermissions.Admin, resource: null));
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class ArgusPermissionCheckerTests
     {
         var checker = Kur(Kimlikli("ADMIN"), policySonucu: true);
 
-        Assert.True(await checker.IsGrantedAsync("argus.admin"));
+        Assert.True(await checker.IsGrantedAsync("argus.admin", resource: null));
     }
 
     /// <summary>Testte gercek policy motoru yerine sabit cevap veren servis.</summary>
