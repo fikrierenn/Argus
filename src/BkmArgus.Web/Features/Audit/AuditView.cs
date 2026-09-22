@@ -1,3 +1,6 @@
+using BkmArgus.Web.Features;
+using Solum.Web.Components;
+
 namespace BkmArgus.Web.Features.Audit;
 
 /// <summary>
@@ -15,13 +18,18 @@ public static class AuditView
     public static int ScorePercent(int gecen, int toplam) =>
         toplam > 0 ? (int)Math.Round(100.0 * gecen / toplam) : 0;
 
-    /// <summary>Uyum yuzdesi rozeti — esikler eski ekrandan korundu (%90 / %70).</summary>
-    public static string ScoreBadgeClass(int yuzde) => yuzde switch
-    {
-        >= 90 => "solum-badge solum-badge-num solum-badge-good",
-        >= 70 => "solum-badge solum-badge-num solum-badge-warn",
-        _ => "solum-badge solum-badge-num solum-badge-bad"
-    };
+    /// <summary>Uyum orani IYI esigi — bu oranin ustu yesil.</summary>
+    private const int UyumIyiEsik = 90;
+
+    /// <summary>Uyum orani UYARI esigi — altina duserse kirmizi.</summary>
+    private const int UyumUyariEsik = 70;
+
+    /// <summary>
+    /// Uyum yuzdesi rozeti — esikler eski ekrandan korundu (%90 / %70).
+    /// `yuksekKotu: false` cunku YUKSEK uyum IYIdir (risk skorunun tersi).
+    /// </summary>
+    public static string ScoreBadgeClass(int yuzde) =>
+        ArgusBadge.ForThreshold(yuzde, UyumIyiEsik, UyumUyariEsik, yuksekKotu: false);
 
     /// <summary>
     /// Durum rozeti. Kesinlestirilmis denetim IYI degil, TAMAMLANMIS'tir —
@@ -30,7 +38,7 @@ public static class AuditView
     /// uretiyordu; uyum yuzdesi zaten ayri rozette.
     /// </summary>
     public static string StatusBadgeClass(bool kesinlestirildi) =>
-        kesinlestirildi ? "solum-badge" : "solum-badge solum-badge-warn";
+        ArgusBadge.Class(kesinlestirildi ? SolumTone.Neutral : SolumTone.Warn);
 
     /// <summary>Durum metni.</summary>
     public static string StatusText(bool kesinlestirildi) =>

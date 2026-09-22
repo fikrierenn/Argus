@@ -2,13 +2,22 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BkmArgus.Web.Data;
+using BkmArgus.Web.Domain;
+using BkmArgus.Web.Security;
+using BkmArgus.Web.Services;
 
 namespace BkmArgus.Web.Features.Dof;
 
 public class DetailModel : PageModel
 {
     private readonly SqlDb _db;
-    public DetailModel(SqlDb db) => _db = db;
+    private readonly AuditTrail _iz;
+
+    public DetailModel(SqlDb db, AuditTrail iz)
+    {
+        _db = db;
+        _iz = iz;
+    }
 
     [BindProperty(SupportsGet = true)] public long Id { get; set; }
 
@@ -29,10 +38,20 @@ public class DetailModel : PageModel
         return Page();
     }
 
+    /// <summary>
+    /// DOF durum gecisi — DETAY SAYFASI yolu.
+    ///
+    /// IZ EKLENDI (guvenlik denetimi IMP-4, 2026-08-27): ayni is islemi
+    /// kanban yolunda izliydi (`Endpoints/ApiEndpoints.cs`), bu yolda DEGILDI.
+    /// Yani iz yalniz eksik degil ATLATILABILIRDI: bulgusunu iz birakmadan
+    /// tasimak isteyen kisi detay sayfasini kullanirdi. SP her iki yolda da
+    /// `dof.StatusHistory`'ye yaziyor (SUREC izi) ama KULLANICI EYLEMI izi
+    /// tek yerde duruyordu.
+    /// </summary>
     public async Task<IActionResult> OnPostTransitionAsync(string newStatus, string? reason)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-        var userRole = User.FindFirstValue(ClaimTypes.Role) ?? "DENETCI";
+        var userRole = User.FindFirstValue(ClaimTypes.Role) ?? Roles.Denetci;
 
         await _db.ExecuteAsync("dof.sp_Finding_Transition", new
         {
@@ -42,6 +61,10 @@ public class DetailModel : PageModel
             UserRole = userRole,
             Reason = reason
         });
+
+        await _iz.YazAsync(AuditAction.DofGecis, "dof.Findings", userId, (int)Id,
+            yeniDeger: $"Yeni durum: {newStatus} (detay sayfasi)"
+                     + (string.IsNullOrWhiteSpace(reason) ? "" : $" · Gerekce: {reason}"));
 
         return RedirectToPage(new { id = Id });
     }

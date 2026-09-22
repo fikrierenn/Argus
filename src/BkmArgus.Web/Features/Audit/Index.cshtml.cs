@@ -51,13 +51,18 @@ public class IndexModel : PageModel
 
     public async Task OnGetAsync()
     {
-        // BITIS TARIHI GUN SONUNA cekilir. audit.Audits.AuditDate datetime2(0),
-        // yani saat tasiyabilir; type="date" girdisi ise gece yarisini gonderir.
-        // SP `AuditDate <= @Bitis` karsilastirdigi icin bugun 09:30'da
-        // kaydedilmis denetim "bitis = bugun" suzgecinde DUSUYORDU ve kullanici
-        // "bugunun denetimi girilmemis" saniyordu (denetim bulgusu 6.3).
-        // Kalici cozum SP tarafinda (plan 06 Faz 5): AuditDate < DATEADD(day,1,...).
-        var bitis = EndDate?.Date.AddDays(1).AddTicks(-1);
+        // BITIS TARIHI: gun sonuna cekme isi artik SP'ye ait (sql/81).
+        //
+        // OLCULDU (sql-sp-reviewer, 2026-08-27): burada da gun sonu
+        // uygulaniyordu ve IKI KEZ uygulanmis oluyordu. Dapper
+        // `...23:59:59.9999999` gonderiyor, SP parametresi datetime2(0) ve
+        // hassasiyet daraltmasi YUVARLIYOR -> ertesi gun 00:00:00; SP onun
+        // uzerine kendi gun-sonunu koyunca ust sinir ERTESI GUN 23:59:59
+        // oluyordu. Yani "bitis = 25.08" suzgeci 26.08 denetimlerini de
+        // gosteriyordu — az once duzelttigimiz hatanin ters yonu.
+        //
+        // Tek sahip SP; C# yalniz TARIHI gecer.
+        var bitis = EndDate?.Date;
 
         Audits = await _db.QueryAsync<AuditRow>("audit.sp_Audit_List", new
         {
