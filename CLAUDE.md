@@ -1,5 +1,11 @@
 # BkmArgus — AI-Powered Audit & Risk Intelligence Platform
 
+<!-- merkez-bildirimi -->
+> ⚠ **KURALLAR ARTIK MERKEZDE.** Kopyalamak yerine işaret ediyoruz.
+> Oturum başında oku: [`.claude/MERKEZ-BILDIRIMI.md`](.claude/MERKEZ-BILDIRIMI.md)
+> Kanonik kurallar: `../claude-context-template/templates/.claude/rules/_universal/`
+<!-- /merkez-bildirimi -->
+
 ## Kural Fihristi (.claude/rules/) — HEPSİ ZORUNLU
 
 Bu dosya **kimlik ve fihrist**tir. Davranış kuralları `.claude/rules/` altındadır ve compact sonrası da geçerlidir.

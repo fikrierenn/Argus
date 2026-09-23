@@ -210,3 +210,59 @@ Hepsi `sql-sp-reviewer` turundan, hepsi TODO.md'de kayıtlı:
   (`bootstrap --reference`) henüz YOK.
 - **ÖNCELİK:** Kullanıcı belirler. Teknik olarak acil değil — kopya kurallar
   çalışmaya devam ediyor, yalnız merkezdeki iyileştirmeleri almıyoruz.
+
+---
+
+## 12. `FindingType` kod kümesi DOĞRULANMADI — bugünkü commit'te bir varsayım var
+
+- **NE:** `Items.cshtml`'de bulgu tipi seçenekleri **U / G / I** olarak yazıldı
+  (`Uygunsuzluk` / `Gozlem` / `Iyilestirme`). Bu kod kümesi **hiçbir yerde
+  tanımlı değil** — ben türettim.
+- **NEDEN ŞÜPHELİ:** depoda `FindingType` için tek somut değer
+  `sql/99_smoke_tests.sql:910,926`'da **`'M'`**. Yani kullanılan gerçek küme
+  U/G/I olmayabilir. Kolon `char(1)` (`sql/20_migration_audit.sql:75`) ve
+  `audit.AuditResults.FindingType` de öyle.
+- **NEREDE:** `src/BkmArgus.Web/Features/Audit/AuditView.cs`
+  (`FindingTypeText`, `FindingTypeOptions`), `Features/Audit/Items.cshtml`.
+- **BUGÜN EKRAN KIRILMIYOR:** `FindingTypeOptions` tanınmayan kodu listeye
+  **ekliyor** ve `FindingTypeText` `"Bilinmeyen kod: M"` yazıyor. Yani veri
+  ne olursa olsun düzenleme ekranı açılır ve kullanıcı ne olduğunu görür —
+  fail-loud. Bu tasarım kararı bu belirsizlik bilinmeden alınmıştı ve
+  şans eseri doğru çıktı.
+- **NASIL KAPANIR:** migration smoke'unda tek sorgu —
+  ```sql
+  SELECT FindingType, COUNT(*) FROM audit.AuditItems GROUP BY FindingType;
+  SELECT FindingType, COUNT(*) FROM audit.AuditResults GROUP BY FindingType;
+  ```
+  Çıkan küme U/G/I ise dokunma; başka bir küme çıkarsa (`M`, `1/2/3`, NULL)
+  `AuditView.FindingTypeOptions` o kümeye göre yazılır. Eski ekran uzun
+  etiketi (`"Uygunsuzluk"`) gönderip SQL'e sessizce kırptırdığı için
+  **geçmiş veri tutarsız olabilir** — sayım bunu da gösterir.
+- **BAĞIMLILIK:** DB bağlantısı (§1).
+- **ÖNCELİK:** **1** — migration smoke'unun parçası.
+
+## 13. Solum yol harfi — bizi bugün koruyan tutarsızlık
+
+- **NE:** `src/BkmArgus.Web/BkmArgus.Web.csproj:23-25` üç `ProjectReference`
+  **küçük harfle** `..\..\..\solum\...` yazıyor; diskteki gerçek ad
+  `cmd dir /b` ile ölçüldü: **`Solum`** (büyük S).
+- **NEDEN ÖNEMLİ:** Windows dosya sistemi harfe duyarsız olduğu için bugün
+  çalışıyor. Solum tarafında ölçülmüş bir ilişki var: **büyük harfli yoldan
+  temiz derleme 16 `RS0030` veriyor, küçük harfliden 0/0.** Bizim
+  build'imiz yeşil çünkü csproj küçük harfli yolu veriyor.
+- **⚠️ MEKANİZMA DOĞRULANMADI:** Solum oturumu ilk açıklamasını
+  (`.editorconfig` deseni büyük/küçük harfe duyarlı) **geri çekti** — ölçtüğü
+  şey iddiasının kanıtı değilmiş. İlişki duruyor, sebebi **bilinmiyor** ve
+  onların tarafında `DOĞRULANMADI` işaretli. Burada da öyle kaydediliyor:
+  sebebi bilmiyoruz, sonucu biliyoruz.
+- **TUZAK:** csproj'daki yazım diskteki gerçek addan farklı. Biri
+  "tutarsızlık var, düzelteyim" diye `Solum` yaparsa — bakımda en makul
+  görünen hamle budur — build **sebepsiz** kırılır ve kırılma o kişinin
+  değişikliğinden gelmiş gibi görünür. **Bugün bizi koruyan şey, bir sonraki
+  kişinin temizlemek isteyeceği şey.**
+- **NASIL KAPANIR:** Solum tarafında `[**/SolumFileKey.cs]` düzeltmesi
+  geldiğinde kırılganlık kendiliğinden kapanır (desen yola değil dosya adına
+  bakar). O gelene kadar **csproj'daki harfe DOKUNMA**.
+- **BAĞIMLILIK:** Solum PARK 0. Tetikleyicisine "tüketici csproj'unda harf
+  düzeltmesi" satırı eklendi — tetikleyici bizden gelebilir.
+- **ÖNCELİK:** dokunma; yalnız bilinsin.
