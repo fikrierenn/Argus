@@ -500,37 +500,15 @@ Haber verildi, yeşile dönmesi bekleniyor.
 | **Plan 07 Faz 3** — DÖF dokunmatik | ✅ | **`8a2460a`** |
 | **Plan 07 Faz 5** — PWA | ✅ kod bitti | **commit'lenmedi** (aşağı bak) |
 
-## ⚠️ Devralanın ilk yapacağı: Faz 5'i commit'le
+## ✅ Faz 5 commit'lendi — `f752145`
 
-Faz 5 kodu **çalışır ve ölçüldü** ama commit edilmedi — `security-reviewer`
-koşarken oturum kapandı.
+Oturum kapanmadan yetişti. `security-reviewer` koştu, **confidence 90** bir
+kusur buldu (cache-first + parmak izsiz adres = istemci kodu kalıcı donar)
+ve **commit öncesi kapatıldı**. Ayrıntı `plans/07-mobil-pwa.md`
+"Faz 5 — security-reviewer bulgusu ve düzeltmesi" bölümünde.
 
-**Commit'lenmemiş dosyalar:**
-
-```
-YENI  src/BkmArgus.Web/wwwroot/manifest.webmanifest
-YENI  src/BkmArgus.Web/wwwroot/sw.js
-YENI  src/BkmArgus.Web/wwwroot/js/argus-pwa.js
-YENI  src/BkmArgus.Web/wwwroot/icons/argus-192.png
-YENI  src/BkmArgus.Web/wwwroot/icons/argus-512.png
-YENI  src/BkmArgus.Web/wwwroot/icons/argus-512-maskable.png
-DEG   src/BkmArgus.Web/Features/Shared/_Layout.cshtml        (manifest + meta + betik)
-DEG   src/BkmArgus.Web/Features/Shared/_ArgusTopbar.cshtml   (kurulum dugmesi)
-DEG   src/BkmArgus.Web/Program.cs                            (no-cache garantisi)
-DEG   src/BkmArgus.Web/wwwroot/css/argus-theme.css           (14 satir: .argus-install)
-DEG   docs/journal/2026-09-23.md, 2026-09-23-kalan-isler.md, plans/07-mobil-pwa.md
-```
-
-**Yapılacak sıra:**
-1. `security-reviewer`ı Faz 5 dosyalarına tekrar koştur (bu oturumdaki koşum
-   sonucu alınamadı). Odak: servis çalışanı kimlik doğrulanmış içeriği
-   önbelleğe alabilir mi.
-2. CRITICAL çıkarsa düzelt; çıkmazsa commit.
-3. Commit mesajına `[reviewed: security-reviewer]` yaz — `pre-commit-review-gate`
-   hook'u bunu arıyor, yoksa **bloklar**.
-
-**Build ve smoke zaten yeşil** (ölçümler `plans/07-mobil-pwa.md` "Faz 5
-ölçümü" tablosunda). Kodun kendisine dokunmaya gerek yok.
+**Çalışma ağacı temiz.** Devralanın önce yapacağı bir şey yok; doğrudan
+aşağıdaki sıradan devam edilir.
 
 ## Sırada ne var
 
@@ -550,6 +528,17 @@ Manifest + servis çalışanı + ikonlar + güvenli bağlam koşulları sağlan�
 ama **istemin kendisi görülmedi**. Gerçek Chrome (masaüstü veya Android)
 ile doğrulanmalı; kurulum düğmesi o zamana kadar **hiç görünmeyecek**
 (bilerek: yakalanmayan istemde düğme gizli kalıyor).
+
+`security-reviewer`ın istediği ve **yapılmayan** üç ölçüm de Faz 6'ya ait:
+
+1. **Varlık tazeliği.** `argus-theme.css` ve `solum.js` içeriğini değiştirip
+   yeniden yayımla, **depolamayı temizlemeden** yenile. Yeni içerik gelmeli.
+   (Parmak izi kapısı eklendikten sonra gelmeli — kanıtla.)
+2. **İki rolle paylaşımlı cihaz turu.** ADMIN ile gez → çıkış → DENETCI ile
+   gir. Önbellek anahtar kümesi **aynı kalmalı**, yeni anahtar belirmemeli.
+3. **iOS Safari.** `beforeinstallprompt` Safari'de yok (düğme gizli kalır,
+   tasarım bu) ama SW `mode === "navigate"` davranışı ve `apple-touch-icon`
+   gerçek bir iPhone'da bir kez teyit edilmeli.
 
 ## Bugünün üç dersi (tekrarlamamak için)
 
