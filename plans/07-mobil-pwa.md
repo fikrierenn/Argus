@@ -171,9 +171,49 @@ yayımlanır — **dosyayı silmek yetmez**, kayıtlı SW tarayıcıda kalır. B
 | Faz 1 — kabuk ve dokunma | ✅ **bitti** | commit `f546ece`; üst çubuk 37px taşma → 0; yan menü ölçümü düzeltildi (`left=-256`, Solum'un kabuğu çalışıyor) |
 | Faz 2 — tablo kart düzeni | ✅ **bitti** | commit `91b983e`; `/Risk` 375px 137px → **0**, 350/350 hücre etiketli, 0/17 hedef 44px altında; altı ekran 0 taşma. Ayrıca ölü `RowUrl` kancası 4 çağrı yerinde gerçek `<a>`'ya çevrildi |
 | Faz 3 — DÖF panosu dokunmatik | ✅ **bitti** | `argus-sheet.js` (alt sayfa ilkeli, Solum'da yok) + kart → sarmalayıcı/`<a>`/durum düğmesi. Üç giriş yolu da ölçüldü: sürükleme, Alt+Ok, dokun→seç. İz `audit.AuditLog` Id 12 `DOF_GECIS`. 375px: taşma 0, **0/208** hedef 44px altında |
-| Faz 4 — süzgeç ve form | ⬜ **sırada** | `argus-sheet` **hazır** (Faz 3'te yazıldı, yeniden kullanılacak); `<solum-field>` çoklu seçim **alınmadı** → `argus-checkgroup` kalıcı |
+| Faz 4 — süzgeç ve form | ✅ **bitti** | Katlanır `<details>` süzgeç paneli + etkin ölçüt rozeti. `/Risk` panel tepesi **16557px → 80px**, `/Audit` ilk satır **601px → 295px**; masaüstü (1400px) iki kolon düzeni bozulmadı. Planın iki maddesi ölçümle **zaten kapalı** çıktı (aşağı bak). `argus-sheet` **kullanılmadı** — gerekçe aşağıda |
 | Faz 5 — PWA | ✅ **bitti** | `manifest.webmanifest` + 3 ikon + `sw.js` (**yalnız statik**) + kurulum düğmesi. Ölçüldü: HTML ve `/api/*` önbelleğe **girmiyor**; geri alma yolu **denendi** |
 | Faz 6 — ölçüm | ⬜ | 3/4/5'e bağlı |
+
+### Faz 4 — ölçüm planı düzeltti (2026-09-23)
+
+Plan Faz 4'ü üç maddeyle tanımlıyordu. Ölçüm **üçünü de değiştirdi**:
+
+| Plan maddesi | Ölçüm (375px, canlı) | Sonuç |
+|---|---|---|
+| "Süzgeç kenar çubuğu içeriği aşağı itiyor, ≤860px'te katlansın" | `/Risk` süzgeç kartının tepesi **16557px** (sayfa 17987px) — liste ilk satırı zaten 80px'teydi | **Gerekçe tersti.** `.argus-split` tek kolona düşünce süzgeç listenin *altına* iniyor; kusur "yer kaplıyor" değil, **ulaşılamıyor** |
+| "Formlar tek kolon" | `/Risk`, `/Audit`, `/Audit/Create` alanlarının hepsi 375px'te tek sol kenarda (`farkliSolKenar = 1`) | **Zaten kapalıydı** — `.argus-filter` ızgarası `auto-fit minmax(180px, 1fr)` |
+| "Sayısal alanlara `inputmode`" | `MinSkor`/`MaxSkor` DOM'da `inputmode="decimal"` taşıyor | **Zaten kapalıydı** — Solum `FieldRenderer.cs:130` basıyor |
+
+**Eşik 1100px seçildi, planın dediği 860 değil:** süzgeç `.argus-split`
+tek kolona düştüğü anda listenin altına düşer, o an **1100px**'tir. 860
+seçilseydi 1100–860 arasında süzgeç yine erişilemez kalır, kusur
+kapanmadan kapanmış sayılırdı.
+
+**`argus-sheet` kullanılmadı.** Faz 3'te yazıldı ve burada yeniden
+kullanılması planlanmıştı; kapsamı "bir liste göster, biri seçilsin" —
+form barındırmıyor. Süzgeç bir form. Alt sayfayı form taşıyacak kadar
+büyütmek `footprint-ladder`'a aykırı; `<details>` katlamayı tarayıcıya
+bırakıyor ve klavye + ekran okuyucu desteğini bedava veriyor.
+
+**JS yüklenmezse:** panel **açık** kalır (bugünkü davranış). CSS'teki
+`order` kuralı onu dar ekranda listenin üstüne zaten almıştır — süzgeç
+kaybolmaz, yalnızca yer kaplar. Kademeli bozulma bilinçli.
+
+### 🔴 Faz 4 sırasında bulunan, kapsam DIŞI kusur — `/Audit/Items`
+
+Ölçüldü (375px): yatay taşma **44px**, 3 sayısal alanın **hiçbirinde**
+`inputmode` yok, **8 alan** 44px dokunma hedefinin altında, düzen 3 kolonlu.
+
+Kök sebep: **bu ekran Solum'a hiç taşınmamış** (plan 05 Dalga 1 dışında
+kalmış) — 236 satır ham Tailwind, elle yazılmış tablo. Taşmanın doğrudan
+suçlusu `xl:grid-cols-[1fr_380px]` ızgarasında ızgara öğesinin
+`min-width: auto` olması.
+
+**Karar (kullanıcı, 2026-09-23): Solum'a taşınacak — ayrı iş.** Tek satır
+CSS ile taşma kapatılabilirdi ama 8 dokunma hedefi ve masaüstü düzeni
+kalırdı; "kapandı" sanılan yarım düzeltme bu depoda kayıtlı bir hata
+sınıfı (`docs/journal/2026-09-23-kalan-isler.md` §0d "yarım yakalayan kapı").
 
 ### Solum talepleri (T0–T6) — cevap geldi 2026-09-23
 

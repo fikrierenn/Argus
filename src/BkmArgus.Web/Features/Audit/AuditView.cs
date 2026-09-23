@@ -43,4 +43,21 @@ public static class AuditView
     /// <summary>Durum metni.</summary>
     public static string StatusText(bool kesinlestirildi) =>
         kesinlestirildi ? "Kesinleştirildi" : "Taslak";
+
+    /// <summary>
+    /// Suzgec panelinde gosterilecek ETKIN olcut etiketleri (plan 07, Faz 4).
+    /// Gerekce ve neyi saymadigi icin bkz. <see cref="RiskView.AktifSuzgecler"/> —
+    /// iki ekranda ayni kural gecerli: yalnizca listeyi DARALTAN secim sayilir.
+    /// </summary>
+    public static IReadOnlyList<string> AktifSuzgecler(IndexModel m)
+    {
+        var etkin = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(m.Search)) etkin.Add($"Magaza: {m.Search}");
+        if (m.StartDate.HasValue) etkin.Add($"{m.StartDate:dd.MM.yyyy} sonrasi");
+        if (m.EndDate.HasValue) etkin.Add($"{m.EndDate:dd.MM.yyyy} oncesi");
+        if (m.IsFinalized.HasValue) etkin.Add(StatusText(m.IsFinalized.Value));
+
+        return etkin;
+    }
 }

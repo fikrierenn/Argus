@@ -156,4 +156,36 @@ public static class RiskView
 
         return temiz;
     }
+
+    /// <summary>
+    /// Suzgec panelinde gosterilecek ETKIN olcut etiketleri (plan 07, Faz 4).
+    ///
+    /// NEDEN SUNUCUDA: panel dar ekranda KAPALI acilir; kullanici paneli
+    /// acmadan neyin daralttigini gorebilmeli. Istemcide sayilsaydi JS
+    /// yuklenene kadar rozet bos kalirdi ve kapali panel "suzgec yok" gibi
+    /// okunurdu — sessiz yanlis bilgi.
+    ///
+    /// NEYI SAYMAZ: siralama, yon ve sayfa boyutu. Bunlar listeyi DARALTMAZ,
+    /// yalnizca sunar; "3 olcut etkin" derken kullanici kac satirin
+    /// elendigini anlar. Onay kutusu grubu TEK olcut sayilir ve kac secim
+    /// oldugu etiketin icinde yazar (2 mekan secmek 2 ayri daraltma degil).
+    /// </summary>
+    public static IReadOnlyList<string> AktifSuzgecler(RiskModel m)
+    {
+        var etkin = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(m.Search)) etkin.Add($"Arama: {m.Search}");
+        if (m.MinSkor.HasValue) etkin.Add($"Min skor {m.MinSkor}");
+        if (m.MaxSkor.HasValue) etkin.Add($"Maks skor {m.MaxSkor}");
+        if (m.KesimBas.HasValue) etkin.Add($"Kesim ≥ {m.KesimBas:dd.MM.yyyy}");
+        if (m.KesimBit.HasValue) etkin.Add($"Kesim ≤ {m.KesimBit:dd.MM.yyyy}");
+
+        var mekanSayi = m.SelectedMekan.Count(v => !string.IsNullOrWhiteSpace(v));
+        if (mekanSayi > 0) etkin.Add(mekanSayi == 1 ? "1 mekan" : $"{mekanSayi} mekan");
+
+        var tipSayi = m.SelectedTip.Count(v => !string.IsNullOrWhiteSpace(v));
+        if (tipSayi > 0) etkin.Add(tipSayi == 1 ? "1 risk tipi" : $"{tipSayi} risk tipi");
+
+        return etkin;
+    }
 }

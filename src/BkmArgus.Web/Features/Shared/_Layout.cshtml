@@ -86,6 +86,9 @@
 @* Tablo hucrelerine etiket yazar (dar ekranda kart duzeni). Solum `<td>`ye
    `data-solum-label` basmaya baslayinca BU SATIR VE DOSYA SILINIR. *@
 <script src="~/js/argus-table-mobile.js" asp-append-version="true"></script>
+@* Suzgec panelini dar ekranda kapali acar. Katlamayi <details> yapiyor;
+   bu betik yalnizca baslangic halini secer (plan 07, Faz 4). *@
+<script src="~/js/argus-filter.js" asp-append-version="true"></script>
 <script src="~/js/argus-pwa.js" asp-append-version="true"></script>
 @await RenderSectionAsync("Scripts", required: false)
 </body>

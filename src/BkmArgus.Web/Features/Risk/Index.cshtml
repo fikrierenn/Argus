@@ -33,6 +33,9 @@
 
     IReadOnlyList<SelectOption> sayfaBoyutuSecenekleri = Model.PageSizeOptions
         .Select(s => new SelectOption(s.ToString(), $"Sayfada {s}")).ToList();
+
+    // Suzgec panelinin rozeti ve ozeti icin: listeyi DARALTAN secimler.
+    IReadOnlyList<string> aktifSuzgecler = RiskView.AktifSuzgecler(Model);
 }
 
 @* GORUNMEZ SUZGEC UYARISI (denetim bulgusu 1.3): secenek listesinde
@@ -136,13 +139,38 @@
         }
     </div>
 
-    <section class="solum-card">
-        <div class="solum-card-head">
-            <div>
-                <h3 class="solum-card-title">Süzgeçler</h3>
-                <div class="solum-card-sub">URL ile paylaşılabilir durum</div>
-            </div>
-        </div>
+    @* SUZGEC PANELI (plan 07, Faz 4).
+
+       OLCUM 2026-09-23, 375px genislik: .argus-split tek kolona dusunce bu
+       kart listenin ALTINA iniyor ve tepesi 16557px oluyordu (sayfa 17987px).
+       Yani telefonda suzgec teknik olarak VARDI, pratikte ULASILAMAZDI —
+       denetci 16 bin piksel kaydirmadan hicbir olcut degistiremiyordu.
+       Plan "suzgec listeyi asagi itiyor" diyordu; olcum TERSINI gosterdi.
+       Cozum ayni yone bakiyor: dar ekranda panel listenin USTUNE alinir
+       (CSS order) ve KAPALI acilir, boylece liste ilk ekranda kalir.
+
+       NEDEN <details>: katlama tarayicinin kendi isi. JS yuklenmese de
+       calisir, klavye (Enter/Space) ve ekran okuyucu duyurusu bedava gelir.
+       Elle yazilan bir ac/kapa dugmesi bunlarin ucunu de borclanirdi.
+
+       NEDEN OZET <summary> ICINDE: panel kapaliyken <details>'in geri kalani
+       gizlenir. Etkin olcut metni disarida kalsaydi kapali panel "suzgec yok"
+       gibi okunurdu — sessiz yanlis bilgi. *@
+    <details class="solum-card argus-filter-panel" data-argus-filter open>
+        <summary class="argus-filter-summary">
+            <span class="argus-filter-summary-metin">
+                <span class="solum-card-title">Süzgeçler</span>
+                <span class="solum-card-sub">
+                    @(aktifSuzgecler.Count > 0
+                        ? string.Join(" · ", aktifSuzgecler)
+                        : "Ölçüt yok — tüm kayıtlar listeleniyor")
+                </span>
+            </span>
+            @if (aktifSuzgecler.Count > 0)
+            {
+                <span class="@ArgusBadge.Class(SolumTone.Neutral)">@aktifSuzgecler.Count etkin</span>
+            }
+        </summary>
 
         @* TEK form: filtre + arama + sıralama + sayfa boyutu. Sayfa daima 1'e
            döner — süzgeç değişince eski sayfada kalmak boş liste gösterirdi. *@
@@ -212,5 +240,5 @@
                 <a class="solum-btn" asp-page="/Risk/Index">Temizle</a>
             </div>
         </form>
-    </section>
+    </details>
 </div>
