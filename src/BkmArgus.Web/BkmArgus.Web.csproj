@@ -19,6 +19,33 @@
   <!-- Solum ortak katmanı (plan: 04). Depo-arası göreli yol: D:\Dev\solum.
        Yalnız Abstractions + Core + Web alınır; EntityFrameworkCore ve Identity
        ALINMAZ — BkmArgus SP-first + Dapper (architecture.md §2/§3). -->
+  <!-- ⚠️ "solum" KUCUK HARFLE YAZILI VE OYLE KALMALI. DUZELTMEYIN.
+
+       Diskteki gercek dizin adi "Solum" (buyuk S; `cmd dir /b D:\Dev` ile
+       olculdu 2026-09-23). Yani asagidaki uc satir diskteki adla
+       ESLESMIYOR gorunuyor ve bakimda "tutarsizlik, duzelteyim" demek en
+       makul hamle gibi duruyor. Duzeltmeyin: buyuk harfe cevirmek derlemeyi
+       kirar.
+
+       OLCUM (Solum oturumu, 2026-09-23):
+         D:\Dev\Solum'dan temiz derleme  ->  16 RS0030 hatasi
+         D:\Dev\solum'dan temiz derleme  ->  0 hata
+       Bizim build'imiz yesil cunku MSBuild buradaki KUCUK harfli yolu
+       kullaniyor. Windows dosya sistemi harfe duyarsiz oldugu icin dosyalar
+       yine bulunuyor; kirilan sey dosya cozumlemesi degil, Solum.Core'daki
+       bir analizor muafiyetinin eslesmesi.
+
+       ⚠️ MEKANIZMA DOGRULANMADI: ilk aciklama (.editorconfig bolum deseni
+       harfe duyarli) Solum tarafinca GERI CEKILDI — olctukleri sey iddianin
+       kaniti degilmis. ILISKI duruyor, SEBEBI bilinmiyor. Uydurulmus bir
+       aciklama yazmaktansa boslugu isaretliyoruz.
+
+       NE ZAMAN KALKAR: Solum'da [**/SolumFileKey.cs] duzeltmesi geldiginde
+       desen yola degil dosya adina bakar ve bu kirilganlik kendiliginden
+       kapanir. Onlarin PARK 0 maddesi; tetikleyicisine "tuketici csproj'unda
+       harf duzeltmesi" satiri EKLENDI, cunku tetikleyici bizden gelebilir.
+
+       Ayrinti: docs/journal/2026-09-23-oturum-2-kalan-isler.md §13 -->
   <ItemGroup>
     <ProjectReference Include="..\..\..\solum\src\Solum.Abstractions\Solum.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\solum\src\Solum.Core\Solum.Core.csproj" />
