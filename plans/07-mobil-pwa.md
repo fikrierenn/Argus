@@ -161,3 +161,32 @@ yayımlanır — **dosyayı silmek yetmez**, kayıtlı SW tarayıcıda kalır. B
 - 🟢 **Expansionist:** Kart düzeni + dokun-seç akışı, çevrimdışı istendiğinde (bugün hayır) gereken istemci-taraflı form altyapısının yarısını zaten kurar. Bugün yapmıyoruz ama kapıyı kapatmıyoruz.
 - ⚪ **Outsider:** Saha denetim yazılımının telefonda kullanılamaması, yabancı birinin ilk dakikada soracağı şey: "denetçi bunu masaüstünde mi dolduruyor?"
 - 🟡 **Executor:** Pazartesi sabahı Faz 1: `argus-theme.css`'e mobil kırılma noktaları + 44px hedefler; yarım gün, hiçbir şeyi bozmaz, her ekranda görünür kazanç.
+
+---
+
+## Faz Durumu (güncel: 2026-09-23)
+
+| Faz | Durum | Kanıt / not |
+|---|---|---|
+| Faz 1 — kabuk ve dokunma | ✅ **bitti** | commit `f546ece`; üst çubuk 37px taşma → 0; yan menü ölçümü düzeltildi (`left=-256`, Solum'un kabuğu çalışıyor) |
+| Faz 2 — tablo kart düzeni | ✅ **bitti** | commit `91b983e`; `/Risk` 375px 137px → **0**, 350/350 hücre etiketli, 0/17 hedef 44px altında; altı ekran 0 taşma. Ayrıca ölü `RowUrl` kancası 4 çağrı yerinde gerçek `<a>`'ya çevrildi |
+| Faz 3 — DÖF panosu dokunmatik | ⬜ **sırada** | `argus-sheet` bizde yazılacak (Solum'da alt sayfa ilkeli **yok**, planda da yok) |
+| Faz 4 — süzgeç ve form | ⬜ | `argus-sheet`'i Faz 3 ile paylaşır; `<solum-field>` çoklu seçim **alınmadı** → `argus-checkgroup` kalıcı |
+| Faz 5 — PWA | ⬜ **Solum'dan bağımsız** | tek engelsiz faz |
+| Faz 6 — ölçüm | ⬜ | 3/4/5'e bağlı |
+
+### Solum talepleri (T0–T6) — cevap geldi 2026-09-23
+
+Altısı da onların deposunda ölçüldü, altı iddia da doğrulandı; **hiçbiri
+bugün uygulanmıyor** (aktif başlıkları K4). Tam metin ve ölçümler:
+`docs/journal/2026-09-23-kalan-isler.md` §0 ve §0b.
+
+- **T1** (`data-solum-label`) kabul edilebilir bulundu → geldiği gün
+  `wwwroot/js/argus-table-mobile.js` **silinir**, davranış değişmez
+- **T2** dar öneriye döndü: yalnız `cursor:pointer` kalkacak, kanca kalacak →
+  **bizde iş yok**
+- **T3 / T4** emsalli ama üç-ürün eşiği **1/3**; gelirse
+  `argus-theme.css:325-340` ve `:446-470` blokları silinir
+- **T5 / T6** alınmadı → `argus-sheet` ve `argus-checkgroup` bizde kalıcı
+- **🔴 `Solum.Core` + `Solum.EntityFrameworkCore` kırıcı değişikliği
+  duyuruldu, kod yazılmadı** — geldiğinde altıncı uyarlama turu
