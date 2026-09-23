@@ -193,7 +193,7 @@ Onu bitirmeden yeni iş açmak kendi `odak-disiplini.md`lerinin ihlali olur.
   değişikliğinin bitmesi. **Yakın değil.**
 - **ÖNCELİK:** cevap gelince 1; gelmeden **bekletmez** (aşağıdaki §4 serbest).
 
-## 2. Plan 07 Faz 3 — DÖF panosu dokunmatik ⚠ en riskli
+## 2. ✅ Plan 07 Faz 3 — DÖF panosu dokunmatik — **BİTTİ** (commit `8a2460a`)
 
 - **NE:** DÖF panosunda telefondan durum değiştirebilmek.
 - **NEDEN:** **Ölçüldü: `touchstart`/`pointerdown` dinleyici sayısı 0.**
@@ -214,7 +214,9 @@ Onu bitirmeden yeni iş açmak kendi `odak-disiplini.md`lerinin ihlali olur.
 - **BAĞIMLILIK:** **ÇÖZÜLDÜ** — T5 cevabı geldi: Solum'da alt sayfa ilkeli
   **yok, planda da yok** → `argus-sheet`'i **biz yazacağız**. Artık bekleyen
   bağımlılık kalmadı.
-- **ÖNCELİK:** **2** — kullanıcı-görünür en büyük kırık.
+- **ÖNCELİK:** ✅ kapandı 2026-09-23. Ölçümler `plans/07-mobil-pwa.md`
+  "Faz 3 ölçümü" tablosunda. Denetçiler koşuldu (`code-reviewer` 3 bulgu,
+  üçü de kapatıldı; `security-reviewer` ≥80 bulgu yok).
 
 ## 3. Plan 07 Faz 4 — süzgeç ve form
 
@@ -232,7 +234,7 @@ Onu bitirmeden yeni iş açmak kendi `odak-disiplini.md`lerinin ihlali olur.
   **T6 alınmadı** → `argus-checkgroup` kalıcı, ona göre yaz.
 - **ÖNCELİK:** 3.
 
-## 4. Plan 07 Faz 5 — PWA (**Solum'dan tamamen bağımsız**)
+## 4. ✅ Plan 07 Faz 5 — PWA — **KOD BİTTİ**, commit denetim sonucunu bekliyor
 
 - **NE:** `manifest.json` + 192/512 maskable ikon + service worker +
   `beforeinstallprompt` ile "Uygulamayı yükle" düğmesi.
@@ -325,3 +327,260 @@ Onu bitirmeden yeni iş açmak kendi `odak-disiplini.md`lerinin ihlali olur.
    bitmeden T1–T4 zaten gelmeyecek. Sıradaki iş bu.
 3. **Faz 3 — DÖF dokunmatik** (§2). T5 cevabı geldi: alt sayfa ilkeli yok,
    `argus-sheet`'i biz yazıyoruz. Artık bağımlılık yok.
+
+---
+
+## 0c. Solum'un KALICI kaydı — `docs/ODAK.md` (commit `4db9099`, 09:32)
+
+Mesajın ötesinde, tahtalarına yazdıkları ek bilgiler:
+
+### Sınıf ve maliyet sıralaması (onların tahmini)
+
+| # | Sınıf | Maliyet |
+|---|---|---|
+| **T2** (`cursor:pointer` kalksın) | **sessiz yalan** — kendi §5 ihlalleri | **1 satır** |
+| **T1** (`data-solum-label`) | delik | ~1 satır **+ kapı** (regresyon testi) |
+| **T0** (davranışsal kırılma duyurusu) | delik, **yeni sınıf** | belge |
+| **T5** (pano dokunma) | 🔴 **onların kusuru** | **Tier 3** |
+| **T3 · T4** | delik, emsalli | CSS |
+| **T6** | 1/3 — alınmıyor | — |
+
+**T2 tek başına ayrılabilir** diye yazmışlar: bir satır, kimseyi kırmıyor,
+kendi kurallarının ihlali. Yani T2 muhtemelen **ilk ve tek başına** gelecek.
+
+### 🔴 T1/T3/T4 eşiği bkm-magaza ile ASLA dolmayabilir
+
+Kullanıcılarının sorusunu ("iki tüketici de mobil, ortak bir şey çıkmaz mı")
+ölçmüşler; cevap **hayır**:
+
+| | BkmArgus | bkm-magaza |
+|---|---|---|
+| HTML'i kim çiziyor | **sunucu** (`Solum.Web`, Razor) | **APK içindeki statik dosya** |
+| `Solum.Web` alıyor mu | ✅ | ❌ **açıkça reddetti** |
+| "Mobil" ihtiyacının şekli | küçük ekranda **sunucu HTML'i** okunsun | çerezsiz taşıma + kimlik |
+
+**Sonuç bizim için:** bkm-magaza T1/T3/T4'ten **hiç yararlanamaz**, yani
+üç-ürün eşiği o taraftan **hiç dolmayacak**. Üçü de ya gerekçe yazılarak
+1/3'te alınacak (emsal: onların `plans/21`) ya da **bizim gölge kodumuz
+kalıcı olacak**. Planlarken kalıcı varsay; gelirse kazanç.
+
+### Tetikleyici
+
+**K4 kapanması + onların kullanıcı kararı.** `odak-disiplini.md` gereği
+araya giren istek PARK'a yazılıyor, odak değişmiyor. Tarih yok.
+
+---
+
+## 0d. Solum'un üçüncü ve dördüncü cevabı (2026-09-23, öğleden sonra)
+
+### `Solum.Core` kırıcı değişikliği — **bizde beklenen iş SIFIR**
+
+Yüzeyi ölçüp gönderdiler:
+
+| Arayüz | Durum | Bizi etkiler mi |
+|---|---|---|
+| `IPermissionChecker` | **imza değişmiyor** — yeni bir *uygulama* ekleniyor (`SourcePermissionChecker`) | **hayır**, `ArgusPermissionChecker` duruyor |
+| `IClock` | planda **hiç geçmiyor** | hayır |
+| `IUserRoleProvider` | EF → Core **taşınıyor**, tek kırıcı madde | **hayır** — bizde 0 kullanım, EF referansımız yok |
+| `IUserPermissionSource` · `SourcePermissionChecker` | **eklemeli**, kimseyi kırmaz | hayır |
+
+Kendi cümleleri: *"altıncı uyarlama turu muhtemelen bir tur OLMAYACAK"* ve
+**"PWA fazını SIKIŞTIRMAYIN"**. Takvim yok — K4 aktif, tarih onların
+kullanıcı kararı. Bittiğinde `KIRICI BITTI` gelecek.
+
+⚠️ `KIRICI BASLIYOR` yine de gönderilmiş çünkü ölçütleri "genel API" değil,
+**"`src/` altında derlemeyi geçici olarak kırabilecek her şey"**. Bu bugün
+birebir gerçekleşti — bkz. §9b.
+
+### Ölçüm disiplini dersi — **39 → 7 → 1**
+
+Bizim `.solum-nav-item` bulgumuz üzerine kendi depolarında aynı taramayı
+yapmışlar:
+
+```
+solum.css'te .solum-* sinif secici                   172
+kaynakta HIC literal gecmeyen                         39   <- NAIF
+birlestirme onekleri ToneClass(tone,"solum-...-")      5
+BASLARKEN soz varliginda gecenler dusunce              7   <- INCE
+depoda HICBIR yerde gecmeyen                           1   <- GERCEK
+```
+
+📐 **"Literal geçmiyor" ≠ "ölü".** Naif sayıyla 38 meşru seçiciye "ölü"
+damgası basılacakmış. Doğru ölçüt bir **ilişki**: seçici üç kaynaktan
+birinde kapsanmalı — üretici literali · birleştirme öneki · yayımlanmış
+söz varlığı.
+
+**Bizim tarafta üçüncü kaynak yok** (söz varlığı yayımlamıyoruz) ama
+**canlı DOM** var — onlarda olmayan şey. Yani kapı iki tarafta **ayrı**
+yazılır: kütüphane bütün tüketicileri bilir, tüketici kendi DOM'unu.
+Bizim `.solum-nav-item` vakamızı onların kapısı **yakalayamazdı**.
+
+### Aynı sınıfın üç örneği, hepsi bugün
+
+| Vaka | Şekli |
+|---|---|
+| `data-solum-href` | kanca **üretiliyor**, okuyan betik yok |
+| `.solum-nav-item` (bizim) | kural **yazıldı**, eşleşen öğe yok |
+| `.solum-btn-danger` (onların) | sınıf **tanımlı**, duyurusu yok — kimse varlığını bilemez |
+
+Üçü de: bir sözleşmenin **bir ucu yazılıyor, karşı ucu yok**, ve hiçbir şey
+bağırmıyor. Bizim aynamız ters yönden: *bizde kural var sınıf yok; onlarda
+sınıf var duyuru yok.*
+
+### Ortak omurga — biz 29'un ikinci tüketicisiyiz
+
+`docs/ORTAK-OMURGA-2026-09-23.md` yazılmış. Bizim rol-talebi olayımız
+(`audit.Users.RoleCode='DENETCI'` ↔ çerez `Role='ADMIN'`, 7 gün,
+`OnValidatePrincipal` yok) ile bkm-magaza'nın istemciden `mekanAd` alması
+**aynı sınıf**: *yetki, kaynağından değil bir fotoğraftan okundu.*
+İkinci ortak zarar: **iz kendi kanıtını bozuyor** — bizde denetim izine
+"Silen rol: ADMIN" yazılmış, DB'deki rol DENETCI.
+
+Üç katman `Solum.Core`'a yazılıyor (bağımlılığı yalnız `Solum.Abstractions`,
+yani hem EF hem Dapper tüketicisi alabilir):
+
+1. Yetki kaynağı — `IUserPermissionSource` → `plans/26`, **aktif**
+2. Kapsam tazeleme — her istekte depodan → ISTEK-27
+3. Denetim izi — `IAuditTrail` + alan × süre → ISTEK-29
+
+**Kabul ettik:** `OnValidatePrincipal`ı kendimiz yazmak yerine omurgadan
+almak. Eşik 2/3 (Belinza ve Vardiya ölçülemedi).
+
+> KVKK saklama çakışmasını bkm-magaza çözmüş: **sert silme değil alan
+> boşaltma.** 90 gün sonra `Detay = NULL`, `Tarih · CihazId · Islem · Ip`
+> kalır. Bizim `AuditAction`ın sert silmeyi taşımama kararımız **doğru
+> kalıyor**.
+
+### Kapı yazılabilir, ama PARK'ta
+
+"Her `.solum-*` seçici üç kaynaktan birinde kapsanmalı" kapısı yazılabilir
+(D1 2026-09-20'de kapandığı için önceki engel yok) ama `odak-disiplini.md`
+gereği K4 bitmeden açmıyorlar.
+
+---
+
+## 9b. ⚠️ C9 bağlanması BUGÜN gerçekleşti — commit'i durdurdu
+
+2026-09-23 saat ~10:1x: `dotnet build` **6→7 hata** verdi, **hepsi**
+`D:\Dev\solum\src\Solum.Core\Permissions\` altında:
+
+```
+IUserRoleProvider.cs(32,18)     RS0016   PublicAPI.Unshipped.txt'e eklenmemis
+IUserRoleProvider.cs(42,33)     RS0016
+IUserPermissionSource.cs(86,18) RS0016
+IUserPermissionSource.cs(98,39) RS0016
+IUserPermissionSource.cs(22,51) CS1574   cref: SourcePermissionChecker (henuz yok)
+IUserPermissionSource.cs(96,20) CS1574
+```
+
+**BkmArgus dosyalarında 0 hata.** Solum K4'ü yazarken ağacı yarım kaldı ve
+`BkmArgus.Web.csproj:23-25` üç `ProjectReference` ile o **canlı çalışma
+ağacına** bağlı olduğu için bizi de düşürdü.
+
+**Ders (TODO C9'a kanıt):** başka bir ekibin yarım commit'i bizim build'imizi
+durduruyor. NuGet paketine geçmek bir kolaylık değil, bir **izolasyon**
+meselesi. Bugün Faz 3 hazırdı ve yalnız bu yüzden commit'lenemedi.
+
+Geçici önlem yok — onların deposuna **dokunulmadı** (başka takımın ağacı).
+Haber verildi, yeşile dönmesi bekleniyor.
+
+---
+
+# ═══ GÜNCEL DURUM — 2026-09-23 oturum sonu ═══
+
+> Buradan aşağısı günün **son** hâlidir; yukarıdaki maddelerle çelişirse
+> **bu bölüm geçerlidir.**
+
+## Bugün kapanan
+
+| Faz | Durum | Commit |
+|---|---|---|
+| Plan 07 Faz 1 | ✅ | `f546ece` (dün) |
+| Plan 07 Faz 2 | ✅ | `91b983e` (dün) |
+| **Plan 07 Faz 3** — DÖF dokunmatik | ✅ | **`8a2460a`** |
+| **Plan 07 Faz 5** — PWA | ✅ kod bitti | **commit'lenmedi** (aşağı bak) |
+
+## ⚠️ Devralanın ilk yapacağı: Faz 5'i commit'le
+
+Faz 5 kodu **çalışır ve ölçüldü** ama commit edilmedi — `security-reviewer`
+koşarken oturum kapandı.
+
+**Commit'lenmemiş dosyalar:**
+
+```
+YENI  src/BkmArgus.Web/wwwroot/manifest.webmanifest
+YENI  src/BkmArgus.Web/wwwroot/sw.js
+YENI  src/BkmArgus.Web/wwwroot/js/argus-pwa.js
+YENI  src/BkmArgus.Web/wwwroot/icons/argus-192.png
+YENI  src/BkmArgus.Web/wwwroot/icons/argus-512.png
+YENI  src/BkmArgus.Web/wwwroot/icons/argus-512-maskable.png
+DEG   src/BkmArgus.Web/Features/Shared/_Layout.cshtml        (manifest + meta + betik)
+DEG   src/BkmArgus.Web/Features/Shared/_ArgusTopbar.cshtml   (kurulum dugmesi)
+DEG   src/BkmArgus.Web/Program.cs                            (no-cache garantisi)
+DEG   src/BkmArgus.Web/wwwroot/css/argus-theme.css           (14 satir: .argus-install)
+DEG   docs/journal/2026-09-23.md, 2026-09-23-kalan-isler.md, plans/07-mobil-pwa.md
+```
+
+**Yapılacak sıra:**
+1. `security-reviewer`ı Faz 5 dosyalarına tekrar koştur (bu oturumdaki koşum
+   sonucu alınamadı). Odak: servis çalışanı kimlik doğrulanmış içeriği
+   önbelleğe alabilir mi.
+2. CRITICAL çıkarsa düzelt; çıkmazsa commit.
+3. Commit mesajına `[reviewed: security-reviewer]` yaz — `pre-commit-review-gate`
+   hook'u bunu arıyor, yoksa **bloklar**.
+
+**Build ve smoke zaten yeşil** (ölçümler `plans/07-mobil-pwa.md` "Faz 5
+ölçümü" tablosunda). Kodun kendisine dokunmaya gerek yok.
+
+## Sırada ne var
+
+| # | İş | Bağımlılık |
+|---|---|---|
+| 1 | **Faz 5'i commit'le** (yukarıda) | denetçi |
+| 2 | **Faz 4** — süzgeç kenar çubuğu → katlanır panel/alt sayfa, tek kolon form, `inputmode` | yok. `argus-sheet` **hazır**, Faz 3'te yazıldı |
+| 3 | **Faz 6** — 360/390/768 her ekranda ölçüm + **gerçek cihazda kurulabilirlik** | Faz 4 |
+| 4 | Plan 06 artıkları (DÖF kapsam kapısı domain kararı, S8a/b/c, S9, I11, I13) | `denetim-surec-danismani` |
+| 5 | Fresh-DB migrate testinin tekrarı | `sql/`'a dokunmadan önce zorunlu |
+
+### Faz 6 için özel not — **bu ölçüm henüz YAPILMADI**
+
+`beforeinstallprompt` gömülü tarayıcı panelinde **tetiklenmedi**. Yani
+"tarayıcı uygulamayı yüklenebilir sayıyor" done-criterion'u **ölçülmedi**.
+Manifest + servis çalışanı + ikonlar + güvenli bağlam koşulları sağlanıyor
+ama **istemin kendisi görülmedi**. Gerçek Chrome (masaüstü veya Android)
+ile doğrulanmalı; kurulum düğmesi o zamana kadar **hiç görünmeyecek**
+(bilerek: yakalanmayan istemde düğme gizli kalıyor).
+
+## Bugünün üç dersi (tekrarlamamak için)
+
+1. **"Yazıldı" ≠ "bir şeye değiyor".** Üç örnek tek günde:
+   `.solum-nav-item` (kural yazıldı, eşleşen öğe yok) ·
+   `.argus-tabs-panel` (kural var, kullanan yok) ·
+   `Cache-Control` ara katmanı (başlık zaten vardı, bizimki üstüne ekleniyordu).
+   Solum'da dördüncüsü: `data-solum-href` (kanca üretiliyor, okuyan yok).
+   **CSS'te ve middleware'de fail-loud yok** — değdiğini ölçmeden bilemezsin.
+2. **Ölçüm aracı sessizce yanlış cevap verebilir.** Ölü seçici taramasının
+   ilk koşumu "0 ölü" dedi; gezdiği seçici sayısı da 0'dı. **Bir küme
+   üzerinde "hepsi şu" diyen her ölçüm, kümenin boş olmadığını da ölçmeli.**
+3. **Belgelenmiş ama denenmemiş geri alma, geri alma değildir.** Servis
+   çalışanı rollback'i denendi ve **denerken gerçek bir kusur çıktı**
+   (`/sw.js` başlıksız → tarayıcı eski betiği önbellekten verdi).
+
+## Ortam tuzakları (başka makinede yeniden ısırır)
+
+- **`D:\Dev\solum` aynı göreli konumda olmalı** — `BkmArgus.Web.csproj:23-25`
+  üç `ProjectReference` ile canlı çalışma ağacına bağlı (TODO C9).
+  **Bugün bu yüzden ~1 saat commit atılamadı:** Solum'un yarım K4 işi
+  `Solum.Core`'u derlenemez yaptı, bizim tarafta 0 hata olmasına rağmen.
+- **Build öncesi preview sunucusunu DURDUR.** Bir build `MSB3027/MSB3021`
+  verdi; Solum hatası sanıldı, aslında çalışan sunucunun `Solum.Core.dll`
+  kilidiydi (`test-discipline.md`'de kayıtlı).
+- **Panel gizliyken tarayıcı betikleri 45 sn'de zaman aşımına uğruyor** —
+  ölçümleri küçük parçalara böl.
+- Branch: **`feature/solum-kabuk`**.
+
+## Dev veritabanında bırakılan iz
+
+Smoke gerçek kayıtla yapıldı: **DÖF 18** taşındı (DRAFT → OPEN → IN_PROGRESS
+→ OPEN, şu an **OPEN**). `audit.AuditLog`'da Id 12'den itibaren izleri var.
+Geri alınmadı — DRAFT'a dönüş meşru bir geçiş olmayabilir.

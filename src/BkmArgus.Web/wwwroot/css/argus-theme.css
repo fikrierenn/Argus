@@ -431,6 +431,20 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
     .argus-checkitem { min-height: 44px; }
 }
 
+/* ── Kurulum dugmesi ──────────────────────────────────────────────────
+   Varsayilan GIZLI (`hidden` niteligi); argus-pwa.js yalniz tarayici
+   "kurulabilir" dediginde gosteriyor. Dar ekranda metin kisalir — ust
+   cubuk 375px'te zaten sikisik. */
+.argus-install { white-space: nowrap; }
+
+@media (max-width: 600px) {
+    /* Metin yerine kisa hali: erisilebilir ad `aria-label` ile degil
+       GORUNUR metinle geliyor, o yuzden metni gizlemek yerine KISALTIYORUZ
+       (bos dugme ekran okuyucuda adsiz kalirdi). */
+    .argus-install { font-size: 0; }
+    .argus-install::after { content: "Yükle"; font-size: var(--solum-text-sm); }
+}
+
 /* ── Ust cubuk: 600px altinda sadelesir ───────────────────────────────
    Kimlik GORUNUR kalir (bas harfler rozeti), yalniz metin dusuyor. Cikis
    dugmesi ikona iner ama erisilebilir adi `aria-label` ile korunuyor —

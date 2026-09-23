@@ -170,9 +170,9 @@ yayımlanır — **dosyayı silmek yetmez**, kayıtlı SW tarayıcıda kalır. B
 |---|---|---|
 | Faz 1 — kabuk ve dokunma | ✅ **bitti** | commit `f546ece`; üst çubuk 37px taşma → 0; yan menü ölçümü düzeltildi (`left=-256`, Solum'un kabuğu çalışıyor) |
 | Faz 2 — tablo kart düzeni | ✅ **bitti** | commit `91b983e`; `/Risk` 375px 137px → **0**, 350/350 hücre etiketli, 0/17 hedef 44px altında; altı ekran 0 taşma. Ayrıca ölü `RowUrl` kancası 4 çağrı yerinde gerçek `<a>`'ya çevrildi |
-| Faz 3 — DÖF panosu dokunmatik | ⬜ **sırada** | `argus-sheet` bizde yazılacak (Solum'da alt sayfa ilkeli **yok**, planda da yok) |
-| Faz 4 — süzgeç ve form | ⬜ | `argus-sheet`'i Faz 3 ile paylaşır; `<solum-field>` çoklu seçim **alınmadı** → `argus-checkgroup` kalıcı |
-| Faz 5 — PWA | ⬜ **Solum'dan bağımsız** | tek engelsiz faz |
+| Faz 3 — DÖF panosu dokunmatik | ✅ **bitti** | `argus-sheet.js` (alt sayfa ilkeli, Solum'da yok) + kart → sarmalayıcı/`<a>`/durum düğmesi. Üç giriş yolu da ölçüldü: sürükleme, Alt+Ok, dokun→seç. İz `audit.AuditLog` Id 12 `DOF_GECIS`. 375px: taşma 0, **0/208** hedef 44px altında |
+| Faz 4 — süzgeç ve form | ⬜ **sırada** | `argus-sheet` **hazır** (Faz 3'te yazıldı, yeniden kullanılacak); `<solum-field>` çoklu seçim **alınmadı** → `argus-checkgroup` kalıcı |
+| Faz 5 — PWA | ✅ **bitti** | `manifest.webmanifest` + 3 ikon + `sw.js` (**yalnız statik**) + kurulum düğmesi. Ölçüldü: HTML ve `/api/*` önbelleğe **girmiyor**; geri alma yolu **denendi** |
 | Faz 6 — ölçüm | ⬜ | 3/4/5'e bağlı |
 
 ### Solum talepleri (T0–T6) — cevap geldi 2026-09-23
@@ -190,3 +190,94 @@ bugün uygulanmıyor** (aktif başlıkları K4). Tam metin ve ölçümler:
 - **T5 / T6** alınmadı → `argus-sheet` ve `argus-checkgroup` bizde kalıcı
 - **🔴 `Solum.Core` + `Solum.EntityFrameworkCore` kırıcı değişikliği
   duyuruldu, kod yazılmadı** — geldiğinde altıncı uyarlama turu
+
+### Faz 3 ölçümü (2026-09-23)
+
+| Ne | Ölçüm |
+|---|---|
+| Kart / gövde / durum düğmesi | 84 / 84 / 84 |
+| İç içe etkileşimli öğe (`a button`) | **0** — düğme `<a>`'nın yanında, içinde değil |
+| Dokun → seç → sunucu | DRAFT 65→64, OPEN 6→7, kart taşındı, `audit.AuditLog` Id **12** `DOF_GECIS` |
+| Sürükleme (masaüstü regresyonu) | `dragstart` iç `<a>`'dan doğuyor, işleyici sarmalayıcıyı buluyor → OPEN→IN_PROGRESS ✅ |
+| Klavye (regresyon) | Alt+← → IN_PROGRESS→OPEN ✅ |
+| Durum düğmesi masaüstünde | `display: none` (`any-pointer: coarse` false) |
+| 375px taşma | **0** |
+| 44px altı dokunma hedefi | **0 / 208** |
+| Konsol hatası | **0** |
+
+**Faz 1'den düzeltilen hata:** `@media (pointer: coarse)` bloğundaki
+`.solum-nav-item` seçicisi **hiçbir şeyle eşleşmiyormuş** (ölçüldü: sayfada 0).
+Solum'un menüsü `nav.solum-nav > ul > li > a`, sınıfsız. Menü öğeleri 37px
+kalmıştı — telefonda **en çok dokunulan** hedefler. `.solum-nav a` yapınca
+12/208 → 0/208. Faz 1 ölçümüm içerik alanını saymış, çekmeceyi saymamıştı.
+
+**Kaldırılan iki ölü CSS kuralı** (canlı DOM'a karşı tarandı, kaynakta 0 referans):
+`.argus-tabs-panel` ve `.argus-cards .solum-table tr[data-solum-href]` —
+ikincisi Faz 2'de `Linked()`e geçince karşılıksız kalmıştı ve Solum'un
+CHANGELOG gerekçesinde adı geçen "tek tüketici kullanımı" tam olarak buydu.
+
+### Faz 5 ölçümü (2026-09-23)
+
+| Ne | Ölçüm |
+|---|---|
+| `manifest.webmanifest` | 200, `application/manifest+json`, `display: standalone`, 3 ikon, tema `#e30622` |
+| İkonlar | 192 / 512 / 512-maskable, hepsi 200 + `image/png`; maskable içerik oranı 0.60 (güvenli alan) |
+| Servis çalışanı kaydı | `argus-pwa.js` sayfa yüklenince kaydediyor → kayıt 1, durum `activated`, kontrolcü var |
+| **HTML önbelleğe girdi mi** | **HAYIR** — `/` ve `/Dof` istendi, `CacheStorage` içeriği yalnız `/css/argus-theme.css` + `/icons/argus-192.png` |
+| **`/api/*` önbelleğe girdi mi** | **HAYIR** |
+| Çapraz kaynak (CDN) | önbellekte yok |
+| Beyaz listede 404 | `/js/olmayan-dosya.js` → 404, önbelleğe **girmedi** (`yanit.ok` kapısı) |
+| **Geri alma** | **denendi**: geçici `unregister` sürümü yayımlandı → `registration.update()` → önbellek `["argus-statik-v1"]` → `[]`, kayıt 1 → 0 |
+| `/sw.js` `Cache-Control` | `no-cache` (tek değer) |
+| Kurulum düğmesi 375px | "Yükle" 69×44, erişilebilir ad "Uygulamayı yükle" korunuyor, taşma 0 |
+
+**Ölçüm sırasında bulunan gerçek risk:** `/sw.js` ve `/manifest.webmanifest`
+hiç `Cache-Control` taşımıyordu → tarayıcı **sezgisel** önbellekleme
+uyguluyor. Bedeli oturumda yaşandı: geri alma testinden sonra gerçek servis
+çalışanı geri konduğunda tarayıcı **eski betiği HTTP önbelleğinden** servis
+etti ve yeni SW hiçbir şeyi önbelleklemedi. Üretimde bu, **geri almayı
+sessizce etkisiz kılar**. `Program.cs`'e `OnStarting` ile `no-cache` garantisi
+eklendi.
+
+> İlk denemede başlık doğrudan atandı ve `"no-cache, no-cache"` çıktı —
+> `MapStaticAssets` parmak izsiz varlıklara zaten `no-cache` basıyormuş.
+> Yani ara katman **hiçbir şey eklemiyordu**; bu oturum boyunca avladığımız
+> "yazıldı ama bir şeye değmiyor" sınıfının bir örneği daha. `OnStarting`
+> ile üzerine yazacak hale getirildi: tek değer + işleyici değişse bile garanti.
+
+**DOĞRULANMADI:** tarayıcının kurulum istemi (`beforeinstallprompt`) bu
+gömülü panelde **tetiklenmedi**, dolayısıyla "tarayıcı uygulamayı yüklenebilir
+sayıyor" ölçütü **gözlemlenmedi**. Manifest + SW + ikon + güvenli bağlam
+koşulları sağlanıyor ama istemin kendisi görülmedi → gerçek Chrome/Android'de
+doğrulanmalı (Faz 6).
+
+### 🔴 Faz 5 — `security-reviewer` bulgusu ve düzeltmesi (aynı gün)
+
+Denetçi **confidence 90** ile gerçek bir kusur buldu (IMP-1):
+**cache-first + parmak izsiz adres = istemci kodu kalıcı donar.**
+
+Sunucu `/_content/Solum.Web/solum.js` için `Cache-Control: no-cache` beyan
+ediyor (ölçüm: `staticwebassets.endpoints.json`). Cache-first bunu görmezden
+gelir; `ONBELLEK` sabiti elle yükseltilene kadar eski kopya servis edilir.
+Solum paylaşılan katman ve aktif geliştirmede — oraya bir **güvenlik
+düzeltmesi** girdiği gün, önbelleğe bir kez girmiş her tarayıcı düzeltmeyi
+**hiç almaz** ve ekranda her şey doğru görünür.
+
+**Düzeltme:** önbellek artık **parmak izi zorunlu** kılıyor. Yalnız içeriğini
+adresinde taşıyan varlık (`ad.<parmakizi>.uzanti` veya `?v=`) önbelleğe
+girer; içerik değişince adres değişir, bayat kopya **imkânsız**. Ayrıca
+uzantı beyaz listesi eklendi ve `/manifest.webmanifest` listeden çıkarıldı
+(IMP-2 · IMP-3).
+
+| Ölçüm (düzeltme sonrası) | Sonuç |
+|---|---|
+| Önbellekteki 9 anahtarın hepsi parmak izli mi | **evet** |
+| İçerik | `app.nk7guychm1.css` · `argus-theme.03hxjw3dor.css` · `solum.vofa6q873o.css` · `solum.ep1l6wu3e4.js` · `argus-shell/table-mobile/pwa` · `tailwind.config` · `logo` |
+| Parmak izsiz `/css/argus-theme.css` | önbelleğe **girmiyor** |
+| `/icons/*.png`, `/manifest.webmanifest` | önbelleğe **girmiyor** (küçük dosya, kazancı yok riski var) |
+| **Yedi negatif yol** (parmak izsiz css/ikon/manifest, 404, `..%2F` traversal, navigate-olmayan HTML, `/api/*` GET) | önbellek anahtar sayısı **9 → 9, değişmedi** |
+
+**DOĞRULANMADI (denetçinin istediği, yapılmayan):** varlık tazeliği testi
+(bir dosyayı değiştirip depolamayı temizlemeden yeniden yükleme) · iki rolle
+paylaşımlı cihaz turu · iOS Safari üzerinde `mode === "navigate"` ve
+`apple-touch-icon` teyidi. Üçü de Faz 6'ya.

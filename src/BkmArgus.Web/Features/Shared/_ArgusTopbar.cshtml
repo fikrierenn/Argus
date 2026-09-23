@@ -29,6 +29,13 @@
 
     <span class="solum-spacer"></span>
 
+    @* Kurulum dugmesi: tarayici "kurulabilir" diyene kadar GIZLI durur.
+       Gorunurlugu argus-pwa.js `beforeinstallprompt` olayinda veriyor —
+       yakalanmazsa dugme hic gorunmez (calismayan dugme gostermeyiz). *@
+    <button type="button" class="solum-btn argus-install" data-argus-install hidden>
+        Uygulamayı yükle
+    </button>
+
     @if (User.Identity?.IsAuthenticated == true)
     {
         <partial name="_ArgusNotifications" />

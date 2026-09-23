@@ -152,6 +152,36 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
+// PWA: servis calisani betigi ve manifest UZUN SURELI onbelleklenmemeli.
+//
+// OLCULDU (2026-09-23): bu iki adres hic `Cache-Control` tasimiyordu, yani
+// tarayici SEZGISEL onbellekleme uyguluyor. Bunun bedeli oturumda yasandi:
+// `/sw.js` gecici olarak degistirilip geri alindiginda tarayici ESKI betigi
+// HTTP onbelleginden servis etti ve yeni servis calisani hicbir seyi
+// onbelleklemedi. Uretimde ayni sey GERI ALMAYI sessizce etkisiz kilar —
+// geri alma surumu yayimlanir, tarayici eski kayitli surumu tutmaya devam
+// eder. `no-cache` = her istekte dogrula (onbellegi yasaklamaz, bayatlamayi
+// yasaklar).
+// OnStarting: baslik yanit AKMADAN HEMEN ONCE yazilir, yani statik dosya
+// isleyicisinin kendi basligini EZER. Dogrudan atama denendi ve olculdu:
+// "no-cache, no-cache" cikti — MapStaticAssets parmak izsiz varliklara
+// zaten `no-cache` basiyor, bizimki ustune EKLENIYORDU. Yine de biraktik
+// cunku bu bir GARANTI: isleyici degisirse (UseStaticFiles'a donulurse)
+// davranis sessizce kaybolmasin.
+app.Use(async (ctx, next) =>
+{
+    var yol = ctx.Request.Path;
+    if (yol == "/sw.js" || yol == "/manifest.webmanifest")
+    {
+        ctx.Response.OnStarting(() =>
+        {
+            ctx.Response.Headers.CacheControl = "no-cache";
+            return Task.CompletedTask;
+        });
+    }
+    await next();
+});
+
 app.MapStaticAssets();
 app.MapRazorPages()
    .WithStaticAssets();

@@ -13,6 +13,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - BKMKitap Denetim</title>
+
+    @* PWA. Servis calisani YALNIZ statik varlik onbellekliyor; HTML ve
+       /api/* asla — gerekcesi wwwroot/sw.js basindaki kutuda (plan 07 Faz 5).
+       `asp-append-version` manifest'e KONMAZ: tarayici manifest adresini
+       kimlik olarak tutar, her yayinda degisen sorgu dizesi kurulu
+       uygulamayi ayri bir uygulama gibi gostermeye baslar. *@
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <meta name="theme-color" content="#e30622" />
+    <meta name="application-name" content="Argus" />
+    @* iOS manifest ikonlarini kullanmaz, kendi etiketini ister. *@
+    <link rel="apple-touch-icon" href="~/icons/argus-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Argus" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
@@ -73,6 +86,7 @@
 @* Tablo hucrelerine etiket yazar (dar ekranda kart duzeni). Solum `<td>`ye
    `data-solum-label` basmaya baslayinca BU SATIR VE DOSYA SILINIR. *@
 <script src="~/js/argus-table-mobile.js" asp-append-version="true"></script>
+<script src="~/js/argus-pwa.js" asp-append-version="true"></script>
 @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -60,6 +60,7 @@ Boş tablolar "kullanılmıyor" değil, **yazılmıyor** demek. Her biri bir bug
 - [x] ✅ 2026-08-26 **B10. Dalga 1 — 6 ekran Solum ilkellerine taşındı** — sınıf-üretici fonksiyon 23→0, Tailwind kart kabı 30→0, satır içi olay işleyicisi 27→0. `plans/05-solum-tam-tasima.md`
 - [ ] **B11. Risk sunum eşiklerini `ref.RiskParameters`'tan oku** — `RiskView.cs` 90/70 sunum eşiği taşıyor; semantik katmanda `KritikSkorEsik` tanımı var (`sql/47:91`). Danışman kuralı "eşiği kodda sabitleme". Skor hesabına DOKUNULMAZ, yalnız rozet rengi.
 - [ ] **B12. `<solum-field>` çoklu seçim türü yok** — `Risk/Index`'te mekan/tip onay kutusu grupları elle yazılı (10 kutu). Solum'a bildirildi, üç-ürün eşiğine takılıyor; Solum almazsa `argus-checkgroup` kalıcı olur.
+  - **2026-09-23 KARAR: Solum ALMIYOR** (eşik 1/3; bkm-magaza `Solum.Web`i açıkça reddetti, yani o taraftan eşik hiç dolmayacak). `argus-checkgroup` **kalıcı**. Mobilde her kutuya 44px elle verildi (`argus-theme.css` `.argus-checkitem`).
 - [ ] **B5. Skill yönetim ekranı** — `ai.Skills`/`SkillVersions` için Razor sayfası (prompt görüntüle, sürüm geçmişi, aktif/pasif). Şu an sadece SQL'den yönetilebiliyor. `Policies.AdminOnly`.
 
 ---
