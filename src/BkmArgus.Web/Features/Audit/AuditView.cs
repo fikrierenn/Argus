@@ -60,4 +60,61 @@ public static class AuditView
 
         return etkin;
     }
+
+    /// <summary>
+    /// Denetim maddesi risk rozeti (plan 08).
+    ///
+    /// ESIKLER DB'DEN ALINDI, EKRANDAN DEGIL. audit.AuditResults.RiskLevel
+    /// PERSISTED computed kolonu su esikleri kullaniyor
+    /// (sql/20_migration_audit.sql:145-149):
+    ///     &lt;= 8  Low   ·  &lt;= 15 Medium  ·  else High
+    /// Eski ekran ise "&gt;= 15 kirmizi, &gt;= 9 amber" diyordu; yani skor TAM
+    /// 15 olan bir maddede DB "Medium" derken ekran "yuksek" gosteriyordu.
+    ///
+    /// Ekran DB'ye uyduruldu, tersi DEGIL: RiskLevel persisted bir kolondur,
+    /// tanimini degistirmek SQL Server'a TUM GECMIS SATIRLARI yeniden
+    /// hesaplatir ve gecmis raporlar degisir (sql-conventions.md §6 tuzagi).
+    /// Ekrani degistirmek gecmisi bozmaz.
+    /// </summary>
+    public static string ItemRiskBadgeClass(int riskSkoru) =>
+        ArgusBadge.ForThreshold(riskSkoru, kotuEsik: 16, uyariEsik: 9, yuksekKotu: true);
+
+    /// <summary>
+    /// Bulgu tipi kodu -&gt; Turkce metin. DB kolonu char(1) (U/G/I).
+    /// Taninmayan kod GIZLENMEZ, kodun kendisi gosterilir: veride ne varsa
+    /// kullanici onu gormeli — sessizce "bos" gostermek, eski ekranin
+    /// yaptigi hatanin ta kendisiydi.
+    /// </summary>
+    public static string FindingTypeText(string? kod) => (kod ?? "").Trim().ToUpperInvariant() switch
+    {
+        "U" => "Uygunsuzluk",
+        "G" => "Gozlem",
+        "I" => "Iyilestirme",
+        ""  => "—",
+        _   => $"Bilinmeyen kod: {kod}"
+    };
+
+    /// <summary>
+    /// Bulgu tipi secenekleri. Mevcut deger taninan kodlardan biri DEGILSE
+    /// listeye AYRICA eklenir; aksi halde Solum'un &lt;solum-field&gt; korumasi
+    /// "deger seceneklerin hicbirinde yok" diye hata verir ve duzenleme
+    /// ekrani acilmaz — veri yuzunden ekran kirilmis olurdu.
+    /// </summary>
+    public static IReadOnlyList<SelectOption> FindingTypeOptions(string? mevcut)
+    {
+        var secenekler = new List<SelectOption>
+        {
+            new("U", "Uygunsuzluk"),
+            new("G", "Gozlem"),
+            new("I", "Iyilestirme")
+        };
+
+        var kod = (mevcut ?? "").Trim();
+        if (kod.Length > 0 && !secenekler.Any(o => string.Equals(o.Value, kod, StringComparison.OrdinalIgnoreCase)))
+        {
+            secenekler.Add(new SelectOption(kod, FindingTypeText(kod)));
+        }
+
+        return secenekler;
+    }
 }

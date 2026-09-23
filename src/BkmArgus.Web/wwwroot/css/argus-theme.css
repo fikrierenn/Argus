@@ -341,6 +341,15 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
 }
 .argus-filter .solum-field { margin-bottom: 0; }
 .argus-filter-actions { display: flex; align-items: center; gap: 8px; }
+/* Risk onizleme seridi (plan 08) — form icinde skorun canli yansimasi. */
+.argus-risk-onizleme {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: var(--solum-gap);
+  padding: 9px 12px;
+  border: 1px solid var(--solum-line);
+  border-radius: var(--solum-radius-sm);
+  background: var(--solum-surface-alt, transparent);
+}
 
 /* ── Katlanir suzgec paneli (plan 07, Faz 4) ──────────────────────────────
    OLCUM 2026-09-23, 375px:
@@ -477,6 +486,20 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
     .solum-checkbox { width: 22px; height: 22px; }
 
     .argus-checkitem { min-height: 44px; }
+
+    /* GIRDI ALANLARI — ikinci olcumde cikti (plan 08, 2026-09-23).
+       /Audit/Items tasindiktan sonra 375px'te 44px alti hedef 9 kaldi ve
+       DOKUZUNUN DE kaynagi ayni: Solum'un `.solum-input` ilkeli 37-39px.
+       Yukaridaki blok yalniz dugme, sekme, menu ve bildirimi kapsiyordu;
+       ALANLARI kapsamiyordu. Yani T3 gölgelemesi yazildigi gun yarim
+       kalmis — ve bu, bu depoda uc kez tekrarlanan hatanin aynisi:
+       kural yazildi, kapsadigi kume olculmedi.
+
+       `display` DEGISTIRILMIYOR: input/select'e inline-flex vermek
+       tarayicinin kendi ic yerlesimini bozar; yalniz taban yukseklik.
+       textarea zaten satir sayisindan yuksek, yine de zarari yok. */
+    .solum-input,
+    .solum-select { min-height: 44px; }
 }
 
 /* ── Kurulum dugmesi ──────────────────────────────────────────────────
