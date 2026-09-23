@@ -140,9 +140,6 @@
   background: var(--solum-accent); border-color: var(--solum-accent);
   color: var(--solum-accent-ink); font-weight: 600;
 }
-/* Sekme govdesi: seritten sonraki icerik blogu. */
-.argus-tabs-panel { min-width: 0; }
-
 /* ── Pano duzeni — Solum'da bilerek YOK (duzen tuketicide kalir) ─────────── */
 .argus-split, .argus-split-equal { display: grid; gap: var(--solum-gap); margin-bottom: var(--solum-gap); }
 .argus-split { grid-template-columns: 2fr 1fr; }
@@ -213,8 +210,10 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
   border-radius: var(--solum-radius-sm); padding: 10px 12px; cursor: grab;
 }
 .argus-board-card:hover { border-color: var(--solum-accent); }
-.argus-board-card:focus-visible { outline: 2px solid var(--solum-accent); outline-offset: 2px; }
-.argus-board-card[aria-grabbed="true"] { opacity: .5; }
+/* Odak kurali sarmalayicida DEGIL govdede: sarmalayici <div> odaklanmiyor
+   (bkz. .argus-board-card-body:focus-visible). Eski kural restructure'dan
+   sonra OLU kalmisti (code-reviewer bulgusu, 2026-09-23). */
+.argus-board-card:has([aria-grabbed="true"]) { opacity: .5; }
 .argus-board-card-good { border-left-color: var(--solum-good); }
 .argus-board-card-warn { border-left-color: var(--solum-warn); }
 .argus-board-card-bad  { border-left-color: var(--solum-bad); }
@@ -228,6 +227,94 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
 .argus-board-card-sig { font-family: var(--solum-font-mono); font-size: 11px; color: var(--solum-muted); }
 /* Klavye ipucu: fare olmadan tasima yolu GORUNUR olmali. */
 .argus-board-hint { font-size: 11.5px; color: var(--solum-muted); padding: 0 4px 8px; }
+
+/* Kartin GOVDESI artik ayri bir <a>: sarmalayici <div> tonu ve cercevesi
+   tasiyor, baglanti yalniz metni. Ayrilmasinin sebebi HTML: bir <button>
+   (durum degistir) bir <a> icine konamaz. */
+.argus-board-card-body { display: block; text-decoration: none; color: inherit; }
+.argus-board-card-body:focus-visible { outline: 2px solid var(--solum-accent); outline-offset: 2px; }
+
+/* ── Dokunmatik durum dugmesi ─────────────────────────────────────────
+   VARSAYILAN GIZLI. Masaustunde surukleme ve Alt+Ok zaten var; 100 kartin
+   her birine dugme koymak yogunlugu bozar.
+
+   Olcut `pointer: coarse` DEGIL `any-pointer: coarse`: dokunmatik ekranli
+   dizustunde birincil girdi fare (`pointer: fine`) sayilir ama kullanici
+   yine parmagiyla dokunabilir — ve surukleme o dokunusta CALISMAZ. Yani
+   soru "birincil girdi ne" degil, "dokunma MUMKUN mu". */
+.argus-board-status { display: none; }
+
+@media (any-pointer: coarse) {
+    .argus-board-status {
+        display: block; width: 100%; margin-top: 8px; min-height: 44px;
+        background: var(--solum-surface-alt); color: var(--solum-ink);
+        border: 1px solid var(--solum-line); border-radius: var(--solum-radius-sm);
+        font: inherit; font-size: var(--solum-text-sm); font-weight: 600;
+        cursor: pointer;
+    }
+}
+
+/* ── Alt sayfa (bottom sheet) ─────────────────────────────────────────
+   Solum'da YOK ve planlarinda da yok (olculdu 2026-09-23, talep T5 ->
+   "siz yazin"). Adlar solum- sozlesmesine uyumlu tutulmadi cunku bu ilkel
+   devralinirsa kendi adiyla gelecek; tum DEGERLER yine --solum-* token'i. */
+/* Toast (z-index 60) ile AYNI katmanda olmamali: alt sayfa acikken bir
+   bildirim dogarsa gorunmez kalirdi (security-reviewer esik-alti notu). */
+.argus-sheet-kap { position: fixed; inset: 0; z-index: 55; }
+
+.argus-sheet-perde { position: absolute; inset: 0; background: rgb(0 0 0 / .45); }
+
+.argus-sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    max-height: 85vh; overflow-y: auto;
+    background: var(--solum-surface); color: var(--solum-text);
+    border-top: 1px solid var(--solum-line);
+    border-radius: var(--solum-radius) var(--solum-radius) 0 0;
+    padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    animation: argus-sheet-gir .16s ease-out;
+}
+
+/* Hareket duyarliligi olan kullanici icin animasyon YOK — Solum'un kendi
+   `prefers-reduced-motion` blogu genel `*` seciciyle bunu zaten kesiyor,
+   burada acikca yazmak niyeti gorunur kiliyor. */
+@media (prefers-reduced-motion: reduce) { .argus-sheet { animation: none; } }
+
+@keyframes argus-sheet-gir { from { transform: translateY(12px); } to { transform: none; } }
+
+/* Genis ekranda alttan tam genislik sacma durur — ortalanir. */
+@media (min-width: 640px) {
+    .argus-sheet {
+        left: 50%; right: auto; bottom: auto; top: 50%;
+        transform: translate(-50%, -50%); width: 380px;
+        border-radius: var(--solum-radius); border: 1px solid var(--solum-line);
+    }
+    @keyframes argus-sheet-gir {
+        from { transform: translate(-50%, -46%); }
+        to { transform: translate(-50%, -50%); }
+    }
+}
+
+.argus-sheet-baslik { margin: 0 0 2px; font-size: var(--solum-text-md); font-weight: 600; color: var(--solum-ink); }
+.argus-sheet-alt { margin: 0 0 12px; font-size: 12px; color: var(--solum-muted); }
+.argus-sheet-liste { display: flex; flex-direction: column; gap: 6px; }
+
+.argus-sheet-oge {
+    display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+    width: 100%; min-height: 44px; padding: 10px 12px;
+    background: var(--solum-surface); color: var(--solum-ink);
+    border: 1px solid var(--solum-line); border-radius: var(--solum-radius-sm);
+    font: inherit; font-size: var(--solum-text-sm); text-align: left; cursor: pointer;
+}
+.argus-sheet-oge:hover:not(:disabled) { border-color: var(--solum-accent); }
+.argus-sheet-oge:focus-visible { outline: 2px solid var(--solum-accent); outline-offset: 2px; }
+
+/* Mevcut durum SECILI ve pasif: listeden silmek "neden yok" sorusu dogurur,
+   pasif gostermek "zaten buradasin" der. */
+.argus-sheet-oge:disabled { opacity: .55; cursor: default; }
+.argus-sheet-oge--secili { border-color: var(--solum-accent); background: var(--solum-accent-soft); }
+
+.argus-sheet-ipucu { font-size: 11.5px; color: var(--solum-muted); font-weight: 400; }
+.argus-sheet-vazgec { width: 100%; margin-top: 12px; min-height: 44px; }
 
 /* ── Bildirim seridi ──────────────────────────────────────────────────────
    Solum'da YOK (ayri istek olarak soruldu). JS icine gomulu 6 uzun sinif
@@ -323,9 +410,15 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
    birakiyor (olculdu: solum.css:953). Bu bir tema tercihi degil erisilebilirlik
    TABANI — Solum'a bildirildi (talep T3). Gelirse bu blok silinir. */
 @media (pointer: coarse) {
+    /* `.solum-nav-item` OLU SECICIYDI (olculdu 2026-09-23: sayfada 0 eslesme).
+       Solum'un menusu `nav.solum-nav > ul > li > a` — sinifsiz ciplak anchor.
+       Kural yazildi, uygulandi SANILDI, menu ogeleri 37px kaldi ve bunlar
+       telefonda EN COK dokunulan hedefler. Faz 1 olcumum icerik alanini
+       saymis, cekmeceyi saymamisti. Seciciyi yazip dogrulamamak, bu oturumda
+       Solum'un olu `data-solum-href` kancasiyla ayni sinif hata. */
     .solum-btn,
     .argus-tabs-item,
-    .solum-nav-item,
+    .solum-nav a,
     .argus-notif-item {
         min-height: 44px;
         display: inline-flex;
@@ -430,9 +523,6 @@ a.argus-row-link:focus-visible { outline: 2px solid var(--solum-accent); outline
 
     /* Sayisal hizalama kart icinde anlamsiz — deger zaten saga yasli. */
     .argus-cards .solum-table td.solum-num { text-align: right; }
-
-    /* Satir tiklanabilirse kart tumuyle hedef olur (44px zaten saglaniyor). */
-    .argus-cards .solum-table tr[data-solum-href] { cursor: pointer; }
 }
 
 /* ── Satir yan alani dar ekranda sarar ────────────────────────────────

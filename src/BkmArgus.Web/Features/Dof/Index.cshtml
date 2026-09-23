@@ -69,7 +69,7 @@
     <div class="solum-card-head">
         <div>
             <h3 class="solum-card-title">Aksiyon panosu</h3>
-            <div class="solum-card-sub">Bulguları duruma göre takip et — kartı sürükleyerek durum değiştir</div>
+            <div class="solum-card-sub">Bulguları duruma göre takip et — sürükleyerek, Alt + ok tuşlarıyla veya dokunmatikte “Durum değiştir” ile</div>
         </div>
         <div class="solum-row-side">
             <a class="solum-btn solum-btn-primary" asp-page="Create">Yeni DÖF</a>
@@ -104,6 +104,7 @@
     <div class="argus-board-hint">
         Kartı sürükleyip bırakarak durum değiştirin. Fare kullanmadan:
         karta odaklanın (Tab) ve <strong>Alt + ← / →</strong> ile komşu kolona taşıyın.
+        Dokunmatik cihazda kartın altındaki <strong>Durum değiştir</strong> düğmesini kullanın.
     </div>
 
     <div class="argus-board" data-argus-board data-argus-drop-url="/api/dof/transition">
@@ -125,16 +126,22 @@
             var liste = kayitlar.ToList();
             <div class="argus-board-column" data-argus-column="@kod" aria-label="@etiket kolonu">
                 <div class="argus-board-head">
-                    <span class="argus-board-title">@etiket</span>
+                    <span class="argus-board-title" data-argus-column-title>@etiket</span>
                     <span class="argus-board-count" data-argus-count>@liste.Count</span>
                 </div>
 
                 <div class="argus-board-list" data-argus-list>
                     @foreach (var kart in liste)
                     {
-                        <a class="argus-board-card @DofView.RiskToneClass(kart.RiskLabel)"
+                        @* Kart artik SARMALAYICI: icinde bir baglanti (detay) ve bir
+                           dugme (durum) var. Ikisi ayri olmak ZORUNDA — bir <button>
+                           bir <a> icine konamaz (HTML etkilesimli ic ice yasagi).
+                           `data-argus-card` sarmalayicida cunku tasinan butun karttir. *@
+                        <div class="argus-board-card @DofView.RiskToneClass(kart.RiskLabel)"
+                             data-argus-card="@kart.DofId">
+                        <a class="argus-board-card-body"
                            asp-page="Detail" asp-route-id="@kart.DofId"
-                           draggable="true" data-argus-card="@kart.DofId"
+                           draggable="true"
                            aria-label="@kart.Title, @kart.RiskLabel risk">
                             <span class="argus-board-card-top">
                                 <span class="argus-board-card-title">@kart.Title</span>
@@ -159,6 +166,17 @@
                                 }
                             </span>
                         </a>
+                        @* DOKUNMATIK YOLU. Surukle-birak dokunmatikte `dragstart`i
+                           HIC ateslemez (olculdu: touchstart/pointerdown = 0), klavye
+                           yolu masaustu icindi — yani telefonda durum degistirmenin
+                           hicbir yolu YOKTU. Dugme yalniz dokunma girdisi olan
+                           cihazlarda gorunur (CSS `any-pointer: coarse`). *@
+                        <button type="button" class="argus-board-status" data-argus-status
+                                data-argus-card-title="@kart.Title"
+                                aria-label="Durum değiştir: @kart.Title">
+                            Durum değiştir
+                        </button>
+                        </div>
                     }
                     @* Bos kolon sessiz kalmaz; JS sayaci gunceller ve bunu gizler/gosterir. *@
                     <div class="solum-empty" data-argus-empty hidden="@(liste.Count > 0)">Bulgu yok</div>
@@ -169,5 +187,6 @@
 </section>
 
 @section Scripts {
+    <script src="~/js/argus-sheet.js" asp-append-version="true"></script>
     <script src="~/js/argus-board.js" asp-append-version="true"></script>
 }

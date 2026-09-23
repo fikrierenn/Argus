@@ -69,7 +69,7 @@ public static class ApiEndpoints
         }).RequireAuthorization();
     }
 
-    /// <summary>DÖF pano geçişi (sürükle-bırak ve klavye).</summary>
+    /// <summary>DÖF pano geçişi (sürükleme, klavye veya dokunmatik durum seçici).</summary>
     public static void MapDofApi(this WebApplication app)
     {
         app.MapPost("/api/dof/transition",
@@ -100,7 +100,14 @@ public static class ApiEndpoints
                     NewStatus = newStatus,
                     UserId = userId.Value,
                     UserRole = role,
-                    Reason = "Kanban surukle-birak ile degistirildi"
+                    // IZ KANAL IDDIASI ETMEZ. Burasi eskiden "Kanban surukle-birak
+                    // ile degistirildi" yaziyordu; plan 07 Faz 3'te DOKUNMATIK
+                    // ucuncu yol eklenince (klavye zaten vardi) bu cumle iki yolda
+                    // YALAN olmaya basladi. Denetim yaziliminda izin yanlis sey
+                    // soylemesi, hic sey soylememesinden kotudur — kanali
+                    // bilmiyorsak YAZMAYIZ. Kanali gercekten kaydetmek istersek
+                    // istemciden BEYAZ LISTELI bir alan gelmeli (TODO).
+                    Reason = "Pano uzerinden durum degistirildi"
                 });
 
                 // Denetim izi: durum değiştiren işlem (security-principles.md).

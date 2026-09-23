@@ -143,7 +143,13 @@
         hedefListe.appendChild(kart);
         sayaclariYenile(board);
         ozetiBayatIsaretle();
-        if (typeof kart.focus === "function") kart.focus();
+
+        // Kart artik bir SARMALAYICI (baglanti + durum dugmesi); sarmalayici
+        // odaklanamaz. Odak ic ogeye verilir, yoksa klavye kullanicisi
+        // tasimadan sonra sayfanin basina duser.
+        var odak = kart.matches("a, button") ? kart : kart.querySelector("a, button");
+        if (odak && typeof odak.focus === "function") odak.focus();
+
         bildir(board, "Durum güncellendi.", "good");
     }
 
@@ -153,12 +159,20 @@
         if (!kart) return;
         e.dataTransfer.setData(SURUKLENEN, kart.getAttribute("data-argus-card"));
         e.dataTransfer.effectAllowed = "move";
-        kart.setAttribute("aria-grabbed", "true");
+
+        // `aria-grabbed` SURUKLENEN ogede durur — sarmalayici <div> odaklanmaz
+        // ve rolu yoktur, orada yazan durum ekran okuyucunun odaklandigi
+        // dugumde GORUNMEZ. Gorsel sonmeyi CSS `:has()` ile sarmalayiciya
+        // tasiyoruz (code-reviewer bulgusu, 2026-09-23).
+        (e.target.closest(".argus-board-card-body") || kart)
+            .setAttribute("aria-grabbed", "true");
     });
 
     document.addEventListener("dragend", function (e) {
         var kart = e.target.closest("[data-argus-card]");
-        if (kart) kart.removeAttribute("aria-grabbed");
+        if (!kart) return;
+        var tasinan = kart.querySelector("[aria-grabbed]") || kart;
+        tasinan.removeAttribute("aria-grabbed");
     });
 
     document.addEventListener("dragover", function (e) {
@@ -185,6 +199,78 @@
         var id = e.dataTransfer.getData(SURUKLENEN);
         if (!board || !id) return;
         tasi(board, board.querySelector('[data-argus-card="' + id + '"]'), kolon);
+    });
+
+    // ── Dokunmatik: durum secici alt sayfa ───────────────────────────────
+    //
+    // NEDEN UCUNCU BIR YOL (olculdu 2026-09-22):
+    //   Bu dosyada `touchstart`/`pointerdown` sayisi SIFIRDI ve HTML5
+    //   surukle-birak dokunmatikte `dragstart`i HIC atesliyor. Klavye yolu
+    //   (Alt+Ok) masaustu icindi. Yani panoda telefondan durum degistirmenin
+    //   HICBIR yolu yoktu. Solum kendi panosunda ayni korlugu olctu ve bunu
+    //   kendi kusuru olarak kaydetti (`js-disiplini.md` §5 "fare olmadan"
+    //   derken dokunmayi FARE sayiyormus).
+    //
+    // NEDEN SURUKLEME TAKLIDI YOK:
+    //   `pointer` olaylariyla surukleme yazmak dokunmatikte sayfa
+    //   kaydirmasiyla CAKISIR — denetci listeyi kaydirmaya calisirken kart
+    //   tasir. Dokun -> sec hem kazasiz hem erisilebilir.
+    //
+    // NEDEN KARTIN KENDISI DEGIL AYRI DUGME:
+    //   Kart bir `<a>`; dokunmak DETAYA gidiyor ve bu dogru davranis. O
+    //   dokunusu calmak calisan bir yolu kirardi (orta tik, yeni sekme,
+    //   adres onizleme de gider). Durum ayri, acik bir dugme.
+    function durumSeciciAc(dugme) {
+        var kart = dugme.closest("[data-argus-card]");
+        var board = pano(kart);
+
+        // Bir alttaki `ArgusSheet` kontrolu fail-loud; bu da oyle olmali.
+        // Eskiden sessiz `return` vardi: isaretleme bozulursa dugme basiliyor,
+        // hicbir sey olmuyor ve konsolda iz kalmiyordu — kapattigimiz kusurun
+        // aynisi (code-reviewer bulgusu, 2026-09-23).
+        if (!kart || !board) {
+            bildir(null, "Kart bulunamadı: ekran tanımı eksik. Sayfayı yenileyin.", "bad");
+            return;
+        }
+
+        // Fail-loud: betik yuklenmediyse SESSIZ kalma. Sessiz kalirsa
+        // dokunmatik kullanici dugmeye basar, hicbir sey olmaz ve nedenini
+        // soyleyen hicbir sey yoktur — kapattigimiz kusurun ta kendisi.
+        if (!window.ArgusSheet) {
+            bildir(board, "Durum seçici yüklenemedi. Sayfayı yenileyin.", "bad");
+            return;
+        }
+
+        var simdiki = kart.closest("[data-argus-column]");
+
+        var secenekler = kolonlar(board).map(function (kolon) {
+            var ad = kolon.querySelector("[data-argus-column-title]");
+            return {
+                etiket: ad ? ad.textContent.trim() : kolon.getAttribute("data-argus-column"),
+                deger: kolon.getAttribute("data-argus-column"),
+                secili: kolon === simdiki
+            };
+        });
+
+        window.ArgusSheet.ac({
+            baslik: "Durum değiştir",
+            acan: dugme,
+            altBaslik: dugme.getAttribute("data-argus-card-title") || null,
+            secenekler: secenekler,
+            onSec: function (durum) {
+                var hedef = board.querySelector('[data-argus-column="' + durum + '"]');
+                tasi(board, kart, hedef);
+            }
+        });
+    }
+
+    document.addEventListener("click", function (e) {
+        var dugme = e.target.closest("[data-argus-status]");
+        if (!dugme) return;
+        // Dugme kartin ICINDE degil YANINDA duruyor (bir <button> bir <a>
+        // icine konamaz), yine de tiklamanin karta sizmasi engelleniyor.
+        e.preventDefault();
+        durumSeciciAc(dugme);
     });
 
     // ── Klavye: Alt+Sol / Alt+Sag ────────────────────────────────────────
